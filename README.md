@@ -2,8 +2,7 @@
 
 > Tu Mini Web OS. Desarrolla apps en segundos o descarga utilidades pre-hechas para potenciar tu navegador.
 
-[![Versión](https://img.shields.io/badge/Versión-1.0.0-blue?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
-[![Abrir MyHub](https://img.shields.io/badge/Abrir_MyHub-Online-brightgreen?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
+[![Abrir MyHubHestudios](https://img.shields.io/badge/Abrir_MyHub-Online-brightgreen?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
 [![GitHub](https://img.shields.io/badge/GitHub-Repositorio-black?style=for-the-badge&logo=github)](https://github.com/VicHe-studios/MyHubHestudio)
 
 **MyHubHestudio** es un entorno de escritorio ligero (Web OS) que corre directamente en tu navegador. No necesitas instalar nada, todo se guarda de forma local y segura en tu navegador mediante IndexedDB.
