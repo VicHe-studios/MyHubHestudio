@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MyHubHestudio</title>
+<!-- Favicon morado -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c3aed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M9 11v6M15 11v6M9 14h6'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="LobbyStyle.css">
+<script src="vendor/lucide.min.js"></script>
+</head>
+<body>
+
+<div id="fondo-imagen"></div>
+
+<div id="desktop">
+  <div id="icons"></div>
+  <div class="preview" id="preview"></div>
+  <div id="bloqueo" class="bloqueo hidden">
+    <div class="bloqueo-caja">
+      <div class="bloqueo-icono"><i data-lucide="lock"></i></div>
+      <h2 id="bloqueoTitulo">Bienvenido a MyHub</h2>
+      <p id="bloqueoTexto">Crea una cuenta para empezar a usar MyHub.</p>
+      <button id="bloqueoBtn" class="btn btn-grande">Crear cuenta</button>
+    </div>
+  </div>
+</div>
+
+<div id="menu" class="menu hidden">
+  <div class="menu-cab">
+    <!-- Logo morado forzado directamente en el SVG -->
+    <div class="logo-icon" style="color: #7c3aed; background: color-mix(in srgb, #7c3aed 15%, transparent);">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+        <path d="M9 11v6M15 11v6M9 14h6"/>
+      </svg>
+    </div>
+    <span>MyHubHestudio</span>
+  </div>
+  <div id="menuOps"></div>
+</div>
+
+<div id="modal" class="modal hidden">
+  <div class="card">
+    <div class="cab">
+      <h3 id="mTitulo"></h3>
+      <button id="mCerrar" class="close" aria-label="Cerrar"><i data-lucide="x"></i></button>
+    </div>
+    <div id="mBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div id="taskbar">
+  <button id="inicio" class="inicio" title="Inicio">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M3 11 12 3l9 8"/>
+      <path d="M5 9.5V21h14V9.5"/>
+      <path d="M9 17v-5M15 17v-5M9 14.5h6"/>
+    </svg>
+  </button>
+  <div id="tasks"></div>
+  <span id="clock"></span>
+</div>
+
+<script src="ExtraFunc.js"></script>
+<script src="JsRutas.js"></script>
+<script src="JsLobby.js"></script>
+<script>
+  window.addEventListener('load', () => { if (window.lucide) lucide.createIcons(); });
+</script>
+</body>
+</html>
