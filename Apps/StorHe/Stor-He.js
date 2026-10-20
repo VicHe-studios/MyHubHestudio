@@ -37,15 +37,14 @@
     });
   };
 
-  // 3. Obtener lista de carpetas (Apps) desde la API de GitHub
+  // 3. Obtener lista de carpetas y leer sus Manifests
   const fetchApps = async () => {
-    appsList.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 20px;">Buscando apps en el repositorio...</p>';
+    appsList.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 20px;">Buscando apps y leyendo manifiestos...</p>';
     try {
       const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`);
       if (!res.ok) throw new Error('Error al conectar con GitHub');
       
       const data = await res.json();
-      // Filtrar solo carpetas
       const folders = data.filter(item => item.type === 'dir' && !item.name.startsWith('.'));
 
       if (folders.length === 0) {
@@ -55,19 +54,41 @@
 
       const installedApps = await kvGet('apps_instaladas') || {};
 
+      // Leer los manifests de cada carpeta usando jsDelivr
+      const appsData = await Promise.all(folders.map(async (folder) => {
+        let titulo = folder.name;
+        let icono = 'box';
+        
+        try {
+          const manifestUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${folder.name}/manifest.json`;
+          const mRes = await fetch(manifestUrl);
+          if (mRes.ok) {
+            const manifest = await mRes.json();
+            titulo = manifest.titulo || folder.name;
+            icono = manifest.icono || 'box';
+          }
+        } catch (e) {
+          // Si falla la lectura del manifest, usamos valores por defecto
+          console.warn(`No se pudo leer el manifest de ${folder.name}`);
+        }
+
+        return { id: folder.name, titulo, icono };
+      }));
+
+      // Renderizar la lista con los datos reales
       appsList.innerHTML = '';
-      folders.forEach(folder => {
-        const isInstalled = !!installedApps[folder.name];
+      appsData.forEach(app => {
+        const isInstalled = !!installedApps[app.id];
         
         const card = document.createElement('div');
         card.className = 'app-card';
         card.innerHTML = `
-          <div class="app-icon"><i data-lucide="box"></i></div>
+          <div class="app-icon"><i data-lucide="${app.icono}"></i></div>
           <div class="app-info">
-            <h3 class="app-title">${folder.name}</h3>
-            <p class="app-id">ID: ${folder.name}</p>
+            <h3 class="app-title">${app.titulo}</h3>
+            <p class="app-id">ID: ${app.id}</p>
           </div>
-          <button class="btn-install" data-id="${folder.name}" ${isInstalled ? 'disabled' : ''}>
+          <button class="btn-install" data-id="${app.id}" ${isInstalled ? 'disabled' : ''}>
             ${isInstalled ? 'Instalada' : 'Instalar'}
           </button>
         `;
@@ -85,7 +106,7 @@
     }
   };
 
-  // 4. Instalar app (Descarga individual de archivos)
+  // 4. Instalar app
   const instalarApp = async (appId, btnElement) => {
     const originalText = btnElement.textContent;
     btnElement.textContent = 'Instalando...';
@@ -95,24 +116,20 @@
       const archivos = {};
       let manifest = null;
 
-      // Buscar archivos dentro de la carpeta de la app en GitHub
       const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}`);
       if (!res.ok) throw new Error('No se pudo leer la carpeta de la app');
       
       const fileList = await res.json();
 
-      // Descargar cada archivo de la carpeta usando jsDelivr (sin bloqueos CORS)
       for (const file of fileList) {
         if (file.type === 'file') {
-          // jsDelivr lee directamente el archivo desde tu repo de GitHub
           const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${file.path}`;
           const fileRes = await fetch(jsDelivrUrl);
-          if (!fileRes.ok) continue; // Si falla un archivo, pasamos al siguiente
+          if (!fileRes.ok) continue; 
           
           const blob = await fileRes.blob();
           archivos[file.name] = blob;
 
-          // Leer el manifest si existe
           if (file.name === 'manifest.json') {
             const text = await blob.text();
             manifest = JSON.parse(text);
@@ -120,18 +137,15 @@
         }
       }
 
-      // Si no hay manifest, crear uno por defecto
       if (!manifest) {
         manifest = { id: appId, titulo: appId, icono: 'box', main: 'index.html' };
       }
       manifest.id = appId;
 
-      // Guardar en IndexedDB
       const apps = await kvGet('apps_instaladas') || {};
       apps[appId] = { manifest, archivos };
       await kvSet('apps_instaladas', apps);
 
-      // Notificar al Lobby
       if (window.parent && window.parent.MyHub) {
         window.parent.MyHub.registrarApp({
           id: manifest.id,
@@ -154,9 +168,6 @@
     }
   };
 
-  // 5. Eventos
   btnRefresh.onclick = fetchApps;
-
-  // Iniciar
   fetchApps();
 })();
