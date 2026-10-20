@@ -2,10 +2,13 @@
 
 > Tu Mini Web OS. Desarrolla apps en segundos o descarga utilidades pre-hechas para potenciar tu navegador.
 
-[![Live Demo](https://img.shields.io/badge/Demo-Live-brightgreen?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
+[![Versión](https://img.shields.io/badge/Versión-1.0.0-blue?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
+[![Abrir MyHub](https://img.shields.io/badge/Abrir_MyHub-Online-brightgreen?style=for-the-badge)](https://viche-studios.github.io/MyHubHestudio/)
 [![GitHub](https://img.shields.io/badge/GitHub-Repositorio-black?style=for-the-badge&logo=github)](https://github.com/VicHe-studios/MyHubHestudio)
 
 **MyHubHestudio** es un entorno de escritorio ligero (Web OS) que corre directamente en tu navegador. No necesitas instalar nada, todo se guarda de forma local y segura en tu navegador mediante IndexedDB.
+
+> 💡 **Versión Estable 1.0.0**: Esta es una versión totalmente funcional y lista para el uso diario. El proyecto se mantiene en constante evolución, por lo que recibirás futuras actualizaciones con nuevas herramientas y mejoras de rendimiento.
 
 ## ✨ Características
 
@@ -21,10 +24,10 @@
 Puedes usar MyHubHestudio de dos formas:
 
 ### 1. En línea (Recomendado)
-Haz clic en el botón de **[Live Demo](https://viche-studios.github.io/MyHubHestudio/)** y empieza a usar el sistema sin configurar nada.
+Haz clic en el botón de **[Abrir MyHub](https://viche-studios.github.io/MyHubHestudio/)** para entrar a la versión estable v1.0.0 alojada en GitHub Pages.
 
 ### 2. En local
-Si quieres probar el código o modificarlo:
+Si quieres probar el código, modificarlo o desarrollar tus propias apps:
 1. Clona este repositorio: `git clone https://github.com/VicHe-studios/MyHubHestudio.git`
 2. Ejecuta el archivo `iniciar.bat` (Windows) o abre una terminal en la carpeta y escribe:
    `python -m http.server 8000`
