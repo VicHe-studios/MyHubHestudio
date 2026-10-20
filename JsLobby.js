@@ -344,12 +344,16 @@ function eliminarApp(id) {
   renderIconos();
 }
 
+// --- RENDERIZADO CON ANTICOLISIONES Y LÍMITE ESTRICTO ---
 function renderIconos() {
   const c = $('icons'); c.innerHTML = '';
   
-  // LÓGICA DE COLUMNAS INTELIGENTES
+  // Calcular cuántos iconos caben verticalmente de forma estricta
   const deskHeight = desk.clientHeight || window.innerHeight - 90;
   const maxRows = Math.max(1, Math.floor((deskHeight - MARGEN_ICONOS) / GRID_Y));
+
+  // Llevar registro de las celdas ocupadas para evitar superposiciones
+  const usedCells = new Set();
 
   orden.forEach((id, i) => {
     const app = registro.get(id);
@@ -357,26 +361,65 @@ function renderIconos() {
     d.style.setProperty('--i', i);
     d.innerHTML = `<div class="ico"><i data-lucide="${esc(app.icono || 'app-window')}"></i></div><span>${esc(app.titulo)}</span>`;
     
+    let targetX = -1, targetY = -1;
+
+    // 1. Intentar usar la posición guardada (si existe)
     if (posicionesIconos[id]) {
-      // Posición guardada manualmente
-      d.style.left = posicionesIconos[id].left;
-      d.style.top = posicionesIconos[id].top;
-    } else {
-      // Auto-ubicación en columnas
-      const col = Math.floor(i / maxRows);
-      const row = i % maxRows;
-      
-      d.style.left = (MARGEN_ICONOS + col * GRID_X) + 'px';
-      d.style.top = (MARGEN_ICONOS + row * GRID_Y) + 'px';
+      const savedX = parseFloat(posicionesIconos[id].left);
+      const savedY = parseFloat(posicionesIconos[id].top);
+      const cellKey = `${savedX}-${savedY}`;
+
+      // Si la celda NO está ocupada por un icono anterior, la usamos
+      if (!usedCells.has(cellKey)) {
+        targetX = savedX;
+        targetY = savedY;
+        usedCells.add(cellKey);
+      }
     }
 
-    hacerArrastrable(d, id);
+    // 2. Si no hay posición guardada, o estaba ocupada (colisión), calcular una nueva
+    if (targetX === -1) {
+      let col = 0;
+      let row = 0;
+      let found = false;
+
+      while (!found) {
+        const x = MARGEN_ICONOS + col * GRID_X;
+        const y = MARGEN_ICONOS + row * GRID_Y;
+        const cellKey = `${x}-${y}`;
+
+        if (!usedCells.has(cellKey)) {
+          targetX = x;
+          targetY = y;
+          usedCells.add(cellKey);
+          found = true;
+          
+          // Actualizar la posición para que la base de datos esté limpia
+          posicionesIconos[id] = { left: x + 'px', top: y + 'px' };
+        } else {
+          // Avanzar a la siguiente fila o columna
+          row++;
+          if (row >= maxRows) {
+            row = 0;
+            col++;
+          }
+        }
+      }
+    }
+
+    d.style.left = targetX + 'px';
+    d.style.top = targetY + 'px';
+
+    hacerArrastrable(d, id, maxRows);
     c.appendChild(d);
   });
+  
+  // Guardar el estado limpio
+  kvSet('posiciones_iconos', posicionesIconos);
   refrescarIconos();
 }
 
-function hacerArrastrable(el, id) {
+function hacerArrastrable(el, id, maxRows) {
   let isDragging = false;
   let startX, startY, startLeft, startTop;
 
@@ -433,12 +476,32 @@ function hacerArrastrable(el, id) {
         
         snapX = Math.max(MARGEN_ICONOS, Math.min(snapX, maxLeft));
         snapY = Math.max(MARGEN_ICONOS, Math.min(snapY, maxTop));
-        
-        el.style.left = snapX + 'px';
-        el.style.top = snapY + 'px';
-        
-        posicionesIconos[id] = { left: el.style.left, top: el.style.top };
-        kvSet('posiciones_iconos', posicionesIconos);
+
+        // --- COMPROBACIÓN DE COLISIONES AL SOLTAR ---
+        let collision = false;
+        const icons = document.querySelectorAll('.icon');
+        for (const iconEl of icons) {
+          if (iconEl === el) continue;
+          // Si otro icono ya está exactamente en esta coordenada
+          if (parseFloat(iconEl.style.left) === snapX && parseFloat(iconEl.style.top) === snapY) {
+            collision = true;
+            break;
+          }
+        }
+
+        if (collision) {
+          // Rebotar a la posición original
+          el.style.left = startLeft + 'px';
+          el.style.top = startTop + 'px';
+          toast('Posición ocupada por otra app');
+        } else {
+          // Movimiento válido
+          el.style.left = snapX + 'px';
+          el.style.top = snapY + 'px';
+          posicionesIconos[id] = { left: el.style.left, top: el.style.top };
+          kvSet('posiciones_iconos', posicionesIconos);
+        }
+
       } else {
         abrir(id);
       }
