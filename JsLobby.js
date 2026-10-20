@@ -344,14 +344,13 @@ function eliminarApp(id) {
   renderIconos();
 }
 
-// --- RENDERIZADO CON ANTICOLISIONES Y LÍMITE ESTRICTO ---
 function renderIconos() {
   const c = $('icons'); c.innerHTML = '';
   
-  // Calcular cuántos iconos caben verticalmente de forma estricta
+  // LÓGICA DE COLUMNAS INTELIGENTES
   const deskHeight = desk.clientHeight || window.innerHeight - 90;
   const maxRows = Math.max(1, Math.floor((deskHeight - MARGEN_ICONOS) / GRID_Y));
-  const maxYLimit = MARGEN_ICONOS + (maxRows - 1) * GRID_Y; // El Y más bajo permitido
+  const maxYLimit = MARGEN_ICONOS + (maxRows - 1) * GRID_Y;
 
   const usedCells = new Set();
 
@@ -363,13 +362,12 @@ function renderIconos() {
     
     let targetX = -1, targetY = -1;
 
-    // 1. Intentar usar la posición guardada (solo si es válida y no choca)
+    // 1. Intentar usar la posición guardada (si es válida)
     if (posicionesIconos[id]) {
       const savedX = parseFloat(posicionesIconos[id].left);
       const savedY = parseFloat(posicionesIconos[id].top);
       const cellKey = `${savedX}-${savedY}`;
 
-      // Verificamos que NO esté ocupada y que NO supere el límite de abajo
       if (!usedCells.has(cellKey) && savedY <= maxYLimit) {
         targetX = savedX;
         targetY = savedY;
@@ -393,8 +391,6 @@ function renderIconos() {
           targetY = y;
           usedCells.add(cellKey);
           found = true;
-          
-          // Guardamos esta nueva posición limpia
           posicionesIconos[id] = { left: x + 'px', top: y + 'px' };
         } else {
           row++;
@@ -413,7 +409,6 @@ function renderIconos() {
     c.appendChild(d);
   });
   
-  // Guardar el estado limpio
   kvSet('posiciones_iconos', posicionesIconos);
   refrescarIconos();
 }
@@ -448,7 +443,6 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
         let newTop = startTop + dy;
         
         const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN_ICONOS;
-        // Frenamos el ratón visualmente si intenta pasar del límite vertical permitido
         newTop = Math.max(MARGEN_ICONOS, Math.min(newTop, maxYLimit));
         newLeft = Math.max(MARGEN_ICONOS, Math.min(newLeft, maxLeft));
         
@@ -472,13 +466,9 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
         const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN_ICONOS;
         snapX = Math.max(MARGEN_ICONOS, Math.min(snapX, maxLeft));
 
-        // --- COMPROBACIÓN DE COLISIONES Y LÍMITES AL SOLTAR ---
         let invalid = false;
-        
-        // Si el Snap final supera el límite permitido, lo bloqueamos
         if (snapY > maxYLimit) invalid = true; 
 
-        // Si hay colisión con otro icono
         const icons = document.querySelectorAll('.icon');
         for (const iconEl of icons) {
           if (iconEl === el) continue;
@@ -489,12 +479,10 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
         }
 
         if (invalid) {
-          // Rebotar a la posición original
           el.style.left = startLeft + 'px';
           el.style.top = startTop + 'px';
           toast('Posición inválida u ocupada');
         } else {
-          // Movimiento válido
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
           posicionesIconos[id] = { left: el.style.left, top: el.style.top };
@@ -535,10 +523,12 @@ function acomodar() {
   }
 }
 
+// NUEVO MÉTODO ROBUSTO DE PREPARACIÓN DE APP
 async function prepararAppInstalada(app) {
   const archivos = app.archivos;
   const dataUrls = {};
   
+  // 1. Convertir todos los archivos a Data URLs
   for (const [nombre, fileBlob] of Object.entries(archivos)) {
     const blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob]);
     dataUrls[nombre] = await aDataURL(blob);
@@ -555,21 +545,44 @@ async function prepararAppInstalada(app) {
   const blobToUse = mainBlob instanceof Blob ? mainBlob : new Blob([mainBlob]);
   let htmlText = await blobToUse.text();
 
-  for (const [nombre, dataUrl] of Object.entries(dataUrls)) {
-    if (nombre === mainFile) continue;
-    
-    htmlText = htmlText.split(`src="${nombre}"`).join(`src="${dataUrl}"`);
-    htmlText = htmlText.split(`src="./${nombre}"`).join(`src="${dataUrl}"`);
-    htmlText = htmlText.split(`href="${nombre}"`).join(`href="${dataUrl}"`);
-    htmlText = htmlText.split(`href="./${nombre}"`).join(`href="${dataUrl}"`);
-    
-    htmlText = htmlText.split(`src='${nombre}'`).join(`src='${dataUrl}'`);
-    htmlText = htmlText.split(`src='./${nombre}'`).join(`src='${dataUrl}'`);
-    htmlText = htmlText.split(`href='${nombre}'`).join(`href='${dataUrl}'`);
-    htmlText = htmlText.split(`href='./${nombre}'`).join(`href='${dataUrl}'`);
-  }
+  // 2. Usar DOMParser para manipular el HTML de forma segura
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlText, 'text/html');
 
-  return htmlText;
+  // Función auxiliar para buscar coincidencias
+  const getDataUrl = (path) => {
+    const cleanPath = path.replace(/^\.\//, '').replace(/^\//, '');
+    return dataUrls[cleanPath] || null;
+  };
+
+  // 3. Reemplazar CSS
+  doc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+    const href = link.getAttribute('href');
+    if (href) {
+      const dataUrl = getDataUrl(href);
+      if (dataUrl) link.setAttribute('href', dataUrl);
+    }
+  });
+
+  // 4. Reemplazar JS
+  doc.querySelectorAll('script[src]').forEach(script => {
+    const src = script.getAttribute('src');
+    if (src) {
+      const dataUrl = getDataUrl(src);
+      if (dataUrl) script.setAttribute('src', dataUrl);
+    }
+  });
+
+  // 5. Reemplazar Imágenes
+  doc.querySelectorAll('img[src]').forEach(img => {
+    const src = img.getAttribute('src');
+    if (src) {
+      const dataUrl = getDataUrl(src);
+      if (dataUrl) img.setAttribute('src', dataUrl);
+    }
+  });
+
+  return doc.documentElement.outerHTML;
 }
 
 async function abrir(id) {
