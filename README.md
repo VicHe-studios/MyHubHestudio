@@ -44,3 +44,12 @@ Crear una app para MyHub es muy sencillo. Solo necesitas un archivo `manifest.js
   "icono": "layout",
   "main": "index.html"
 }
+
+## 🛠️ Tecnologías Utilizadas
+
+- **HTML / CSS / Vanilla JS** (Cero dependencias de frameworks pesados).
+- **[Lucide Icons](https://lucide.dev/)**: Iconografía del sistema.
+- **[JSZip](https://stuk.github.io/jszip/)**: Para el manejo e instalación de archivos comprimidos (Forge).
+- **[jsDelivr](https://www.jsdelivr.com/)**: CDN utilizado para la descarga rápida y sin bloqueos de las apps desde Stor-He.
+- **IndexedDB**: Para el almacenamiento local de cuentas y apps.
+- **GitHub Pages**: Alojamiento del entorno.
