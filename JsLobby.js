@@ -212,6 +212,7 @@ function vistaCreditos() {
       <h4>Librerías de Código Abierto</h4>
       <p><strong>Lucide</strong> (Iconografía del sistema)</p>
       <p><strong>JSZip</strong> (Manejo de archivos comprimidos en la instalación)</p>
+      <p><strong>jsDelivr</strong> (Distribución de archivos y descargas en Stor-He)</p>
     </div>
     <div class="credito-item">
       <h4>Infraestructura y Despliegue</h4>
