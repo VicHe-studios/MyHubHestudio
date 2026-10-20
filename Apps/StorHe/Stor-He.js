@@ -57,7 +57,8 @@
         let descripcion = null;
         
         try {
-          const manifestUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${folder.name}/manifest.json`;
+          // Usamos raw.githubusercontent.com en lugar de jsDelivr para evitar el caché
+          const manifestUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${folder.name}/manifest.json`;
           const mRes = await fetch(manifestUrl);
           if (mRes.ok) {
             const manifest = await mRes.json();
@@ -80,7 +81,6 @@
         const card = document.createElement('div');
         card.className = 'app-card';
         
-        // Construimos los textos opcionales
         const autorHtml = app.autor ? `<span class="app-author">Por ${app.autor}</span>` : '';
         const descHtml = app.descripcion ? `<span class="app-desc">${app.descripcion}</span>` : '';
 
@@ -128,6 +128,7 @@
 
       for (const file of fileList) {
         if (file.type === 'file') {
+          // Para los archivos de la app (como el index.html) seguimos usando jsDelivr porque permite CORS
           const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${file.path}`;
           const fileRes = await fetch(jsDelivrUrl);
           if (!fileRes.ok) continue; 
