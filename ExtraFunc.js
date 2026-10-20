@@ -36,30 +36,50 @@ window.MyHub.registrarApp({
   url: 'Apps/MiApp/index.html' // Ruta relativa desde Lobby.html
 });
 
-C) APP INSTALABLE (Archivo ZIP) - RECOMENDADO:
-Ideal para distribuir tu app. El usuario la instala usando "Forge" o "Stor-He".
+C) APP INSTALABLE (Archivo ZIP) - RECOMENDADO PARA DISTRIBUIR:
+El usuario la instala usando "Forge" o "Stor-He".
 
 --------------------------------------------------
-2. ESTRUCTURA Y MANIFEST DE UNA APP ZIP
+2. REGLA DE ORO: 1 SOLO ARCHIVO HTML + MANIFEST
 --------------------------------------------------
-Para que tu app sea instalable, debes crear un archivo .ZIP con esta estructura:
+¡ATENCIÓN! Para garantizar que tu app cargue de forma instantánea y sin 
+errores de rutas (Error 404) dentro del sistema, la app instalable 
+DEBE constar únicamente de 2 archivos:
 
 MiApp.zip
  ┣ 📜 manifest.json  (Obligatorio)
- ┣ 📜 index.html     (Obligatorio, o el nombre que pongas en "main")
- ┣ 📜 style.css      (Opcional)
- ┣ 📜 script.js      (Opcional)
- ┗ 🖼️ assets/        (Opcional para imágenes)
+ ┗ 📜 index.html     (Obligatorio, contiene TODO el HTML, CSS y JS)
+
+NO uses archivos separados como style.css, app.js o carpetas de imágenes.
+En su lugar, integra todo dentro del index.html usando las etiquetas 
+<style> para el diseño y <script> para la lógica.
 
 --- EL MANIFEST.JSON EXPLICADO ---
-Este archivo le dice a MyHub cómo instalar y mostrar tu app:
-
 {
   "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas. Ej: "calculadora".
   "titulo": "Mi App",         // (Obligatorio) El nombre que aparecerá debajo del icono.
-  "icono": "layout",          // (Obligatorio) El nombre del icono de Lucide (ej: "clock", "notebook-pen", "settings").
+  "icono": "layout",          // (Obligatorio) El nombre del icono de Lucide (ej: "clock", "settings").
   "main": "index.html"        // (Obligatorio) El archivo HTML principal que se cargará.
 }
+
+--- EJEMPLO DE INDEX.HTML TODO-EN-UNO ---
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <style>
+    /* Todo tu CSS va aquí adentro */
+    body { margin: 0; background: var(--card); color: var(--text); font-family: sans-serif; }
+  </style>
+</head>
+<body>
+  <h1>Mi Súper App</h1>
+  <script>
+    /* Todo tu JS va aquí adentro */
+    console.log('App cargada correctamente');
+  </script>
+</body>
+</html>
 
 --------------------------------------------------
 3. TAMAÑO DE PANTALLA Y LAYOUT
