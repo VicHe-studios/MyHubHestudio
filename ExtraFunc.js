@@ -59,7 +59,11 @@ En su lugar, integra todo dentro del index.html usando las etiquetas
   "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas. Ej: "calculadora".
   "titulo": "Mi App",         // (Obligatorio) El nombre que aparecerá debajo del icono.
   "icono": "layout",          // (Obligatorio) El nombre del icono de Lucide (ej: "clock", "settings").
-  "main": "index.html"        // (Obligatorio) El archivo HTML principal que se cargará.
+  "main": "index.html",       // (Obligatorio) El archivo HTML principal que se cargará.
+  
+  // --- CAMPOS OPCIONALES (Mejoran la vista en la tienda Stor-He) ---
+  "autor": "Tu Nombre",       // (Opcional) Creador de la app.
+  "descripcion": "Una app que hace cosas increíbles." // (Opcional) Breve descripción.
 }
 
 --- EJEMPLO DE INDEX.HTML TODO-EN-UNO ---
