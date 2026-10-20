@@ -2,11 +2,10 @@
   const appsList = document.getElementById('apps-list');
   const btnRefresh = document.getElementById('btn-refresh');
 
-  // Constantes del repositorio
+  // Constantes de tu repositorio de apps
   const REPO_OWNER = 'VicHe-studios';
   const REPO_NAME = 'MyHubHestudio-StorHe';
   const BRANCH = 'main';
-  const ZIP_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/heads/${BRANCH}.zip`;
 
   // 1. Pedir tema al Lobby
   if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
@@ -38,7 +37,7 @@
     });
   };
 
-  // 3. Obtener lista de apps desde la API de GitHub
+  // 3. Obtener lista de carpetas (Apps) desde la API de GitHub
   const fetchApps = async () => {
     appsList.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 20px;">Buscando apps en el repositorio...</p>';
     try {
@@ -46,7 +45,7 @@
       if (!res.ok) throw new Error('Error al conectar con GitHub');
       
       const data = await res.json();
-      // Filtrar solo carpetas y excluir carpetas del sistema si las hubiera (ej. .github)
+      // Filtrar solo carpetas
       const folders = data.filter(item => item.type === 'dir' && !item.name.startsWith('.'));
 
       if (folders.length === 0) {
@@ -54,7 +53,6 @@
         return;
       }
 
-      // Obtener apps ya instaladas para saber cuáles deshabilitar
       const installedApps = await kvGet('apps_instaladas') || {};
 
       appsList.innerHTML = '';
@@ -76,7 +74,6 @@
         appsList.appendChild(card);
       });
 
-      // Asignar eventos a los botones
       document.querySelectorAll('.btn-install').forEach(btn => {
         btn.onclick = () => instalarApp(btn.dataset.id, btn);
       });
@@ -88,59 +85,45 @@
     }
   };
 
-  // 4. Instalar app (Descargar ZIP de GitHub y extraer solo la carpeta)
+  // 4. Instalar app (Descarga individual de archivos)
   const instalarApp = async (appId, btnElement) => {
     const originalText = btnElement.textContent;
-    btnElement.textContent = 'Descargando...';
+    btnElement.textContent = 'Instalando...';
     btnElement.disabled = true;
 
     try {
-      // Descargar el ZIP completo del repositorio
-      const res = await fetch(ZIP_URL);
-      if (!res.ok) throw new Error('Error al descargar el ZIP del repositorio');
-      const zipBlob = await res.blob();
-
-      // Cargar el ZIP con JSZip
-      const zip = await JSZip.loadAsync(zipBlob);
-      
-      // El ZIP de GitHub crea una carpeta raíz como "MyHubHestudio-main/"
-      const rootFolder = `${REPO_NAME}-${BRANCH}/`;
-      
       const archivos = {};
       let manifest = null;
 
-      // Extraer solo los archivos de la carpeta específica de la app
-      const promises = [];
-      zip.forEach((relativePath, zipEntry) => {
-        if (zipEntry.dir) return;
+      // Buscar archivos dentro de la carpeta de la app en GitHub
+      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}`);
+      if (!res.ok) throw new Error('No se pudo leer la carpeta de la app');
+      
+      const fileList = await res.json();
 
-        // Si el archivo está dentro de la carpeta de la app
-        if (relativePath.startsWith(`${rootFolder}${appId}/`)) {
-          // Obtener la ruta relativa quitando la raíz y el nombre de la app
-          const pathInApp = relativePath.replace(`${rootFolder}${appId}/`, '');
+      // Descargar cada archivo de la carpeta usando jsDelivr (sin bloqueos CORS)
+      for (const file of fileList) {
+        if (file.type === 'file') {
+          // jsDelivr lee directamente el archivo desde tu repo de GitHub
+          const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${file.path}`;
+          const fileRes = await fetch(jsDelivrUrl);
+          if (!fileRes.ok) continue; // Si falla un archivo, pasamos al siguiente
           
-          promises.push(zipEntry.async('blob').then(blob => {
-            archivos[pathInApp] = blob;
-          }));
-        }
-      });
-      await Promise.all(promises);
+          const blob = await fileRes.blob();
+          archivos[file.name] = blob;
 
-      // Verificar si hay manifest.json dentro de la app
-      if (archivos['manifest.json']) {
-        const manifestText = await archivos['manifest.json'].text();
-        manifest = JSON.parse(manifestText);
-      } else {
-        // Si no hay manifest, creamos uno por defecto
-        manifest = {
-          id: appId,
-          titulo: appId,
-          icono: 'box',
-          main: 'index.html'
-        };
+          // Leer el manifest si existe
+          if (file.name === 'manifest.json') {
+            const text = await blob.text();
+            manifest = JSON.parse(text);
+          }
+        }
       }
 
-      // Asegurar que el ID sea el nombre de la carpeta para evitar conflictos
+      // Si no hay manifest, crear uno por defecto
+      if (!manifest) {
+        manifest = { id: appId, titulo: appId, icono: 'box', main: 'index.html' };
+      }
       manifest.id = appId;
 
       // Guardar en IndexedDB
