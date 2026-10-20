@@ -351,8 +351,8 @@ function renderIconos() {
   // Calcular cuántos iconos caben verticalmente de forma estricta
   const deskHeight = desk.clientHeight || window.innerHeight - 90;
   const maxRows = Math.max(1, Math.floor((deskHeight - MARGEN_ICONOS) / GRID_Y));
+  const maxYLimit = MARGEN_ICONOS + (maxRows - 1) * GRID_Y; // El Y más bajo permitido
 
-  // Llevar registro de las celdas ocupadas para evitar superposiciones
   const usedCells = new Set();
 
   orden.forEach((id, i) => {
@@ -363,21 +363,21 @@ function renderIconos() {
     
     let targetX = -1, targetY = -1;
 
-    // 1. Intentar usar la posición guardada (si existe)
+    // 1. Intentar usar la posición guardada (solo si es válida y no choca)
     if (posicionesIconos[id]) {
       const savedX = parseFloat(posicionesIconos[id].left);
       const savedY = parseFloat(posicionesIconos[id].top);
       const cellKey = `${savedX}-${savedY}`;
 
-      // Si la celda NO está ocupada por un icono anterior, la usamos
-      if (!usedCells.has(cellKey)) {
+      // Verificamos que NO esté ocupada y que NO supere el límite de abajo
+      if (!usedCells.has(cellKey) && savedY <= maxYLimit) {
         targetX = savedX;
         targetY = savedY;
         usedCells.add(cellKey);
       }
     }
 
-    // 2. Si no hay posición guardada, o estaba ocupada (colisión), calcular una nueva
+    // 2. Si no hay posición guardada o era inválida, calcular una nueva
     if (targetX === -1) {
       let col = 0;
       let row = 0;
@@ -394,10 +394,9 @@ function renderIconos() {
           usedCells.add(cellKey);
           found = true;
           
-          // Actualizar la posición para que la base de datos esté limpia
+          // Guardamos esta nueva posición limpia
           posicionesIconos[id] = { left: x + 'px', top: y + 'px' };
         } else {
-          // Avanzar a la siguiente fila o columna
           row++;
           if (row >= maxRows) {
             row = 0;
@@ -410,7 +409,7 @@ function renderIconos() {
     d.style.left = targetX + 'px';
     d.style.top = targetY + 'px';
 
-    hacerArrastrable(d, id, maxRows);
+    hacerArrastrable(d, id, maxRows, maxYLimit);
     c.appendChild(d);
   });
   
@@ -419,7 +418,7 @@ function renderIconos() {
   refrescarIconos();
 }
 
-function hacerArrastrable(el, id, maxRows) {
+function hacerArrastrable(el, id, maxRows, maxYLimit) {
   let isDragging = false;
   let startX, startY, startLeft, startTop;
 
@@ -449,10 +448,9 @@ function hacerArrastrable(el, id, maxRows) {
         let newTop = startTop + dy;
         
         const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN_ICONOS;
-        const maxTop = el.parentElement.clientHeight - el.clientHeight - MARGEN_ICONOS;
-        
+        // Frenamos el ratón visualmente si intenta pasar del límite vertical permitido
+        newTop = Math.max(MARGEN_ICONOS, Math.min(newTop, maxYLimit));
         newLeft = Math.max(MARGEN_ICONOS, Math.min(newLeft, maxLeft));
-        newTop = Math.max(MARGEN_ICONOS, Math.min(newTop, maxTop));
         
         el.style.left = newLeft + 'px';
         el.style.top = newTop + 'px';
@@ -472,28 +470,29 @@ function hacerArrastrable(el, id, maxRows) {
         let snapY = Math.round((currentTop - MARGEN_ICONOS) / GRID_Y) * GRID_Y + MARGEN_ICONOS;
         
         const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN_ICONOS;
-        const maxTop = el.parentElement.clientHeight - el.clientHeight - MARGEN_ICONOS;
-        
         snapX = Math.max(MARGEN_ICONOS, Math.min(snapX, maxLeft));
-        snapY = Math.max(MARGEN_ICONOS, Math.min(snapY, maxTop));
 
-        // --- COMPROBACIÓN DE COLISIONES AL SOLTAR ---
-        let collision = false;
+        // --- COMPROBACIÓN DE COLISIONES Y LÍMITES AL SOLTAR ---
+        let invalid = false;
+        
+        // Si el Snap final supera el límite permitido, lo bloqueamos
+        if (snapY > maxYLimit) invalid = true; 
+
+        // Si hay colisión con otro icono
         const icons = document.querySelectorAll('.icon');
         for (const iconEl of icons) {
           if (iconEl === el) continue;
-          // Si otro icono ya está exactamente en esta coordenada
           if (parseFloat(iconEl.style.left) === snapX && parseFloat(iconEl.style.top) === snapY) {
-            collision = true;
+            invalid = true;
             break;
           }
         }
 
-        if (collision) {
+        if (invalid) {
           // Rebotar a la posición original
           el.style.left = startLeft + 'px';
           el.style.top = startTop + 'px';
-          toast('Posición ocupada por otra app');
+          toast('Posición inválida u ocupada');
         } else {
           // Movimiento válido
           el.style.left = snapX + 'px';
