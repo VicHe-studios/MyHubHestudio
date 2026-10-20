@@ -523,12 +523,12 @@ function acomodar() {
   }
 }
 
-// NUEVO MÉTODO ROBUSTO DE PREPARACIÓN DE APP
+// PREPARACIÓN DE APP ROBUSTA CON REGEX
 async function prepararAppInstalada(app) {
   const archivos = app.archivos;
   const dataUrls = {};
   
-  // 1. Convertir todos los archivos a Data URLs
+  // 1. Convertir todos los archivos a Data URLs (Base64)
   for (const [nombre, fileBlob] of Object.entries(archivos)) {
     const blob = fileBlob instanceof Blob ? fileBlob : new Blob([fileBlob]);
     dataUrls[nombre] = await aDataURL(blob);
@@ -545,44 +545,23 @@ async function prepararAppInstalada(app) {
   const blobToUse = mainBlob instanceof Blob ? mainBlob : new Blob([mainBlob]);
   let htmlText = await blobToUse.text();
 
-  // 2. Usar DOMParser para manipular el HTML de forma segura
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlText, 'text/html');
+  // 2. Reemplazar TODAS las rutas de archivos por sus Data URLs correspondientes
+  const regex = /(href|src)=["']([^"']+)["']/g;
 
-  // Función auxiliar para buscar coincidencias
-  const getDataUrl = (path) => {
+  htmlText = htmlText.replace(regex, (match, attribute, path) => {
+    // Normalizar la ruta (quitar ./ y / iniciales)
     const cleanPath = path.replace(/^\.\//, '').replace(/^\//, '');
-    return dataUrls[cleanPath] || null;
-  };
-
-  // 3. Reemplazar CSS
-  doc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-    const href = link.getAttribute('href');
-    if (href) {
-      const dataUrl = getDataUrl(href);
-      if (dataUrl) link.setAttribute('href', dataUrl);
+    
+    // Si tenemos el archivo en nuestro objeto dataUrls, lo reemplazamos
+    if (dataUrls[cleanPath]) {
+      return `${attribute}="${dataUrls[cleanPath]}"`;
     }
+    
+    // Si no lo encontramos, dejamos la ruta original
+    return match;
   });
 
-  // 4. Reemplazar JS
-  doc.querySelectorAll('script[src]').forEach(script => {
-    const src = script.getAttribute('src');
-    if (src) {
-      const dataUrl = getDataUrl(src);
-      if (dataUrl) script.setAttribute('src', dataUrl);
-    }
-  });
-
-  // 5. Reemplazar Imágenes
-  doc.querySelectorAll('img[src]').forEach(img => {
-    const src = img.getAttribute('src');
-    if (src) {
-      const dataUrl = getDataUrl(src);
-      if (dataUrl) img.setAttribute('src', dataUrl);
-    }
-  });
-
-  return doc.documentElement.outerHTML;
+  return htmlText;
 }
 
 async function abrir(id) {
