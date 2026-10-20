@@ -4,7 +4,7 @@
 
   // Constantes del repositorio
   const REPO_OWNER = 'VicHe-studios';
-  const REPO_NAME = 'MyHubHestudio';
+  const REPO_NAME = 'MyHubHestudio-StorHe';
   const BRANCH = 'main';
   const ZIP_URL = `https://github.com/${REPO_OWNER}/${REPO_NAME}/archive/refs/heads/${BRANCH}.zip`;
 
