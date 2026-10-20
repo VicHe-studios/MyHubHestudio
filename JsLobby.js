@@ -167,7 +167,6 @@ function renderMenu() {
   docBtn.onclick = () => { menu.classList.add('hidden'); if (window.descargarDocApps) window.descargarDocApps(); };
   ops.appendChild(docBtn);
 
-  // NUEVO BOTÓN DE CRÉDITOS
   const creditsBtn = document.createElement('button'); creditsBtn.className = 'menu-op';
   creditsBtn.innerHTML = `<i data-lucide="info"></i><span>Créditos</span>`;
   creditsBtn.onclick = () => { menu.classList.add('hidden'); abrirModal('Créditos', vistaCreditos); };
@@ -347,6 +346,11 @@ function eliminarApp(id) {
 
 function renderIconos() {
   const c = $('icons'); c.innerHTML = '';
+  
+  // LÓGICA DE COLUMNAS INTELIGENTES
+  const deskHeight = desk.clientHeight || window.innerHeight - 90;
+  const maxRows = Math.max(1, Math.floor((deskHeight - MARGEN_ICONOS) / GRID_Y));
+
   orden.forEach((id, i) => {
     const app = registro.get(id);
     const d = document.createElement('div'); d.className = 'icon';
@@ -354,11 +358,16 @@ function renderIconos() {
     d.innerHTML = `<div class="ico"><i data-lucide="${esc(app.icono || 'app-window')}"></i></div><span>${esc(app.titulo)}</span>`;
     
     if (posicionesIconos[id]) {
+      // Posición guardada manualmente
       d.style.left = posicionesIconos[id].left;
       d.style.top = posicionesIconos[id].top;
     } else {
-      d.style.left = MARGEN_ICONOS + 'px';
-      d.style.top = (MARGEN_ICONOS + i * GRID_Y) + 'px';
+      // Auto-ubicación en columnas
+      const col = Math.floor(i / maxRows);
+      const row = i % maxRows;
+      
+      d.style.left = (MARGEN_ICONOS + col * GRID_X) + 'px';
+      d.style.top = (MARGEN_ICONOS + row * GRID_Y) + 'px';
     }
 
     hacerArrastrable(d, id);
