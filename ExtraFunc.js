@@ -2,20 +2,20 @@
 window.descargarDocApps = function() {
   const doc = `
 ==================================================
-MYHUB - GUÍA DEFINITIVA DE DESARROLLO DE APLICACIONES
+MYHUBHESTUDIO - GUÍA DEFINITIVA DE DESARROLLO
 ==================================================
 
-Bienvenido al entorno de desarrollo de MyHub. Aquí puedes crear aplicaciones
-que se integrarán perfectamente en el escritorio del sistema.
+Bienvenido al entorno de desarrollo de MyHubHestudio. 
+Has creado el Web OS definitivo para la productividad y la rapidez.
+Aquí aprenderás a crear aplicaciones que se integren perfectamente.
 
 --------------------------------------------------
 1. FORMAS DE CREAR UNA APP
 --------------------------------------------------
-Tienes 3 formas principales de integrar una app:
+Existen 3 formas principales de integrar una app:
 
 A) APP INSTANTÁNEA (JavaScript puro):
 Ideal para apps rápidas que no necesitan un archivo HTML propio.
-
 window.MyHub.registrarApp({
   id: 'mi-app',             // Identificador único
   titulo: 'Mi App',         // Nombre visible
@@ -29,7 +29,6 @@ window.MyHub.registrarApp({
 
 B) APP LOCAL (Archivo HTML físico):
 Ideal si tienes una carpeta con tu app. Se carga mediante un iframe.
-
 window.MyHub.registrarApp({
   id: 'mi-app-local',
   titulo: 'Mi App Local',
@@ -37,30 +36,75 @@ window.MyHub.registrarApp({
   url: 'Apps/MiApp/index.html' // Ruta relativa desde Lobby.html
 });
 
-C) APP INSTALABLE (Archivo ZIP):
-Ideal para distribuir tu app. El usuario la instala usando la app "Forge".
-El ZIP debe contener un archivo manifest.json y un index.html.
+C) APP INSTALABLE (Archivo ZIP) - RECOMENDADO:
+Ideal para distribuir tu app. El usuario la instala usando "Forge" o "Stor-He".
 
-Ejemplo de manifest.json:
+--------------------------------------------------
+2. ESTRUCTURA Y MANIFEST DE UNA APP ZIP
+--------------------------------------------------
+Para que tu app sea instalable, debes crear un archivo .ZIP con esta estructura:
+
+MiApp.zip
+ ┣ 📜 manifest.json  (Obligatorio)
+ ┣ 📜 index.html     (Obligatorio, o el nombre que pongas en "main")
+ ┣ 📜 style.css      (Opcional)
+ ┣ 📜 script.js      (Opcional)
+ ┗ 🖼️ assets/        (Opcional para imágenes)
+
+--- EL MANIFEST.JSON EXPLICADO ---
+Este archivo le dice a MyHub cómo instalar y mostrar tu app:
+
 {
-  "id": "mi-app-zip",
-  "titulo": "Mi App desde ZIP",
-  "icono": "box",
-  "main": "index.html"
+  "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas. Ej: "calculadora".
+  "titulo": "Mi App",         // (Obligatorio) El nombre que aparecerá debajo del icono.
+  "icono": "layout",          // (Obligatorio) El nombre del icono de Lucide (ej: "clock", "notebook-pen", "settings").
+  "main": "index.html"        // (Obligatorio) El archivo HTML principal que se cargará.
 }
 
 --------------------------------------------------
-2. COMUNICACIÓN CON EL LOBBY (PostMessage)
+3. TAMAÑO DE PANTALLA Y LAYOUT
 --------------------------------------------------
-Si tu app se carga mediante URL o ZIP (dentro de un iframe), necesitas usar
-window.parent.postMessage para comunicarte con MyHub.
+MyHubHestudio utiliza un sistema de 3 ventanas fijas (Izquierda, Centro, Derecha).
+Esto significa que tu app NO ocupará toda la pantalla, sino 1/3 de ella.
+
+- Resolución aproximada: En un monitor de 1920x1080, tu app tendrá unos ~600px de ancho.
+- Tu HTML y CSS DEBEN ser responsivos. Usa siempre:
+  html, body { height: 100vh; width: 100%; margin: 0; overflow: hidden; }
+- Si tu app tiene muchos elementos, usa contenedores con overflow-y: auto; para que el usuario pueda hacer scroll dentro de tu app.
+
+--------------------------------------------------
+4. ESTILOS, TEMAS Y COLORES (¡OPCIONAL!)
+--------------------------------------------------
+Los colores y modos son mecánicas opcionales. ¡Puedes usarlas a tu placer!
+Si decides adaptarte al sistema, MyHub expone variables CSS globales:
+
+- var(--accent)     -> Color principal actual (azul, rojo, morado, etc.)
+- var(--text)       -> Color del texto (se adapta a claro/oscuro)
+- var(--card)       -> Color de fondo principal (blanco o gris oscuro)
+- var(--field)      -> Color de inputs y áreas de texto
+- var(--line)       -> Color de los bordes sutiles
+- var(--muted)      -> Color del texto secundario
+
+Para que tu app detecte el modo oscuro, MyHub le inyecta el atributo 
+data-modo="oscuro" a la etiqueta <html>. Úsalo así en tu CSS:
+
+html[data-modo="oscuro"] {
+  /* Tus estilos oscuros aquí */
+  background: #1a1a1a;
+}
+
+--------------------------------------------------
+5. COMUNICACIÓN CON EL LOBBY (PostMessage)
+--------------------------------------------------
+Como tu app corre dentro de un iframe, si necesitas datos del usuario o del sistema,
+debes usar window.parent.postMessage.
 
 --- Obtener el Perfil del Usuario ---
 window.parent.postMessage({ type: 'myhub:perfil' }, '*');
 
 window.addEventListener('message', (e) => {
   if (e.data?.type === 'myhub:perfil:res') {
-    console.log('Datos del usuario:', e.data.data);
+    console.log('Datos:', e.data.data);
     // Retorna: { nombre, apellido, nacimiento, genero, pais, idioma, foto (Base64) }
   }
 });
@@ -76,39 +120,13 @@ window.addEventListener('message', (e) => {
 });
 
 --------------------------------------------------
-3. ESTILOS, TEMAS Y COLORES (¡MECÁNICAS OPCIONALES!)
+6. API GLOBAL ÚTIL
 --------------------------------------------------
-AVISO IMPORTANTE: 
-Los colores y los modos (claro/oscuro) son mecánicas opcionales. 
-¡Puedes usarlas a tu placer! Si prefieres que tu app tenga colores fijos
-o no adaptarse al modo oscuro, simplemente no las implementes.
-
-Si decides usarlas, MyHub te ofrece variables CSS globales que cambian
-automáticamente si el usuario cambia el tema en el Lobby:
-
-- var(--accent)     -> Color principal actual (ej: azul, rojo, etc.)
-- var(--text)       -> Color del texto principal (se adapta a claro/oscuro)
-- var(--card)       -> Color de fondo de las tarjetas (blanco en claro, gris en oscuro)
-- var(--field)      -> Color de los inputs y áreas de texto
-- var(--line)       -> Color de los bordes sutiles
-- var(--muted)      -> Color del texto secundario (grisáceo)
-
-Para que el modo oscuro funcione, el Lobby le inyecta el atributo 
-data-modo="oscuro" a la etiqueta <html> de tu app. Puedes usarlo en tu CSS:
-
-html[data-modo="oscuro"] {
-  /* Tus estilos oscuros aquí */
-  background: #1a1a1a;
-}
-
---------------------------------------------------
-4. API GLOBAL ÚTIL
---------------------------------------------------
-- window.MyHub.toast('Mensaje');  // Muestra una notificación flotante
+- window.MyHub.toast('Mensaje');  // Muestra una notificación flotante en el sistema
 - window.MyHub.cerrar('mi-app');  // Cierra la ventana de tu app por su ID
 
 ==================================================
-Hecho con amor para MyHub. ¡Feliz código!
+Hecho con amor para MyHubHestudio. ¡Feliz código!
 `;
 
   const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
@@ -116,7 +134,7 @@ Hecho con amor para MyHub. ¡Feliz código!
   
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'DocApps.txt';
+  a.download = 'DocApps_MyHub.txt';
   document.body.appendChild(a);
   a.click();
   
