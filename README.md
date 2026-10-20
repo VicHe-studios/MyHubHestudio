@@ -14,7 +14,7 @@
 - 🖥️ **Escritorio Interactivo**: Sistema de ventanas (hasta 3 simultáneas) y organización de iconos por cuadrícula.
 - 🎨 **Totalmente Personalizable**: Modos claro/oscuro, colores de acento dinámicos y fondos de pantalla personalizados.
 - 🛠️ **Forge (Instalador)**: Arrastra un archivo `.zip` con tu app y se instalará en el sistema al instante.
-- 🛒 **Stor-He (Tienda)**: Descarga aplicaciones directamente desde el repositorio de GitHub.
+- 🛒 **Stor-He (Tienda)**: Descarga aplicaciones directamente desde el repositorio de GitHub de forma rápida.
 - 🗑️ **Gestión de Apps**: Papelera integrada para desinstalar apps y limpiar el sistema.
 - 🔒 **Privacidad Primero**: Todo el ecosistema corre en Local-First. Tus datos, notas y ajustes nunca salen de tu navegador.
 
@@ -44,12 +44,3 @@ Crear una app para MyHub es muy sencillo. Solo necesitas un archivo `manifest.js
   "icono": "layout",
   "main": "index.html"
 }
-
-## 🛠️ Tecnologías Utilizadas
-
-- **HTML / CSS / Vanilla JS** (Cero dependencias de frameworks pesados).
-- **[Lucide Icons](https://lucide.dev/)**: Iconografía del sistema.
-- **[JSZip](https://stuk.github.io/jszip/)**: Para el manejo e instalación de archivos comprimidos (Forge).
-- **[jsDelivr](https://www.jsdelivr.com/)**: CDN utilizado para la descarga rápida y sin bloqueos de las apps desde Stor-He.
-- **IndexedDB**: Para el almacenamiento local de cuentas y apps.
-- **GitHub Pages**: Alojamiento del entorno.
