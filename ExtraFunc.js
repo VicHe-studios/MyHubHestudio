@@ -337,6 +337,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       .ctx-item:hover { background: var(--accent); color: #fff; }
       .ctx-item svg { width: 14px; height: 14px; flex-shrink: 0; }
       .ctx-menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
+
+      /* Modal interno para prompt */
+      @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
     `;
     document.head.appendChild(style);
   }
@@ -539,13 +542,18 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   async function crearCarpeta(nombre, appsIniciales = []) {
-    const id = 'folder_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    carpetas[id] = { id, nombre: nombre || 'Nueva carpeta', apps: appsIniciales.slice(), pos: null };
-    appsIniciales.forEach(a => { delete posicionesIconos[a]; });
-    await guardarCarpetas();
-    await kvSet('posiciones_iconos', posicionesIconos);
-    window.renderIconos();
-    window.MyHub.toast(`Carpeta "${carpetas[id].nombre}" creada`);
+    try {
+      const id = 'folder_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+      carpetas[id] = { id, nombre: nombre || 'Nueva carpeta', apps: appsIniciales.slice(), pos: null };
+      appsIniciales.forEach(a => { delete posicionesIconos[a]; });
+      await guardarCarpetas();
+      await kvSet('posiciones_iconos', posicionesIconos);
+      window.renderIconos();
+      window.MyHub.toast(`Carpeta "${carpetas[id].nombre}" creada`);
+    } catch (err) {
+      console.error(err);
+      window.MyHub.toast('Error al guardar la carpeta');
+    }
   }
 
   async function eliminarCarpeta(folderId, eliminarApps = false) {
@@ -622,30 +630,55 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
-  // Modal para pedir el nombre de la carpeta (evita bugs de prompt)
-  function pedirNombreCarpeta(callback, nombreActual = 'Nueva carpeta') {
-    window.abrirModal(nombreActual === 'Nueva carpeta' ? 'Nueva carpeta' : 'Renombrar carpeta', () => {
-      const d = document.createElement('div');
-      d.innerHTML = `
-        <label>Nombre de la carpeta
-          <input type="text" id="folder-name-input" value="${esc(nombreActual)}" maxlength="24" style="margin-top:6px;" />
-        </label>
-        <button class="btn btn-bloque" id="folder-create-btn" style="margin-top:16px;"><i data-lucide="check"></i> Guardar</button>
-      `;
-      d.querySelector('#folder-create-btn').onclick = () => {
-        const nombre = d.querySelector('#folder-name-input').value.trim() || 'Nueva carpeta';
-        window.cerrarModal();
-        callback(nombre);
-      };
-      d.querySelector('#folder-name-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') d.querySelector('#folder-create-btn').click();
-      });
-      setTimeout(() => {
-        const inp = d.querySelector('#folder-name-input');
-        if (inp) { inp.focus(); inp.select(); }
-      }, 100);
-      return d;
-    });
+  // Modal 100% propio (evita bloqueos de prompt o fallos de abrirModal)
+  function promptCarpeta(titulo, defaultValue, callback) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 9999;
+      background: rgba(7, 12, 28, 0.55); backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      animation: fadeIn 0.2s var(--ease-out);
+    `;
+    const box = document.createElement('div');
+    box.style.cssText = `
+      background: var(--card); color: var(--text);
+      padding: 24px; border-radius: 16px;
+      border: 2px solid var(--accent);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      width: 320px; max-width: 90vw;
+      display: flex; flex-direction: column; gap: 12px;
+      animation: scaleIn 0.2s var(--ease-out);
+    `;
+    box.innerHTML = `
+      <h3 style="margin:0;font-size:16px;font-weight:700;">${esc(titulo)}</h3>
+      <input type="text" id="prompt-input" value="${esc(defaultValue)}" maxlength="24" style="
+        padding: 10px; border-radius: 8px; border: 1.5px solid var(--line);
+        background: var(--field); color: var(--text); font: inherit; outline: none;
+      ">
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
+        <button id="prompt-cancel" class="btn gray" style="padding:8px 16px;">Cancelar</button>
+        <button id="prompt-ok" class="btn" style="padding:8px 16px;">Aceptar</button>
+      </div>
+    `;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+
+    const input = box.querySelector('#prompt-input');
+    input.focus();
+    input.select();
+
+    const close = () => overlay.remove();
+    
+    box.querySelector('#prompt-cancel').onclick = close;
+    box.querySelector('#prompt-ok').onclick = () => {
+      const val = input.value.trim();
+      close();
+      if (val) callback(val);
+    };
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') box.querySelector('#prompt-ok').click();
+      if (e.key === 'Escape') close();
+    };
   }
 
   /* =========================================================================
@@ -763,11 +796,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     pill.id = 'status-pill';
     pill.className = 'status-pill';
     
-    // Mover el reloj dentro de la píldora
     clock.parentNode.insertBefore(pill, clock);
     pill.appendChild(clock);
 
-    // 1. Batería
     const batteryEl = document.createElement('div');
     batteryEl.className = 'status-item battery';
     pill.insertBefore(batteryEl, clock);
@@ -802,10 +833,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         battery.addEventListener('chargingchange', () => updateBattery(battery));
       }).catch(() => { batteryEl.style.display = 'none'; });
     } else {
-      batteryEl.style.display = 'none'; // API no soportada
+      batteryEl.style.display = 'none';
     }
 
-    // 2. Fecha
     const dateEl = document.createElement('div');
     dateEl.className = 'status-item date';
     pill.insertBefore(dateEl, clock);
@@ -861,7 +891,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       { separator: true },
       { icon: pinned ? 'pin-off' : 'pin', text: pinned ? 'Quitar de la barra' : 'Fijar a la barra', fn: () => togglePinned(appId) },
       { icon: 'folder-plus', text: 'Nueva carpeta con esta app', fn: () => {
-        pedirNombreCarpeta((nombre) => crearCarpeta(nombre, [appId]));
+        promptCarpeta('Nueva carpeta con esta app', 'Nueva carpeta', (nombre) => crearCarpeta(nombre, [appId]));
       }}
     ];
 
@@ -876,12 +906,11 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function contextoDesktop(e) {
-    // Evitar que salte el menú si hacemos clic en un icono, ventana o menú
     if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu')) return;
     e.preventDefault();
     mostrarContexto(e.clientX, e.clientY, [
       { icon: 'folder-plus', text: 'Nueva carpeta', fn: () => {
-        pedirNombreCarpeta((nombre) => crearCarpeta(nombre));
+        promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
       }}
     ]);
   }
@@ -894,13 +923,13 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       { icon: 'folder-open', text: 'Abrir', fn: () => abrirCarpeta(folderId) },
       { separator: true },
       { icon: 'pencil', text: 'Renombrar', fn: () => {
-        pedirNombreCarpeta((nuevo) => {
+        promptCarpeta('Renombrar carpeta', folder.nombre, (nuevo) => {
           if (nuevo && nuevo.trim()) {
             folder.nombre = nuevo.trim();
             guardarCarpetas();
             window.renderIconos();
           }
-        }, folder.nombre);
+        });
       }},
       { icon: 'folder-minus', text: 'Vaciar (sacar todas las apps)', fn: async () => {
         folder.apps.forEach(a => { delete posicionesIconos[a]; });
@@ -919,6 +948,33 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   /* =========================================================================
+     NUEVA CARPETA EN EL MENÚ DE INICIO
+     ========================================================================= */
+  function setupMenuOption() {
+    const menuOps = document.getElementById('menuOps');
+    if (!menuOps) return;
+    
+    const observer = new MutationObserver(() => {
+      if (document.getElementById('menu-nueva-carpeta')) return;
+      const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
+      if (!docBtn) return;
+
+      const btn = document.createElement('button');
+      btn.id = 'menu-nueva-carpeta';
+      btn.className = 'menu-op';
+      btn.innerHTML = `<i data-lucide="folder-plus"></i><span>Nueva carpeta</span>`;
+      btn.onclick = () => {
+        const menu = document.getElementById('menu');
+        if (menu) menu.classList.add('hidden');
+        promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
+      };
+      menuOps.insertBefore(btn, docBtn.nextSibling);
+      refrescarIconos();
+    });
+    observer.observe(menuOps, { childList: true });
+  }
+
+  /* =========================================================================
      SETUP
      ========================================================================= */
   async function setup() {
@@ -933,9 +989,10 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     overrideRenderIconos();
     setupMinimize();
     
-    setupStatusPill(); // <--- NUEVA PÍLDORA
+    setupStatusPill();
     renderQuickLaunch();
     setupDragDetection();
+    setupMenuOption();
 
     const desktopEl = document.getElementById('desktop');
     if (desktopEl) desktopEl.addEventListener('contextmenu', contextoDesktop);
