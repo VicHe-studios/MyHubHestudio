@@ -68,15 +68,13 @@
       div.onclick = () => switchView(folder.id);
       div.innerHTML = `<i data-lucide="folder"></i> ${folder.nombre}`;
       
-      // Drag & Drop en la barra lateral
+      // Drop en barra lateral
       div.ondragover = (e) => { e.preventDefault(); div.classList.add('drop-target'); };
       div.ondragleave = () => div.classList.remove('drop-target');
       div.ondrop = async (e) => {
         e.preventDefault();
         div.classList.remove('drop-target');
-        if (draggedAppId) {
-          await moverAppACarpeta(draggedAppId, folder.id);
-        }
+        if (draggedAppId) await moverAppACarpeta(draggedAppId, folder.id);
       };
       foldersContainer.appendChild(div);
     });
@@ -84,25 +82,27 @@
     document.querySelectorAll('.menu-item[data-view]').forEach(el => {
       el.classList.toggle('active', el.dataset.view === currentView);
     });
+    document.getElementById('nav-root').classList.toggle('active', currentView === 'root');
   };
 
   const renderView = () => {
-    const fileGrid = document.getElementById('view-files');
+    const listView = document.getElementById('view-files');
     const dbView = document.getElementById('view-db');
     const storageView = document.getElementById('view-storage');
     const breadcrumb = document.getElementById('breadcrumb');
     const btnNew = document.getElementById('btn-new-folder');
+    const filesContainer = document.getElementById('files-container');
 
-    fileGrid.innerHTML = '';
-    fileGrid.style.display = 'none';
+    listView.style.display = 'none';
     dbView.style.display = 'none';
     storageView.style.display = 'none';
     btnNew.style.display = 'flex';
+    filesContainer.innerHTML = '';
 
     if (currentView === 'storage') {
       storageView.style.display = 'flex';
       btnNew.style.display = 'none';
-      breadcrumb.innerHTML = `<i data-lucide="pie-chart" style="width:18px;height:18px;color:var(--muted)"></i> Almacenamiento`;
+      breadcrumb.innerHTML = `<i data-lucide="pie-chart" style="width:16px;height:16px;color:var(--muted)"></i> Almacenamiento`;
       updateStorageInfo();
       return;
     }
@@ -110,23 +110,23 @@
     if (currentView === 'db') {
       dbView.style.display = 'flex';
       btnNew.style.display = 'none';
-      breadcrumb.innerHTML = `<i data-lucide="database" style="width:18px;height:18px;color:var(--muted)"></i> Archivos de Datos`;
+      breadcrumb.innerHTML = `<i data-lucide="database" style="width:16px;height:16px;color:var(--muted)"></i> Archivos de Datos`;
       renderDBView();
       return;
     }
 
-    fileGrid.style.display = 'grid';
+    listView.style.display = 'flex';
     let itemsToRender = [];
     
     if (currentView === 'root') {
-      breadcrumb.innerHTML = `<i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio`;
+      breadcrumb.innerHTML = `<i data-lucide="home" style="width:16px;height:16px;color:var(--muted)"></i> Inicio`;
       
-      // 1. Carpetas
+      // Carpetas
       Object.values(carpetasObj).forEach(f => {
         itemsToRender.push({ type: 'folder', id: f.id, name: f.nombre, icon: 'folder' });
       });
 
-      // 2. Apps Instaladas (que no estén en carpetas)
+      // Apps Instaladas
       const appsInFolders = new Set();
       Object.values(carpetasObj).forEach(f => f.apps.forEach(id => appsInFolders.add(id)));
       Object.values(appsObj).forEach(a => {
@@ -135,16 +135,15 @@
         }
       });
 
-      // 3. Apps del Sistema
+      // Apps del Sistema
       systemApps.forEach(a => {
         itemsToRender.push({ type: 'system', id: a.id, name: a.titulo, icon: a.icono });
       });
 
     } else {
-      // Dentro de una carpeta
       const folder = carpetasObj[currentView];
       if (!folder) return switchView('root');
-      breadcrumb.innerHTML = `<i data-lucide="folder" style="width:18px;height:18px;color:var(--muted)"></i> ${folder.nombre}`;
+      breadcrumb.innerHTML = `<i data-lucide="folder" style="width:16px;height:16px;color:var(--muted)"></i> ${folder.nombre}`;
       
       folder.apps.forEach(appId => {
         const app = appsObj[appId];
@@ -153,96 +152,87 @@
     }
 
     if (itemsToRender.length === 0) {
-      fileGrid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:var(--muted); padding:40px; font-size:14px;">No hay elementos aquí.</div>`;
+      filesContainer.innerHTML = `<div style="text-align:center; color:var(--muted); padding:40px; font-size:13px;">Esta carpeta está vacía.</div>`;
     }
 
     itemsToRender.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'file-item';
-      div.draggable = item.type === 'app'; // Solo las apps se pueden arrastrar
+      const row = document.createElement('div');
+      row.className = 'file-row';
       
-      let lockHtml = item.type === 'system' ? `<div class="lock-icon"><i data-lucide="lock"></i></div>` : '';
-      let iconHtml = `<div class="file-icon"><i data-lucide="${item.icon}"></i>${lockHtml}</div>`;
-      let actionsHtml = '';
-
-      // Acciones (Borrar)
+      // Configurar Drag & Drop (solo apps)
       if (item.type === 'app') {
-        actionsHtml = `
-          <div class="file-actions">
-            <button class="action-btn" onclick="deleteApp('${item.id}', event)" title="Desinstalar">
-              <i data-lucide="trash-2"></i>
-            </button>
-          </div>
+        row.draggable = true;
+        row.ondragstart = (e) => {
+          draggedAppId = item.id;
+          row.classList.add('dragging');
+          e.dataTransfer.setData('text/plain', item.id);
+          e.dataTransfer.effectAllowed = 'move';
+        };
+        row.ondragend = () => {
+          draggedAppId = null;
+          row.classList.remove('dragging');
+        };
+      }
+
+      // Configurar Drop (solo carpetas)
+      if (item.type === 'folder') {
+        row.ondragover = (e) => { e.preventDefault(); row.classList.add('drag-over'); };
+        row.ondragleave = () => row.classList.remove('drag-over');
+        row.ondrop = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          row.classList.remove('drag-over');
+          if (draggedAppId) await moverAppACarpeta(draggedAppId, item.id);
+        };
+      }
+
+      let lockHtml = item.type === 'system' ? `<div class="lock-icon"><i data-lucide="lock" style="width:14px;height:14px;"></i></div>` : '';
+      let actionHtml = '';
+      
+      if (item.type === 'app') {
+        actionHtml = `
+          <button class="action-btn delete" onclick="deleteApp('${item.id}', event)" title="Desinstalar">
+            <i data-lucide="trash-2"></i>
+          </button>
         `;
       } else if (item.type === 'folder') {
-        actionsHtml = `
-          <div class="file-actions">
-            <button class="action-btn" onclick="deleteFolder('${item.id}', event)" title="Eliminar Carpeta">
-              <i data-lucide="trash-2"></i>
-            </button>
-          </div>
+        actionHtml = `
+          <button class="action-btn delete" onclick="deleteFolder('${item.id}', event)" title="Eliminar Carpeta">
+            <i data-lucide="trash-2"></i>
+          </button>
         `;
       }
 
-      div.innerHTML = `${actionsHtml}${iconHtml}<span class="file-name">${item.name}</span>`;
+      row.innerHTML = `
+        <div class="col-name" style="display:flex; align-items:center;">
+          <div class="row-icon"><i data-lucide="${item.icon}"></i></div>
+          <span class="row-name">${item.name}</span>
+          ${lockHtml}
+        </div>
+        <div class="col-type">${item.type === 'folder' ? 'Carpeta' : (item.type === 'system' ? 'Sistema' : 'App')}</div>
+        <div class="col-actions">${actionHtml}</div>
+      `;
 
-      // Drag events
-      if (item.type === 'app') {
-        div.ondragstart = (e) => {
-          draggedAppId = item.id;
-          div.classList.add('dragging');
-          e.dataTransfer.setData('text/plain', item.id);
-        };
-        div.ondragend = () => {
-          draggedAppId = null;
-          div.classList.remove('dragging');
-        };
-      }
-
-      // Drop events (para carpetas)
-      if (item.type === 'folder') {
-        div.ondragover = (e) => {
-          e.preventDefault();
-          div.classList.add('drag-over');
-        };
-        div.ondragleave = () => {
-          div.classList.remove('drag-over');
-        };
-        div.ondrop = async (e) => {
-          e.preventDefault();
-          e.stopPropagation(); // Evita que se propague al fondo (root)
-          div.classList.remove('drag-over');
-          if (draggedAppId) {
-            await moverAppACarpeta(draggedAppId, item.id);
-          }
-        };
-      }
-
-      // Clic normal
-      div.onclick = (e) => {
-        if (e.target.closest('.file-actions')) return;
+      row.onclick = (e) => {
+        if (e.target.closest('.action-btn')) return;
         if (item.type === 'folder') switchView(item.id);
         else if (window.parent && window.parent.MyHub) window.parent.MyHub.abrir(item.id);
       };
 
-      fileGrid.appendChild(div);
+      filesContainer.appendChild(row);
     });
 
     if (window.lucide) lucide.createIcons();
   };
 
-  // --- DRAG & DROP FUNCTIONS ---
-  
-  // Soltar en el fondo (Root) para sacar de una carpeta
+  // --- DRAG & DROP GLOBAL ---
   window.dropToRoot = async (e) => {
     e.preventDefault();
     if (draggedAppId) {
-      // Quitar de cualquier carpeta
       Object.values(carpetasObj).forEach(f => {
         f.apps = f.apps.filter(id => id !== draggedAppId);
       });
       await kvSet('carpetas', carpetasObj);
-      
       if (window.parent && window.parent.MyHub) {
         window.parent.MyHub.toast('App movida a Inicio');
         if (window.parent.renderIconos) window.parent.renderIconos();
@@ -253,19 +243,11 @@
   };
 
   const moverAppACarpeta = async (appId, folderId) => {
-    // 1. Quitar de cualquier carpeta actual
-    Object.values(carpetasObj).forEach(f => {
-      f.apps = f.apps.filter(id => id !== appId);
-    });
-    
-    // 2. Añadir a la nueva
-    if (carpetasObj[folderId]) {
-      carpetasObj[folderId].apps.push(appId);
-    }
+    Object.values(carpetasObj).forEach(f => f.apps = f.apps.filter(id => id !== appId));
+    if (carpetasObj[folderId]) carpetasObj[folderId].apps.push(appId);
     
     await kvSet('carpetas', carpetasObj);
     
-    // Limpiar su posición en el escritorio principal
     const pos = await kvGet('posiciones_iconos') || {};
     delete pos[appId];
     await kvSet('posiciones_iconos', pos);
@@ -277,15 +259,15 @@
     init();
   };
 
-  // --- VISTA DE DATOS (INDEXEDDB) ---
+  // --- VISTA DE DATOS (SIN EL JSON GIGANTE) ---
   const renderDBView = async () => {
     const dbList = document.getElementById('db-list');
-    dbList.innerHTML = '<p style="text-align:center;font-size:12px;color:var(--muted);">Buscando archivos...</p>';
+    dbList.innerHTML = '<div style="padding:16px; text-align:center; font-size:12px; color:var(--muted);">Buscando archivos...</div>';
     
     const files = [];
     const coreKeys = ['cuenta', 'ajustes', 'sesion', 'carpetas', 'apps_instaladas', 'posiciones_iconos']; 
     
-    // 1. Leer LocalStorage
+    // LocalStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (!coreKeys.includes(key)) {
@@ -293,7 +275,7 @@
       }
     }
 
-    // 2. Leer IndexedDB
+    // IndexedDB
     try {
       const db = await dbP;
       const tx = db.transaction('kv', 'readonly');
@@ -327,37 +309,42 @@
 
     dbList.innerHTML = '';
     if (files.length === 0) {
-      dbList.innerHTML = '<p style="text-align:center;font-size:12px;color:var(--muted);padding:20px;">No hay archivos de datos guardados por las apps.</p>';
+      dbList.innerHTML = '<div style="padding:16px; text-align:center; font-size:12px; color:var(--muted);">No hay archivos guardados por las apps.</div>';
       return;
     }
 
     files.sort((a, b) => String(a.key).localeCompare(String(b.key)));
 
     files.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'db-item';
+      const row = document.createElement('div');
+      row.className = 'file-row';
       
-      const shortVal = item.value && item.value.length > 80 ? item.value.substring(0, 80) + '...' : (item.value || 'null');
       const safeVal = encodeURIComponent(item.value || '');
 
-      div.innerHTML = `
-        <div class="db-key">
-          <span>${item.key}</span>
-          <span style="font-size:10px;color:var(--muted);background:var(--line);padding:2px 4px;border-radius:4px;">${item.type === 'ls' ? 'LocalStorage' : 'IndexedDB'}</span>
+      row.innerHTML = `
+        <div class="col-name" style="display:flex; align-items:center;">
+          <div class="row-icon"><i data-lucide="file-json"></i></div>
+          <span class="row-name">${item.key}</span>
         </div>
-        <div class="db-value">${shortVal}</div>
-        <div class="db-actions">
-          <button class="btn gray small" onclick="editDBKey('${item.type}', '${item.key}', '${safeVal}')">Editar</button>
-          <button class="btn gray small" style="color:var(--danger)" onclick="deleteDBKey('${item.type}', '${item.key}')">Borrar</button>
+        <div class="col-type">${item.type === 'ls' ? 'LocalStorage' : 'IndexedDB'}</div>
+        <div class="col-actions" style="width: 100px;">
+          <button class="action-btn" onclick="editDBKey('${item.type}', '${item.key}', '${safeVal}')" title="Ver/Editar">
+            <i data-lucide="pencil"></i>
+          </button>
+          <button class="action-btn delete" onclick="deleteDBKey('${item.type}', '${item.key}')" title="Borrar">
+            <i data-lucide="trash-2"></i>
+          </button>
         </div>
       `;
-      dbList.appendChild(div);
+      dbList.appendChild(row);
     });
+
+    if (window.lucide) lucide.createIcons();
   };
 
   window.editDBKey = async (type, key, encodedValue) => {
     const currentValue = decodeURIComponent(encodedValue);
-    const newValue = prompt(`Editar "${key}":\n(Nota: si es JSON, cuida las comillas)`, currentValue);
+    const newValue = prompt(`Editar contenido de "${key}":\n(Cuidado con el formato JSON)`, currentValue);
     if (newValue === null) return;
 
     if (type === 'ls') {
