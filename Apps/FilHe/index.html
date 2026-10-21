@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="../../vendor/lucide.min.js"></script>
+<style>
+  :root {
+    --accent: #2563eb;
+    --accent-soft: rgba(37, 99, 235, 0.15);
+    --text: #0b1220;
+    --muted: #64748b;
+    --line: rgba(15, 23, 42, 0.08);
+    --card: #ffffff;
+    --field: #f6f8fb;
+    --sidebar-bg: #f8fafc;
+    --danger: #ef4444;
+  }
+  
+  html[data-modo="oscuro"] {
+    --text: #f4f4f6;
+    --muted: #9ea1aa;
+    --line: rgba(255, 255, 255, 0.09);
+    --card: #222227;
+    --field: #2a2a31;
+    --sidebar-bg: #1a1a1f;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; display: flex;
+    font-family: 'Segoe UI Variable', system-ui, sans-serif;
+    background: var(--card); color: var(--text);
+    overflow: hidden;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 200px; background: var(--sidebar-bg); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; flex-shrink: 0;
+  }
+  .sidebar-header {
+    padding: 16px; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 8px;
+    border-bottom: 1px solid var(--line); color: var(--text);
+  }
+  .sidebar-header svg { color: var(--accent); width: 18px; height: 18px; }
+  
+  .sidebar-menu { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
+  
+  .menu-item {
+    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+    border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+    color: var(--text); transition: 0.2s;
+  }
+  .menu-item:hover { background: var(--line); }
+  .menu-item.active { background: var(--accent-soft); color: var(--accent); }
+  .menu-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+  
+  .menu-separator { height: 1px; background: var(--line); margin: 8px 0; }
+  .menu-title { padding: 8px 12px 4px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Main Area */
+  .main-area {
+    flex: 1; display: flex; flex-direction: column; min-width: 0;
+  }
+  
+  .toolbar {
+    height: 52px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; border-bottom: 1px solid var(--line); flex-shrink: 0;
+  }
+  .breadcrumb { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  
+  .btn-new {
+    background: var(--accent); color: #fff; border: none; padding: 6px 12px;
+    border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: 0.2s;
+  }
+  .btn-new:hover { filter: brightness(1.1); }
+  .btn-new svg { width: 14px; height: 14px; }
+
+  .content { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* Grid de Archivos */
+  .file-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 16px; align-content: start;
+  }
+
+  .file-item {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 12px; border-radius: 12px; cursor: pointer; position: relative;
+    border: 1px solid transparent; transition: 0.2s;
+  }
+  .file-item:hover { background: var(--field); border-color: var(--line); }
+  
+  .file-icon {
+    width: 48px; height: 48px; border-radius: 12px; background: var(--card);
+    display: flex; align-items: center; justify-content: center; color: var(--accent);
+    border: 1.5px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    transition: transform 0.2s;
+  }
+  .file-item:hover .file-icon { transform: scale(1.05); }
+  .file-icon svg { width: 24px; height: 24px; }
+  
+  .file-name { font-size: 12px; font-weight: 600; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .file-type { font-size: 10px; color: var(--muted); }
+
+  /* Acciones flotantes */
+  .file-actions {
+    position: absolute; top: 4px; right: 4px; display: none; gap: 2px;
+    background: var(--card); padding: 2px; border-radius: 8px;
+    border: 1px solid var(--line); box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  .file-item:hover .file-actions { display: flex; }
+  .action-btn {
+    background: transparent; border: none; width: 24px; height: 24px;
+    border-radius: 4px; display: flex; align-items: center; justify-content: center;
+    color: var(--muted); cursor: pointer; transition: 0.2s;
+  }
+  .action-btn:hover { background: var(--line); color: var(--text); }
+  .action-btn.delete:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+  .action-btn svg { width: 12px; height: 12px; }
+
+  /* Vista de Almacenamiento */
+  .storage-view { display: none; flex-direction: column; gap: 20px; max-width: 500px; }
+  
+  .storage-card {
+    background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 20px;
+  }
+  .storage-header { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+  .storage-bar { height: 12px; background: var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+  .storage-fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.5s ease-out; }
+  .storage-text { font-size: 12px; color: var(--muted); text-align: right; }
+
+  .danger-zone {
+    border: 1px solid rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.05);
+    border-radius: 12px; padding: 20px;
+  }
+  .danger-zone h3 { margin: 0 0 8px; font-size: 14px; color: var(--danger); }
+  .danger-zone p { margin: 0 0 16px; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .btn-danger {
+    background: var(--danger); color: #fff; border: none; padding: 8px 16px;
+    border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; transition: 0.2s;
+  }
+  .btn-danger:hover { filter: brightness(1.1); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: var(--card); width: 90%; max-width: 300px; padding: 20px;
+    border-radius: 16px; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    display: flex; flex-direction: column; gap: 12px; color: var(--text);
+  }
+  .modal h3 { margin: 0; font-size: 16px; }
+  .modal input, .modal select {
+    padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--field); color: var(--text); font-family: inherit; font-size: 13px; outline: none;
+  }
+  .modal input:focus, .modal select:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+  .btn { padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: 0.2s; }
+  .btn.gray { background: var(--field); color: var(--text); border: 1px solid var(--line); }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn:hover { filter: brightness(1.1); }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+  <!-- Barra Lateral -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <i data-lucide="hard-drive"></i> Fil-He
+    </div>
+    <div class="sidebar-menu" id="sidebar-menu">
+      <div class="menu-item active" data-view="root" onclick="switchView('root')">
+        <i data-lucide="home"></i> Inicio
+      </div>
+      <div class="menu-item" data-view="system" onclick="switchView('system')">
+        <i data-lucide="shield"></i> Sistema
+      </div>
+      
+      <div class="menu-separator"></div>
+      <div class="menu-title">Carpetas</div>
+      <div id="sidebar-folders"></div>
+
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-view="storage" onclick="switchView('storage')">
+        <i data-lucide="database"></i> Almacenamiento
+      </div>
+    </div>
+  </div>
+
+  <!-- Área Principal -->
+  <div class="main-area">
+    <div class="toolbar">
+      <div class="breadcrumb" id="breadcrumb">
+        <i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio
+      </div>
+      <button class="btn-new" id="btn-new-folder" onclick="openNewFolderModal()">
+        <i data-lucide="folder-plus"></i> Nueva Carpeta
+      </button>
+    </div>
+
+    <div class="content">
+      <!-- Vista de Archivos -->
+      <div id="view-files" class="file-grid">
+        <!-- Se llena con JS -->
+      </div>
+
+      <!-- Vista de Almacenamiento -->
+      <div id="view-storage" class="storage-view">
+        <div class="storage-card">
+          <div class="storage-header">
+            <span>Uso de IndexedDB</span>
+            <span id="storage-percent">0%</span>
+          </div>
+          <div class="storage-bar">
+            <div class="storage-fill" id="storage-fill" style="width: 0%"></div>
+          </div>
+          <div class="storage-text" id="storage-text">Calculando...</div>
+        </div>
+
+        <div class="danger-zone">
+          <h3>Zona de Peligro</h3>
+          <p>Si borras los datos, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas. <strong>Esta acción no se puede deshacer.</strong></p>
+          <button class="btn-danger" onclick="wipeData()">Borrar Datos de Apps</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nueva Carpeta -->
+  <div class="modal-overlay" id="modal-folder">
+    <div class="modal">
+      <h3>Nueva Carpeta</h3>
+      <input type="text" id="folder-name-input" placeholder="Nombre de la carpeta...">
+      <div class="modal-actions">
+        <button class="btn gray" onclick="document.getElementById('modal-folder').classList.remove('active')">Cancelar</button>
+        <button class="btn primary" onclick="createFolder()">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Mover App -->
+  <div class="modal-overlay" id="modal-move">
+    <div class="modal">
+      <h3>Mover App</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Selecciona la carpeta destino:</p>
+      <select id="move-select"></select>
+      <div class="modal-actions">
+        <button class="btn gray" onclick="document.getElementById('modal-move').classList.remove('active')">Cancelar</button>
+        <button class="btn primary" onclick="confirmMove()">Mover</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ================= Sincronización de Tema =================
+  if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'myhub:tema:res') {
+      document.documentElement.dataset.modo = e.data.modo;
+      document.documentElement.style.setProperty('--accent', e.data.color);
+      document.documentElement.style.setProperty('--accent-soft', e.data.color + '26');
+    }
+  });
+
+  // ================= Base de Datos =================
+  const dbP = new Promise((resolve) => {
+    const req = indexedDB.open('myhub-lobby', 1);
+    req.onsuccess = () => resolve(req.result);
+  });
+  
+  const kvGet = async (k) => {
+    const db = await dbP;
+    return new Promise((res) => {
+      const r = db.transaction('kv').objectStore('kv').get(k);
+      r.onsuccess = () => res(r.result ?? null);
+    });
+  };
+  
+  const kvSet = async (k, v) => {
+    const db = await dbP;
+    return new Promise((res) => {
+      const t = db.transaction('kv', 'readwrite');
+      t.objectStore('kv').put(v, k);
+      t.oncomplete = () => res();
+    });
+  };
+
+  // ================= Variables Globales =================
+  let appsObj = {};
+  let carpetasObj = {};
+  let currentView = 'root'; // 'root', 'system', 'storage', o ID de carpeta
+  let appToMove = null;
+
+  // Apps del sistema (hardcodeadas porque son locales)
+  const systemApps = [
+    { id: 'papelera', titulo: 'Papelera', icono: 'trash-2' },
+    { id: 'forge', titulo: 'Forge', icono: 'hammer' },
+    { id: 'storhe', titulo: 'Stor-He', icono: 'store' }
+  ];
+
+  // ================= Inicialización =================
+  const init = async () => {
+    appsObj = await kvGet('apps_instaladas') || {};
+    carpetasObj = await kvGet('carpetas') || {};
+    
+    renderSidebar();
+    renderView();
+    updateStorageInfo(); // Iniciar cálculo en segundo plano
+    if (window.lucide) lucide.createIcons();
+  };
+
+  // ================= Renderizado de UI =================
+  const renderSidebar = () => {
+    const foldersContainer = document.getElementById('sidebar-folders');
+    foldersContainer.innerHTML = '';
+    
+    Object.values(carpetasObj).forEach(folder => {
+      const div = document.createElement('div');
+      div.className = `menu-item ${currentView === folder.id ? 'active' : ''}`;
+      div.onclick = () => switchView(folder.id);
+      div.innerHTML = `<i data-lucide="folder"></i> ${folder.nombre}`;
+      foldersContainer.appendChild(div);
+    });
+    
+    // Actualizar clases activas del menú principal
+    document.querySelectorAll('.menu-item[data-view]').forEach(el => {
+      el.classList.toggle('active', el.dataset.view === currentView);
+    });
+  };
+
+  const renderView = () => {
+    const fileGrid = document.getElementById('view-files');
+    const storageView = document.getElementById('view-storage');
+    const breadcrumb = document.getElementById('breadcrumb');
+    const btnNew = document.getElementById('btn-new-folder');
+
+    fileGrid.innerHTML = '';
+    
+    if (currentView === 'storage') {
+      fileGrid.style.display = 'none';
+      storageView.style.display = 'flex';
+      btnNew.style.display = 'none';
+      breadcrumb.innerHTML = `<i data-lucide="database" style="width:18px;height:18px;color:var(--muted)"></i> Almacenamiento`;
+      updateStorageInfo();
+      return;
+    }
+
+    fileGrid.style.display = 'grid';
+    storageView.style.display = 'none';
+    btnNew.style.display = 'flex';
+
+    let itemsToRender = [];
+    
+    if (currentView === 'root') {
+      breadcrumb.innerHTML = `<i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio`;
+      
+      // 1. Carpetas
+      Object.values(carpetasObj).forEach(f => {
+        itemsToRender.push({ type: 'folder', data: f, id: f.id, name: f.nombre, icon: 'folder' });
+      });
+
+      // 2. Apps libres (que no están en ninguna carpeta)
+      const appsInFolders = new Set();
+      Object.values(carpetasObj).forEach(f => f.apps.forEach(id => appsInFolders.add(id)));
+      
+      Object.values(appsObj).forEach(a => {
+        if (!appsInFolders.has(a.manifest.id)) {
+          itemsToRender.push({ type: 'app', data: a, id: a.manifest.id, name: a.manifest.titulo, icon: a.manifest.icono || 'box' });
+        }
+      });
+
+    } else if (currentView === 'system') {
+      breadcrumb.innerHTML = `<i data-lucide="shield" style="width:18px;height:18px;color:var(--muted)"></i> Sistema`;
+      
+      systemApps.forEach(a => {
+        itemsToRender.push({ type: 'system', data: a, id: a.id, name: a.titulo, icon: a.icono });
+      });
+
+    } else {
+      // Vista de una carpeta específica
+      const folder = carpetasObj[currentView];
+      if (!folder) return switchView('root');
+      
+      breadcrumb.innerHTML = `<i data-lucide="folder" style="width:18px;height:18px;color:var(--muted)"></i> ${folder.nombre}`;
+      
+      folder.apps.forEach(appId => {
+        const app = appsObj[appId];
+        if (app) {
+          itemsToRender.push({ type: 'app', data: app, id: appId, name: app.manifest.titulo, icon: app.manifest.icono || 'box' });
+        }
+      });
+    }
+
+    // Renderizar los items en el DOM
+    if (itemsToRender.length === 0) {
+      fileGrid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; color:var(--muted); padding:40px; font-size:14px;">No hay elementos aquí.</div>`;
+    }
+
+    itemsToRender.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'file-item';
+      
+      // Icono
+      let iconHtml = `<div class="file-icon"><i data-lucide="${item.icon}"></i></div>`;
+      
+      // Acciones
+      let actionsHtml = '';
+      if (item.type === 'app') {
+        actionsHtml = `
+          <div class="file-actions">
+            <button class="action-btn" onclick="openMoveModal('${item.id}', event)" title="Mover a carpeta">
+              <i data-lucide="folder-input"></i>
+            </button>
+            <button class="action-btn delete" onclick="deleteApp('${item.id}', event)" title="Eliminar App">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        `;
+      } else if (item.type === 'folder') {
+        actionsHtml = `
+          <div class="file-actions">
+            <button class="action-btn delete" onclick="deleteFolder('${item.id}', event)" title="Eliminar Carpeta">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        `;
+      }
+
+      div.innerHTML = `${actionsHtml}${iconHtml}<span class="file-name">${item.name}</span>`;
+
+      // Eventos de clic
+      div.onclick = (e) => {
+        if (e.target.closest('.file-actions')) return; // Ignorar si se clickea una acción
+        
+        if (item.type === 'folder') {
+          switchView(item.id);
+        } else if (item.type === 'app' || item.type === 'system') {
+          // Abrir la app en el Lobby si es posible
+          if (window.parent && window.parent.MyHub) {
+            window.parent.MyHub.abrir(item.id);
+          }
+        }
+      };
+
+      fileGrid.appendChild(div);
+    });
+
+    if (window.lucide) lucide.createIcons();
+  };
+
+  // ================= Navegación =================
+  window.switchView = (view) => {
+    currentView = view;
+    renderSidebar();
+    renderView();
+  };
+
+  // ================= Crear Carpeta =================
+  window.openNewFolderModal = () => {
+    document.getElementById('folder-name-input').value = '';
+    document.getElementById('modal-folder').classList.add('active');
+    setTimeout(() => document.getElementById('folder-name-input').focus(), 50);
+  };
+
+  window.createFolder = async () => {
+    const nombre = document.getElementById('folder-name-input').value.trim();
+    if (!nombre) return;
+
+    const id = 'folder_' + Date.now();
+    carpetasObj[id] = { id, nombre, apps: [], pos: null };
+    
+    await kvSet('carpetas', carpetasObj);
+    document.getElementById('modal-folder').classList.remove('active');
+    
+    if (window.parent && window.parent.MyHub) {
+      window.parent.MyHub.toast(`Carpeta "${nombre}" creada`);
+      if (window.parent.renderIconos) window.parent.renderIconos();
+    }
+    
+    init(); // Recargar
+  };
+
+  // ================= Mover App =================
+  window.openMoveModal = (appId, e) => {
+    e.stopPropagation();
+    appToMove = appId;
+    
+    const select = document.getElementById('move-select');
+    select.innerHTML = '';
+    
+    // Opción para sacar de la carpeta (mover a la raíz)
+    if (currentView !== 'root') {
+      select.innerHTML += `<option value="root">[Sacar de la carpeta]</option>`;
+    }
+    
+    // Opciones de carpetas (excluyendo la carpeta actual si estamos dentro de una)
+    Object.values(carpetasObj).forEach(f => {
+      if (currentView === f.id) return;
+      select.innerHTML += `<option value="${f.id}">${f.nombre}</option>`;
+    });
+
+    if (select.options.length === 0) {
+      alert('No hay otras carpetas para mover. Crea una primero.');
+      return;
+    }
+
+    document.getElementById('modal-move').classList.add('active');
+  };
+
+  window.confirmMove = async () => {
+    if (!appToMove) return;
+    const targetFolderId = document.getElementById('move-select').value;
+
+    // 1. Quitar la app de todas las carpetas
+    Object.values(carpetasObj).forEach(f => {
+      f.apps = f.apps.filter(id => id !== appToMove);
+    });
+
+    // 2. Agregar a la nueva carpeta (si no es root)
+    if (targetFolderId !== 'root') {
+      carpetasObj[targetFolderId].apps.push(appToMove);
+    }
+
+    await kvSet('carpetas', carpetasObj);
+    
+    // Si la app movida estaba en una posición del escritorio, la borramos
+    const pos = await kvGet('posiciones_iconos') || {};
+    delete pos[appToMove];
+    await kvSet('posiciones_iconos', pos);
+
+    document.getElementById('modal-move').classList.remove('active');
+    appToMove = null;
+
+    if (window.parent && window.parent.MyHub) {
+      window.parent.MyHub.toast('App movida correctamente');
+      if (window.parent.renderIconos) window.parent.renderIconos();
+    }
+
+    init();
+  };
+
+  // ================= Eliminar =================
+  window.deleteApp = async (appId, e) => {
+    e.stopPropagation();
+    if (!confirm(`¿Eliminar la app "${appsObj[appId]?.manifest.titulo}" permanentemente?`)) return;
+
+    delete appsObj[appId];
+    await kvSet('apps_instaladas', appsObj);
+
+    // Quitarla de las carpetas
+    Object.values(carpetasObj).forEach(f => {
+      f.apps = f.apps.filter(id => id !== appId);
+    });
+    await kvSet('carpetas', carpetasObj);
+
+    if (window.parent && window.parent.MyHub) {
+      window.parent.MyHub.eliminarApp(appId); // Esto ya actualiza el lobby
+      window.parent.MyHub.toast('App eliminada');
+    }
+
+    init();
+  };
+
+  window.deleteFolder = async (folderId, e) => {
+    e.stopPropagation();
+    const folder = carpetasObj[folderId];
+    if (!confirm(`¿Eliminar la carpeta "${folder.nombre}"? Las apps volverán a Inicio.`)) return;
+
+    delete carpetasObj[folderId];
+    await kvSet('carpetas', carpetasObj);
+
+    if (window.parent && window.parent.MyHub) {
+      window.parent.MyHub.toast('Carpeta eliminada');
+      if (window.parent.renderIconos) window.parent.renderIconos();
+    }
+
+    if (currentView === folderId) currentView = 'root';
+    init();
+  };
+
+  // ================= Almacenamiento =================
+  const updateStorageInfo = async () => {
+    if (!navigator.storage || !navigator.storage.estimate) {
+      document.getElementById('storage-text').textContent = 'API de almacenamiento no soportada.';
+      return;
+    }
+
+    try {
+      const estimate = await navigator.storage.estimate();
+      const usage = estimate.usage || 0;
+      const quota = estimate.quota || 1;
+      
+      const percent = Math.min(100, (usage / quota) * 100);
+      
+      const formatBytes = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
+      document.getElementById('storage-fill').style.width = percent + '%';
+      document.getElementById('storage-percent').textContent = percent.toFixed(1) + '%';
+      document.getElementById('storage-text').textContent = `Usado: ${formatBytes(usage)} de ${formatBytes(quota)}`;
+
+      // Cambiar color si está muy lleno
+      if (percent > 80) {
+        document.getElementById('storage-fill').style.background = 'var(--danger)';
+      } else {
+        document.getElementById('storage-fill').style.background = 'var(--accent)';
+      }
+    } catch (e) {
+      document.getElementById('storage-text').textContent = 'Error al calcular el espacio.';
+    }
+  };
+
+  // ================= Borrar Datos =================
+  window.wipeData = async () => {
+    if (!confirm('¡ADVERTENCIA! Se borrarán TODAS las apps instaladas y carpetas. ¿Continuar?')) return;
+    if (!confirm('¿Estás TOTALMENTE seguro? Esta acción no se puede deshacer.')) return;
+
+    appsObj = {};
+    carpetasObj = {};
+    
+    await kvSet('apps_instaladas', appsObj);
+    await kvSet('carpetas', carpetasObj);
+    await kvSet('posiciones_iconos', {});
+
+    if (window.parent && window.parent.MyHub) {
+      window.parent.MyHub.toast('Todos los datos de apps han sido borrados');
+      // Recargar el lobby completo para limpiar todo
+      setTimeout(() => window.parent.location.reload(), 1000); 
+    }
+
+    init();
+  };
+
+  // Iniciar
+  init();
+</script>
+</body>
+</html>
