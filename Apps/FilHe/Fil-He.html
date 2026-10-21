@@ -14,9 +14,11 @@
       <i data-lucide="hard-drive"></i> Fil-He
     </div>
     <div class="sidebar-menu">
-      <!-- Zona para soltar y sacar apps de carpetas -->
-      <div class="menu-item active" data-view="root" id="nav-root" onclick="switchView('root')">
-        <i data-lucide="home"></i> Inicio
+      <div class="menu-item active" id="nav-root" onclick="switchView('root')"
+           ondragover="event.preventDefault(); this.classList.add('drop-target')"
+           ondragleave="this.classList.remove('drop-target')"
+           ondrop="dropToRoot(event)">
+        <i data-lucide="home"></i> Inicio (Raíz)
       </div>
       
       <div class="menu-separator"></div>
@@ -37,32 +39,47 @@
   <div class="main-area">
     <div class="toolbar">
       <div class="breadcrumb" id="breadcrumb">
-        <i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio
+        <i data-lucide="home" style="width:16px;height:16px;color:var(--muted)"></i> Inicio
       </div>
       <button class="btn-new" id="btn-new-folder" onclick="openNewFolderModal()">
         <i data-lucide="folder-plus"></i> Nueva Carpeta
       </button>
     </div>
 
-    <div class="content" id="main-content" ondragover="event.preventDefault()" ondrop="dropToRoot(event)">
+    <!-- Contenedor con Drop para sacar apps de carpetas -->
+    <div class="content" id="main-content" 
+         ondragover="event.preventDefault()" 
+         ondrop="dropToRoot(event)">
       
-      <!-- Vista de Archivos y Carpetas (Drag & Drop) -->
-      <div id="view-files" class="file-grid"></div>
+      <!-- Vista de Archivos en Lista -->
+      <div id="view-files" class="list-view">
+        <div class="list-header">
+          <div class="col-name">Nombre</div>
+          <div class="col-type">Tipo</div>
+          <div class="col-actions">Acciones</div>
+        </div>
+        <div id="files-container"></div>
+      </div>
 
-      <!-- Vista de Base de Datos -->
-      <div id="view-db" class="db-view">
+      <!-- Vista de Base de Datos (Archivos guardados) -->
+      <div id="view-db" class="list-view">
         <div style="margin-bottom: 16px;">
           <h3 style="margin:0 0 4px;">Archivos de las Apps</h3>
-          <p style="margin:0; font-size:12px; color:var(--muted);">Aquí puedes ver, editar o eliminar los datos que las apps han guardado en tu navegador.</p>
+          <p style="margin:0; font-size:12px; color:var(--muted);">Datos guardados en tu navegador (LocalStorage / IndexedDB).</p>
         </div>
-        <div class="db-list" id="db-list"></div>
+        <div class="list-header">
+          <div class="col-name">Nombre del Archivo (Key)</div>
+          <div class="col-type">Origen</div>
+          <div class="col-actions">Acciones</div>
+        </div>
+        <div id="db-list"></div>
       </div>
 
       <!-- Vista de Almacenamiento -->
       <div id="view-storage" class="storage-view">
         <div class="storage-card">
           <div class="storage-header">
-            <span>Uso de IndexedDB / LocalStorage</span>
+            <span>Uso de Almacenamiento Local</span>
             <span id="storage-percent">0%</span>
           </div>
           <div class="storage-bar">
@@ -74,7 +91,7 @@
         <div class="danger-zone">
           <h3>Zona de Peligro</h3>
           <p>Si borras los datos globales, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas.</p>
-          <button class="btn-danger" onclick="wipeData()">Borrar TODOS los datos (Apps y Carpetas)</button>
+          <button class="btn-danger" onclick="wipeData()">Borrar TODOS los datos</button>
         </div>
       </div>
     </div>
