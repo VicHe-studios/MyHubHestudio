@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="Fil-He.css">
+<script src="../../vendor/lucide.min.js"></script>
+</head>
+<body>
+
+  <!-- Barra Lateral -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <i data-lucide="hard-drive"></i> Fil-He
+    </div>
+    <div class="sidebar-menu" id="sidebar-menu">
+      <div class="menu-item active" data-view="root" onclick="switchView('root')">
+        <i data-lucide="home"></i> Inicio
+      </div>
+      <div class="menu-item" data-view="system" onclick="switchView('system')">
+        <i data-lucide="shield"></i> Sistema
+      </div>
+      
+      <div class="menu-separator"></div>
+      <div class="menu-title">Carpetas</div>
+      <div id="sidebar-folders"></div>
+
+      <div class="menu-separator"></div>
+      <div class="menu-item" data-view="storage" onclick="switchView('storage')">
+        <i data-lucide="database"></i> Almacenamiento
+      </div>
+    </div>
+  </div>
+
+  <!-- Área Principal -->
+  <div class="main-area">
+    <div class="toolbar">
+      <div class="breadcrumb" id="breadcrumb">
+        <i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio
+      </div>
+      <button class="btn-new" id="btn-new-folder" onclick="openNewFolderModal()">
+        <i data-lucide="folder-plus"></i> Nueva Carpeta
+      </button>
+    </div>
+
+    <div class="content">
+      <!-- Vista de Archivos -->
+      <div id="view-files" class="file-grid"></div>
+
+      <!-- Vista de Almacenamiento -->
+      <div id="view-storage" class="storage-view">
+        <div class="storage-card">
+          <div class="storage-header">
+            <span>Uso de IndexedDB</span>
+            <span id="storage-percent">0%</span>
+          </div>
+          <div class="storage-bar">
+            <div class="storage-fill" id="storage-fill" style="width: 0%"></div>
+          </div>
+          <div class="storage-text" id="storage-text">Calculando...</div>
+        </div>
+
+        <div class="danger-zone">
+          <h3>Zona de Peligro</h3>
+          <p>Si borras los datos, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas. <strong>Esta acción no se puede deshacer.</strong></p>
+          <button class="btn-danger" onclick="wipeData()">Borrar Datos de Apps</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nueva Carpeta -->
+  <div class="modal-overlay" id="modal-folder">
+    <div class="modal">
+      <h3>Nueva Carpeta</h3>
+      <input type="text" id="folder-name-input" placeholder="Nombre de la carpeta...">
+      <div class="modal-actions">
+        <button class="btn gray" onclick="document.getElementById('modal-folder').classList.remove('active')">Cancelar</button>
+        <button class="btn primary" onclick="createFolder()">Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Mover App -->
+  <div class="modal-overlay" id="modal-move">
+    <div class="modal">
+      <h3>Mover App</h3>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Selecciona la carpeta destino:</p>
+      <select id="move-select"></select>
+      <div class="modal-actions">
+        <button class="btn gray" onclick="document.getElementById('modal-move').classList.remove('active')">Cancelar</button>
+        <button class="btn primary" onclick="confirmMove()">Mover</button>
+      </div>
+    </div>
+  </div>
+
+<script src="Fil-He.js"></script>
+</body>
+</html>
