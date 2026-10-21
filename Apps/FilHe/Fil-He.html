@@ -17,9 +17,6 @@
       <div class="menu-item active" data-view="root" onclick="switchView('root')">
         <i data-lucide="home"></i> Inicio
       </div>
-      <div class="menu-item" data-view="system" onclick="switchView('system')">
-        <i data-lucide="shield"></i> Sistema
-      </div>
       
       <div class="menu-separator"></div>
       <div class="menu-title">Carpetas</div>
@@ -27,7 +24,7 @@
 
       <div class="menu-separator"></div>
       <div class="menu-item" data-view="storage" onclick="switchView('storage')">
-        <i data-lucide="database"></i> Almacenamiento
+        <i data-lucide="database"></i> Almacenamiento Global
       </div>
     </div>
   </div>
@@ -51,7 +48,7 @@
       <div id="view-storage" class="storage-view">
         <div class="storage-card">
           <div class="storage-header">
-            <span>Uso de IndexedDB</span>
+            <span>Uso Total de Datos Locales</span>
             <span id="storage-percent">0%</span>
           </div>
           <div class="storage-bar">
@@ -62,8 +59,8 @@
 
         <div class="danger-zone">
           <h3>Zona de Peligro</h3>
-          <p>Si borras los datos, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas. <strong>Esta acción no se puede deshacer.</strong></p>
-          <button class="btn-danger" onclick="wipeData()">Borrar Datos de Apps</button>
+          <p>Si borras los datos globales, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas.</p>
+          <button class="btn-danger" onclick="wipeData()">Borrar TODO (Apps y Carpetas)</button>
         </div>
       </div>
     </div>
@@ -85,11 +82,23 @@
   <div class="modal-overlay" id="modal-move">
     <div class="modal">
       <h3>Mover App</h3>
-      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Selecciona la carpeta destino:</p>
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px;">Selecciona el destino:</p>
       <select id="move-select"></select>
       <div class="modal-actions">
         <button class="btn gray" onclick="document.getElementById('modal-move').classList.remove('active')">Cancelar</button>
         <button class="btn primary" onclick="confirmMove()">Mover</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Visor de Datos -->
+  <div class="modal-overlay" id="modal-data">
+    <div class="modal" style="max-width: 400px;">
+      <h3 id="data-app-title">Datos de la App</h3>
+      <p style="font-size:12px;color:var(--muted);margin:0 0 10px;">Aquí puedes ver, editar o borrar los archivos internos (JSON, configuraciones) de esta aplicación.</p>
+      <div class="data-list" id="data-list"></div>
+      <div class="modal-actions">
+        <button class="btn gray" onclick="document.getElementById('modal-data').classList.remove('active')">Cerrar</button>
       </div>
     </div>
   </div>
