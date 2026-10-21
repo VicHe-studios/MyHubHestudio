@@ -37,23 +37,54 @@
     });
   };
 
-  // 3. Cargar APPS INSTALADAS
-  let appsObj = await kvGet('apps_instaladas') || {};
-  
+  let appsObj = {};
+  let carpetasObj = {};
+
+  const cargarDatos = async () => {
+    appsObj = await kvGet('apps_instaladas') || {};
+    carpetasObj = await kvGet('carpetas') || {};
+    render();
+  };
+
   const render = () => {
     const appKeys = Object.keys(appsObj);
-    
-    if (appKeys.length === 0) {
+    const carpetasKeys = Object.keys(carpetasObj);
+    const totalItems = appKeys.length + carpetasKeys.length;
+
+    if (totalItems === 0) {
       btnVaciar.style.display = 'none';
       lista.innerHTML = `
         <div class="papelera-vacia">
           <div class="icono-vacio"><i data-lucide="trash-2"></i></div>
-          <p>No hay apps para desinstalar</p>
+          <p>No hay apps ni carpetas para eliminar</p>
         </div>
       `;
     } else {
       btnVaciar.style.display = 'inline-flex';
-      lista.innerHTML = appKeys.map(id => {
+      
+      let html = '';
+
+      // Renderizar Carpetas primero
+      html += carpetasKeys.map(id => {
+        const c = carpetasObj[id];
+        return `
+        <div class="papelera-item">
+          <div class="papelera-item-icono" style="color: var(--text);"><i data-lucide="folder"></i></div>
+          <div class="papelera-item-info">
+            <span class="papelera-item-nombre">${c.nombre}</span>
+            <span class="papelera-item-meta">Carpeta • ${c.apps.length} apps dentro</span>
+          </div>
+          <div class="papelera-item-acciones">
+            <button class="btn-icono" title="Eliminar carpeta" onclick="eliminarCarpeta('${id}')">
+              <i data-lucide="trash-2"></i>
+            </button>
+          </div>
+        </div>
+        `;
+      }).join('');
+
+      // Renderizar Apps
+      html += appKeys.map(id => {
         const app = appsObj[id];
         return `
         <div class="papelera-item">
@@ -63,12 +94,14 @@
             <span class="papelera-item-meta">Aplicación • ID: ${id}</span>
           </div>
           <div class="papelera-item-acciones">
-            <button class="btn-icono" title="Desinstalar permanentemente" onclick="desinstalar('${id}')">
+            <button class="btn-icono" title="Desinstalar app" onclick="desinstalar('${id}')">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
         </div>
       `}).join('');
+
+      lista.innerHTML = html;
     }
     if (window.lucide) lucide.createIcons();
   };
@@ -80,33 +113,59 @@
     delete appsObj[id];
     await kvSet('apps_instaladas', appsObj);
     
-    // Avisar al Lobby para que borre el icono
+    // Avisar al Lobby
     if (window.parent && window.parent.MyHub) {
       window.parent.MyHub.eliminarApp(id);
       window.parent.MyHub.toast('App desinstalada');
     }
-    render();
+    
+    // Recargar datos para actualizar el conteo de apps en carpetas
+    await cargarDatos();
   };
 
-  // Vaciar: Borra todas las apps instaladas
+  // Eliminar una carpeta
+  window.eliminarCarpeta = async (id) => {
+    if (!confirm('¿Eliminar esta carpeta permanentemente? Las apps volverán al escritorio.')) return;
+    
+    delete carpetasObj[id];
+    await kvSet('carpetas', carpetasObj);
+    
+    // Avisar al Lobby
+    if (window.parent && window.parent.MyHub && window.parent.MyHub.eliminarCarpetaLobby) {
+      window.parent.MyHub.eliminarCarpetaLobby(id);
+      window.parent.MyHub.toast('Carpeta eliminada');
+    }
+    
+    await cargarDatos();
+  };
+
+  // Vaciar Todo
   btnVaciar.onclick = async () => {
-    if (confirm('¿Seguro que quieres desinstalar TODAS las apps permanentemente?')) {
-      // Avisar al Lobby por cada app antes de borrar
+    if (confirm('¿Seguro que quieres eliminar TODAS las apps y carpetas permanentemente?')) {
+      
       if (window.parent && window.parent.MyHub) {
+        // Avisar de carpetas
+        Object.keys(carpetasObj).forEach(id => {
+          if (window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id);
+        });
+        // Avisar de apps
         Object.keys(appsObj).forEach(id => {
           window.parent.MyHub.eliminarApp(id);
         });
       }
       
       appsObj = {};
+      carpetasObj = {};
       await kvSet('apps_instaladas', appsObj);
-      render();
+      await kvSet('carpetas', carpetasObj);
+      
+      await cargarDatos();
       
       if (window.parent && window.parent.MyHub) {
-        window.parent.MyHub.toast('Todas las apps fueron desinstaladas');
+        window.parent.MyHub.toast('Papelera vaciada por completo');
       }
     }
   };
 
-  render();
+  cargarDatos();
 })();
