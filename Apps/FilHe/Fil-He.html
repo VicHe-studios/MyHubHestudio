@@ -26,4 +26,46 @@
           <input type="text" id="search-input" placeholder="Buscar...">
         </div>
         <select id="sort-select" class="sort-select">
-          <
+          <option value="name-asc">Nombre (A → Z)</option>
+          <option value="name-desc">Nombre (Z → A)</option>
+          <option value="type">Tipo</option>
+        </select>
+        <button class="btn btn-primary" id="btn-new-folder">
+          <i data-lucide="folder-plus"></i>
+          <span>Nueva carpeta</span>
+        </button>
+      </div>
+    </header>
+    <div class="content" id="content"></div>
+  </main>
+</div>
+
+<!-- Modal nueva carpeta -->
+<div class="modal" id="modal-folder">
+  <div class="modal-box">
+    <h3>Nueva carpeta</h3>
+    <input type="text" id="folder-name" placeholder="Nombre de la carpeta" maxlength="40" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>Cancelar</button>
+      <button class="btn btn-primary" id="folder-create">Crear</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal confirmación -->
+<div class="modal" id="modal-confirm">
+  <div class="modal-box">
+    <h3 id="confirm-title">¿Estás seguro?</h3>
+    <p id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" data-close>Cancelar</button>
+      <button class="btn btn-danger" id="confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="Fil-He.js"></script>
+</body>
+</html>
