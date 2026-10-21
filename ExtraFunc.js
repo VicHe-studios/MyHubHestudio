@@ -179,17 +179,13 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   let carpetas = {};
   let pinnedApps = [];
   const minimized = new Set();
-  let ctxMenu = null;
-  let dragTracking = null;
   let ready = false;
 
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
-  // --- PUENTE DE VARIABLES GLOBALES ---
-  // Como JsLobby.js usa 'const', sus variables no están en 'window'.
-  // Este intervalo las busca en el ámbito global y las expone a 'window'.
+  // Puente para capturar variables de JsLobby
   const exposeGlobals = setInterval(() => {
     if (typeof registro !== 'undefined' && !window.registro) {
       window.registro = registro;
@@ -201,7 +197,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       window.abrir = abrir;
       window.cerrar = cerrar;
       window.renderTareas = renderTareas;
-      console.log('[Extras] Variables de JsLobby capturadas con éxito.');
+      console.log('[Extras] Variables de JsLobby capturadas.');
     }
   }, 50);
 
@@ -336,28 +332,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         font-size: 12px; font-weight: 600; text-align: center;
         max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-
-      /* ===== Menú contextual ===== */
-      .ctx-menu {
-        position: fixed; background: var(--glass);
-        backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5);
-        border: 1.5px solid var(--accent-line); border-radius: 10px;
-        padding: 6px; box-shadow: var(--shadow-xl); z-index: 500;
-        min-width: 190px; animation: dropIn .14s var(--ease-out); color: var(--text);
-      }
-      .ctx-item {
-        display: flex; align-items: center; gap: 10px;
-        width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
-        background: transparent; color: var(--text);
-        font: inherit; font-size: 13px; font-weight: 500;
-        cursor: pointer; text-align: left;
-      }
-      .ctx-item:hover { background: var(--accent); color: #fff; }
-      .ctx-item svg { width: 14px; height: 14px; flex-shrink: 0; }
-      .ctx-menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
-
-      /* Modal interno para prompt */
-      @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
     `;
     document.head.appendChild(style);
   }
@@ -524,6 +498,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const iconsEl = document.getElementById('icons');
     if (!iconsEl) return;
 
+    let dragTracking = null;
+
     iconsEl.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       const icon = e.target.closest('.icon[data-app-id]');
@@ -648,33 +624,33 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
-  // Modal propio sin dependencias
+  // Modal propio con estilos en línea (100% a prueba de fallos)
   function promptCarpeta(titulo, defaultValue, callback) {
-    console.log('[Extras] Abriendo prompt de carpeta');
+    console.log('[Extras] Abriendo modal de carpeta');
     const overlay = document.createElement('div');
     overlay.style.cssText = `
-      position: fixed; inset: 0; z-index: 9999;
-      background: rgba(7, 12, 28, 0.55); backdrop-filter: blur(6px);
+      position: fixed; inset: 0; z-index: 99999;
+      background: rgba(0,0,0,0.5); backdrop-filter: blur(4px);
       display: flex; align-items: center; justify-content: center;
     `;
     const box = document.createElement('div');
     box.style.cssText = `
-      background: var(--card); color: var(--text);
+      background: var(--card, #fff); color: var(--text, #000);
       padding: 24px; border-radius: 16px;
-      border: 2px solid var(--accent);
-      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      border: 2px solid var(--accent, #2563eb);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
       width: 320px; max-width: 90vw;
       display: flex; flex-direction: column; gap: 12px;
     `;
     box.innerHTML = `
       <h3 style="margin:0;font-size:16px;font-weight:700;">${esc(titulo)}</h3>
       <input type="text" id="prompt-input" value="${esc(defaultValue)}" maxlength="24" style="
-        padding: 10px; border-radius: 8px; border: 1.5px solid var(--line);
-        background: var(--field); color: var(--text); font: inherit; outline: none;
+        padding: 10px; border-radius: 8px; border: 1.5px solid var(--line, #ccc);
+        background: var(--field, #f0f0f0); color: var(--text, #000); font: inherit; outline: none;
       ">
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;">
-        <button id="prompt-cancel" class="btn gray" style="padding:8px 16px;">Cancelar</button>
-        <button id="prompt-ok" class="btn" style="padding:8px 16px;">Aceptar</button>
+        <button id="prompt-cancel" style="padding:8px 16px;border-radius:8px;border:1px solid var(--line, #ccc);background:transparent;color:inherit;cursor:pointer;">Cancelar</button>
+        <button id="prompt-ok" style="padding:8px 16px;border-radius:8px;border:none;background:var(--accent, #2563eb);color:#fff;cursor:pointer;font-weight:600;">Aceptar</button>
       </div>
     `;
     overlay.appendChild(box);
@@ -715,22 +691,34 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       return origCerrar.call(this, id);
     };
 
-    window.renderTareas = function () {
-      const c = document.getElementById('tasks');
-      if (!c) return;
-      c.innerHTML = '';
-      for (const id of Object.keys(window.win)) {
-        const app = window.registro.get(id);
-        if (!app) continue;
-        const t = document.createElement('div');
-        const isMin = minimized.has(id);
-        t.className = 'task' + (focused === id && !isMin ? ' active' : '') + (isMin ? ' minimized' : '');
-        t.innerHTML = `<i data-lucide="${esc(app.icono || 'app-window')}"></i><span>${esc(app.titulo)}</span>`;
-        t.onclick = () => { isMin ? restaurar(id) : enfocar(id); };
-        c.appendChild(t);
-      }
-      refrescarIconos();
-    };
+    // Observar el taskbar para aplicar estilos visuales sin reescribir renderTareas
+    const tasksContainer = document.getElementById('tasks');
+    if (tasksContainer) {
+      const observer = new MutationObserver(() => {
+        Array.from(tasksContainer.children).forEach((t, i) => {
+          const id = Object.keys(window.win)[i];
+          if (id && minimized.has(id)) {
+            t.classList.add('minimized');
+          } else {
+            t.classList.remove('minimized');
+          }
+        });
+      });
+      observer.observe(tasksContainer, { childList: true, subtree: true });
+
+      // Interceptar clic para restaurar ventanas minimizadas
+      tasksContainer.addEventListener('pointerdown', (e) => {
+        const task = e.target.closest('.task');
+        if (!task) return;
+        const index = Array.from(tasksContainer.children).indexOf(task);
+        const id = Object.keys(window.win)[index];
+        if (id && minimized.has(id)) {
+          e.stopPropagation();
+          e.preventDefault();
+          restaurar(id);
+        }
+      }, true);
+    }
   }
 
   function addMinimizeButton(id) {
@@ -753,7 +741,15 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     if (!w) return;
     minimized.add(id);
     w.el.style.display = 'none';
-    window.renderTareas();
+    
+    // Forzar actualización del taskbar
+    const tasksContainer = document.getElementById('tasks');
+    if (tasksContainer) {
+      Array.from(tasksContainer.children).forEach((t, i) => {
+        const tid = Object.keys(window.win)[i];
+        if (tid === id) t.classList.add('minimized');
+      });
+    }
   }
 
   function restaurar(id) {
@@ -761,7 +757,20 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     if (!w) { minimized.delete(id); return; }
     minimized.delete(id);
     w.el.style.display = '';
-    enfocar(id);
+    
+    // Simular un clic en el taskbar para que JsLobby lo enfoque
+    const tasksContainer = document.getElementById('tasks');
+    if (tasksContainer) {
+      const index = Object.keys(window.win).indexOf(id);
+      if (index !== -1 && tasksContainer.children[index]) {
+        Array.from(tasksContainer.children).forEach((t, i) => {
+          if (i === index) t.classList.remove('minimized');
+        });
+        // Enfocar la ventana
+        window.win[id].el.style.zIndex = 5;
+        window.win[id].el.classList.add('focused');
+      }
+    }
   }
 
   /* =========================================================================
@@ -870,31 +879,75 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   /* =========================================================================
-     MENÚS CONTEXTUALES
+     MENÚS CONTEXTUALES (Estilos en línea para evitar fallos)
      ========================================================================= */
+  let ctxMenu = null;
+
   function mostrarContexto(x, y, items) {
+    console.log('[Extras] Mostrando menú contextual en', x, y);
     cerrarContexto();
+    
+    // Backdrop invisible para detectar clics fuera
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = 'position:fixed;inset:0;z-index:499;';
+    backdrop.addEventListener('pointerdown', (e) => {
+      if (e.button === 0) cerrarContexto();
+    });
+
     ctxMenu = document.createElement('div');
-    ctxMenu.className = 'ctx-menu';
-    ctxMenu.style.left = Math.min(x, window.innerWidth - 220) + 'px';
-    ctxMenu.style.top  = Math.min(y, window.innerHeight - 60 - items.length * 36) + 'px';
+    ctxMenu.style.cssText = `
+      position: fixed;
+      left: ${Math.min(x, window.innerWidth - 220)}px;
+      top: ${Math.min(y, window.innerHeight - 60 - items.length * 36)}px;
+      background: var(--glass, rgba(255,255,255,0.95));
+      backdrop-filter: blur(20px);
+      border: 1.5px solid var(--accent-line, #ccc);
+      border-radius: 10px;
+      padding: 6px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      z-index: 500;
+      min-width: 190px;
+      color: var(--text, #000);
+      display: flex;
+      flex-direction: column;
+    `;
 
     items.forEach(item => {
-      if (item.separator) { ctxMenu.appendChild(document.createElement('hr')); return; }
+      if (item.separator) {
+        const hr = document.createElement('hr');
+        hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
+        ctxMenu.appendChild(hr);
+        return;
+      }
       const b = document.createElement('button');
-      b.className = 'ctx-item';
+      b.style.cssText = `
+        display: flex; align-items: center; gap: 10px;
+        width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
+        background: transparent; color: inherit;
+        font: inherit; font-size: 13px; font-weight: 500;
+        cursor: pointer; text-align: left;
+        transition: background 0.15s, color 0.15s;
+      `;
+      b.onmouseover = () => { b.style.background = 'var(--accent, #2563eb)'; b.style.color = '#fff'; };
+      b.onmouseout = () => { b.style.background = 'transparent'; b.style.color = 'inherit'; };
+      
       b.innerHTML = `<i data-lucide="${item.icon || 'circle'}"></i><span>${esc(item.text)}</span>`;
       b.onclick = () => { cerrarContexto(); item.fn(); };
       ctxMenu.appendChild(b);
     });
 
+    document.body.appendChild(backdrop);
     document.body.appendChild(ctxMenu);
+    ctxMenu._backdrop = backdrop;
     refrescarIconos();
-    setTimeout(() => document.addEventListener('pointerdown', cerrarContexto, { once: true, capture: true }), 0);
   }
-  
+
   function cerrarContexto() {
-    if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
+    if (ctxMenu) {
+      if (ctxMenu._backdrop) ctxMenu._backdrop.remove();
+      ctxMenu.remove();
+      ctxMenu = null;
+    }
   }
 
   function contextoApp(e, appId) {
@@ -924,7 +977,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
   function contextoDesktop(e) {
     console.log('[Extras] Click derecho detectado en el escritorio');
-    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu')) return;
+    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu') || e.target.closest('#taskbar')) return;
     e.preventDefault();
     mostrarContexto(e.clientX, e.clientY, [
       { icon: 'folder-plus', text: 'Nueva carpeta', fn: () => {
@@ -972,7 +1025,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const menuOps = document.getElementById('menuOps');
     if (!menuOps) return;
     
-    // Inyectar inmediatamente si ya está listo
     const injectButton = () => {
       if (document.getElementById('menu-nueva-carpeta')) return;
       const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
@@ -982,7 +1034,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       btn.id = 'menu-nueva-carpeta';
       btn.className = 'menu-op';
       btn.innerHTML = `<i data-lucide="folder-plus"></i><span>Nueva carpeta</span>`;
-      btn.onclick = () => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
         const menu = document.getElementById('menu');
         if (menu) menu.classList.add('hidden');
         promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
@@ -1001,9 +1054,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
      SETUP
      ========================================================================= */
   async function setup() {
-    console.log('[Extras] Setup iniciado correctamente');
     if (ready) return;
     ready = true;
+    console.log('[Extras] Setup iniciado');
 
     carpetas = (await kvGet('carpetas')) || {};
     pinnedApps = (await kvGet('pinned_apps')) || [];
@@ -1021,13 +1074,12 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const desktopEl = document.getElementById('desktop');
     if (desktopEl) {
       desktopEl.addEventListener('contextmenu', contextoDesktop);
-      console.log('[Extras] Evento contextmenu asociado al escritorio');
+      console.log('[Extras] Evento contextmenu asociado');
     }
 
     window.renderIconos();
   }
 
-  // Espera a que el puente de variables capture las variables y luego hace el setup
   function waitForLobby() {
     if (window.MyHub && window.registro && window.renderIconos && window.abrir) {
       setup().catch(err => console.error('[Extras] Error en setup:', err));
