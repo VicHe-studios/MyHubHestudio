@@ -37,7 +37,8 @@
   const fetchApps = async () => {
     appsList.innerHTML = '<p style="text-align: center; color: var(--muted); margin-top: 20px;">Buscando apps...</p>';
     try {
-      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/`);
+      // AÑADIDO: ?t=${Date.now()} para evitar caché en la lista de carpetas
+      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/?t=${Date.now()}`);
       if (!res.ok) throw new Error('Error al conectar con GitHub');
       
       const data = await res.json();
@@ -57,8 +58,8 @@
         let descripcion = null;
         
         try {
-          // Usamos raw.githubusercontent.com en lugar de jsDelivr para evitar el caché
-          const manifestUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${folder.name}/manifest.json`;
+          // AÑADIDO: ?t=${Date.now()} para evitar que se cachee el manifest.json
+          const manifestUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${folder.name}/manifest.json?t=${Date.now()}`;
           const mRes = await fetch(manifestUrl);
           if (mRes.ok) {
             const manifest = await mRes.json();
@@ -121,15 +122,16 @@
       const archivos = {};
       let manifest = null;
 
-      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}`);
+      // AÑADIDO: ?t=${Date.now()} para la lista de archivos de la app
+      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}?t=${Date.now()}`);
       if (!res.ok) throw new Error('No se pudo leer la carpeta');
       
       const fileList = await res.json();
 
       for (const file of fileList) {
         if (file.type === 'file') {
-          // Para los archivos de la app (como el index.html) seguimos usando jsDelivr porque permite CORS
-          const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${file.path}`;
+          // AÑADIDO: ?t=${Date.now()} para descargar el index.html sin caché
+          const jsDelivrUrl = `https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/${file.path}?t=${Date.now()}`;
           const fileRes = await fetch(jsDelivrUrl);
           if (!fileRes.ok) continue; 
           
