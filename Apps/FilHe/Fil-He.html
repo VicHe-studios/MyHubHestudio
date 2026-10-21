@@ -8,107 +8,22 @@
 </head>
 <body>
 
-  <!-- Barra Lateral -->
-  <div class="sidebar">
+<div class="app">
+  <aside class="sidebar">
     <div class="sidebar-header">
-      <i data-lucide="hard-drive"></i> Fil-He
+      <i data-lucide="hard-drive"></i>
+      <span>Fil-He</span>
     </div>
-    <div class="sidebar-menu">
-      <div class="menu-item active" id="nav-root" onclick="switchView('root')"
-           ondragover="event.preventDefault(); this.classList.add('drop-target')"
-           ondragleave="this.classList.remove('drop-target')"
-           ondrop="dropToRoot(event)">
-        <i data-lucide="home"></i> Inicio (Raíz)
-      </div>
-      
-      <div class="menu-separator"></div>
-      <div class="menu-title">Carpetas</div>
-      <div id="sidebar-folders"></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+  </aside>
 
-      <div class="menu-separator"></div>
-      <div class="menu-item" data-view="db" onclick="switchView('db')">
-        <i data-lucide="database"></i> Archivos de Datos
-      </div>
-      <div class="menu-item" data-view="storage" onclick="switchView('storage')">
-        <i data-lucide="pie-chart"></i> Almacenamiento
-      </div>
-    </div>
-  </div>
-
-  <!-- Área Principal -->
-  <div class="main-area">
-    <div class="toolbar">
-      <div class="breadcrumb" id="breadcrumb">
-        <i data-lucide="home" style="width:16px;height:16px;color:var(--muted)"></i> Inicio
-      </div>
-      <button class="btn-new" id="btn-new-folder" onclick="openNewFolderModal()">
-        <i data-lucide="folder-plus"></i> Nueva Carpeta
-      </button>
-    </div>
-
-    <!-- Contenedor con Drop para sacar apps de carpetas -->
-    <div class="content" id="main-content" 
-         ondragover="event.preventDefault()" 
-         ondrop="dropToRoot(event)">
-      
-      <!-- Vista de Archivos en Lista -->
-      <div id="view-files" class="list-view">
-        <div class="list-header">
-          <div class="col-name">Nombre</div>
-          <div class="col-type">Tipo</div>
-          <div class="col-actions">Acciones</div>
+  <main class="main">
+    <header class="toolbar">
+      <nav class="breadcrumb" id="breadcrumb"></nav>
+      <div class="toolbar-right">
+        <div class="search-box">
+          <i data-lucide="search"></i>
+          <input type="text" id="search-input" placeholder="Buscar...">
         </div>
-        <div id="files-container"></div>
-      </div>
-
-      <!-- Vista de Base de Datos (Archivos guardados) -->
-      <div id="view-db" class="list-view">
-        <div style="margin-bottom: 16px;">
-          <h3 style="margin:0 0 4px;">Archivos de las Apps</h3>
-          <p style="margin:0; font-size:12px; color:var(--muted);">Datos guardados en tu navegador (LocalStorage / IndexedDB).</p>
-        </div>
-        <div class="list-header">
-          <div class="col-name">Nombre del Archivo (Key)</div>
-          <div class="col-type">Origen</div>
-          <div class="col-actions">Acciones</div>
-        </div>
-        <div id="db-list"></div>
-      </div>
-
-      <!-- Vista de Almacenamiento -->
-      <div id="view-storage" class="storage-view">
-        <div class="storage-card">
-          <div class="storage-header">
-            <span>Uso de Almacenamiento Local</span>
-            <span id="storage-percent">0%</span>
-          </div>
-          <div class="storage-bar">
-            <div class="storage-fill" id="storage-fill" style="width: 0%"></div>
-          </div>
-          <div class="storage-text" id="storage-text">Calculando...</div>
-        </div>
-
-        <div class="danger-zone">
-          <h3>Zona de Peligro</h3>
-          <p>Si borras los datos globales, se eliminarán todas las apps instaladas y carpetas. Las apps del sistema y tu cuenta no se verán afectadas.</p>
-          <button class="btn-danger" onclick="wipeData()">Borrar TODOS los datos</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modales -->
-  <div class="modal-overlay" id="modal-folder">
-    <div class="modal">
-      <h3>Nueva Carpeta</h3>
-      <input type="text" id="folder-name-input" placeholder="Nombre de la carpeta...">
-      <div class="modal-actions">
-        <button class="btn gray" onclick="document.getElementById('modal-folder').classList.remove('active')">Cancelar</button>
-        <button class="btn primary" onclick="createFolder()">Crear</button>
-      </div>
-    </div>
-  </div>
-
-<script src="Fil-He.js"></script>
-</body>
-</html>
+        <select id="sort-select" class="sort-select">
+          <
