@@ -17,5 +17,11 @@ window.RUTAS_APPS = [
     titulo: 'Stor-He',
     icono: 'store',
     url: 'Apps/StorHe/Stor-He.html'
+  },
+  {
+    id: 'filhe',
+    titulo: 'Fil-He',
+    icono: 'hard-drive',
+    url: 'Apps/FilHe/Fil-He.html'
   }
 ];
