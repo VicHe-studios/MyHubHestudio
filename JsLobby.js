@@ -501,6 +501,7 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
 
 // ================= Ventanas =================
 const win = {};
+const minimized = new Set(); // NUEVO: Almacena los IDs minimizados
 const slots = { left: null, center: null, right: null };
 let focused = null;
 
@@ -517,7 +518,8 @@ function rectSlot(s) {
 
 function acomodar() {
   for (const id in win) {
-    const w = win[id]; if (w.el.classList.contains('dragging')) continue;
+    const w = win[id]; 
+    if (w.el.classList.contains('dragging') || minimized.has(id)) continue;
     const r = rectSlot(w.slot);
     Object.assign(w.el.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   }
@@ -566,21 +568,55 @@ async function prepararAppInstalada(app) {
 
 async function abrir(id) {
   if (!sesionActiva) { toast('Inicia sesión para usar las apps'); return; }
-  if (win[id]) return enfocar(id);
+  
+  if (win[id]) {
+    if (minimized.has(id)) restaurar(id);
+    else enfocar(id);
+    return;
+  }
+  
+  // LÍMITE DE 6 VENTANAS ABIERTAS EN MEMORIA
+  if (Object.keys(win).length >= 6) { 
+    toast('Máximo 6 apps abiertas. Cierra una primero.'); 
+    return; 
+  }
+  
   const app = registro.get(id); if (!app) return;
   
-  const libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
-  if (!libre) { toast('Solo caben 3 ventanas. Cierra una primero.'); return; }
+  let libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
+  
+  // Si los 3 slots están ocupados, minimizamos la ventana enfocada actual
+  if (!libre) {
+    const idToMinimize = focused || Object.keys(win).find(k => !minimized.has(k));
+    if (idToMinimize) {
+      minimizar(idToMinimize);
+      libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
+    }
+  }
+  
+  if (!libre) return; // Por seguridad
 
   const el = document.createElement('div'); el.className = 'win';
-  el.innerHTML = `<div class="titlebar"><span></span><button class="close" aria-label="Cerrar"><i data-lucide="x"></i></button></div><div class="body"></div>`;
+  el.innerHTML = `
+    <div class="titlebar">
+      <span></span>
+      <button class="close minimize" aria-label="Minimizar" title="Minimizar"><i data-lucide="minus"></i></button>
+      <button class="close" aria-label="Cerrar" title="Cerrar" style="margin-left: 0;"><i data-lucide="x"></i></button>
+    </div>
+    <div class="body"></div>`;
+  
   el.querySelector('.titlebar span').textContent = app.titulo;
   desk.appendChild(el);
 
   win[id] = { el, slot: libre }; slots[libre] = id;
 
-  el.querySelector('.close').onclick = () => cerrar(id);
-  el.querySelector('.titlebar').addEventListener('pointerdown', e => arrastrar(e, id));
+  el.querySelector('.minimize').onclick = (e) => { e.stopPropagation(); minimizar(id); };
+  el.querySelector('.close:not(.minimize)').onclick = () => cerrar(id);
+  
+  el.querySelector('.titlebar').addEventListener('pointerdown', e => {
+    if (e.target.closest('.close')) return; 
+    arrastrar(e, id);
+  });
   el.addEventListener('pointerdown', () => enfocar(id));
 
   acomodar(); enfocar(id); refrescarIconos();
@@ -623,9 +659,55 @@ async function abrir(id) {
 
 function cerrar(id) {
   const w = win[id]; if (!w) return;
-  slots[w.slot] = null; w.el.remove(); delete win[id];
-  if (focused === id) focused = null;
+  // Liberar el slot si no estaba minimizada
+  if (!minimized.has(id) && w.slot) {
+    slots[w.slot] = null;
+  }
+  minimized.delete(id);
+  w.el.remove(); 
+  delete win[id];
+  
+  if (focused === id) {
+    focused = null;
+    const remaining = Object.keys(win).filter(k => !minimized.has(k));
+    if (remaining.length > 0) enfocar(remaining[0]);
+  }
   acomodar(); renderTareas();
+}
+
+function minimizar(id) {
+  const w = win[id]; if (!w || minimized.has(id)) return;
+  minimized.add(id);
+  slots[w.slot] = null;
+  w.el.style.display = 'none';
+  
+  if (focused === id) {
+    focused = null;
+    const remaining = Object.keys(win).filter(k => !minimized.has(k));
+    if (remaining.length > 0) enfocar(remaining[0]);
+  }
+  acomodar(); renderTareas();
+}
+
+function restaurar(id) {
+  const w = win[id]; if (!w || !minimized.has(id)) return;
+  
+  let libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
+  
+  // Si los 3 slots están ocupados, minimizamos otra para hacer espacio
+  if (!libre) {
+    const idToMinimize = focused || Object.keys(win).find(k => k !== id && !minimized.has(k));
+    if (idToMinimize) minimizar(idToMinimize);
+    libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
+  }
+  
+  if (!libre) return;
+  
+  minimized.delete(id);
+  w.slot = libre;
+  slots[libre] = id;
+  w.el.style.display = '';
+  acomodar(); enfocar(id);
 }
 
 function enfocar(id) {
@@ -642,9 +724,14 @@ function renderTareas() {
   for (const id of Object.keys(win)) {
     const app = registro.get(id);
     const t = document.createElement('div');
-    t.className = 'task' + (focused === id ? ' active' : '');
+    const isMin = minimized.has(id);
+    // Se añade la clase .minimized para que ExtraFunc lo haga "chiquito"
+    t.className = 'task' + (focused === id && !isMin ? ' active' : '') + (isMin ? ' minimized' : '');
     t.innerHTML = `<i data-lucide="${app.icono || 'app-window'}"></i><span>${esc(app.titulo)}</span>`;
-    t.onclick = () => enfocar(id);
+    t.onclick = () => {
+      if (isMin) restaurar(id);
+      else enfocar(id);
+    };
     c.appendChild(t);
   }
   refrescarIconos();
@@ -709,7 +796,8 @@ window.addEventListener('message', async e => {
 });
 
 window.MyHub = {
-  registrarApp, eliminarApp, abrir, cerrar, toast, perfil, sesion: () => sesionActiva,
+  registrarApp, eliminarApp, abrir, cerrar, minimizar, restaurar, isMinimized: (id) => minimized.has(id),
+  toast, perfil, sesion: () => sesionActiva,
   tema: () => ({ color: COLORES[ajustes.color] || COLORES.azul, modo: ajustes.modo })
 };
 
