@@ -293,8 +293,41 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
       /* ===== Botón minimizar ===== */
       .close.minimize:hover { background: #f59e0b; color: #fff; }
-      .task.minimized { opacity: 0.55; }
-      .task.minimized.active { opacity: 0.75; }
+
+      /* ===== TAREA MINIMIZADA (Icono en chiquito) ===== */
+      .task.minimized {
+        opacity: 0.65;
+        padding: 0 !important;
+        width: 40px !important;
+        min-width: 40px;
+        height: 40px;
+        justify-content: center;
+        border-radius: 12px;
+        background: var(--accent-soft);
+        border-color: var(--accent-line);
+      }
+      .task.minimized span {
+        display: none; /* Ocultar el texto */
+      }
+      .task.minimized svg {
+        width: 20px !important;
+        height: 20px !important;
+        margin: 0;
+      }
+      .task.minimized:hover {
+        opacity: 1;
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .task.minimized:hover svg {
+        color: #fff;
+      }
+      .task.minimized.active {
+        opacity: 1;
+        background: var(--accent-soft);
+        border-color: var(--accent);
+      }
 
       /* ===== Icono de carpeta ===== */
       .icon.folder-icon .ico { position: relative; overflow: hidden; }
