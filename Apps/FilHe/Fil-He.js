@@ -37,6 +37,7 @@
   let carpetasObj = {};
   let currentView = 'root';
   let appToMove = null;
+  let appForData = null;
 
   const systemApps = [
     { id: 'papelera', titulo: 'Papelera', icono: 'trash-2' },
@@ -49,7 +50,6 @@
   const init = async () => {
     appsObj = await kvGet('apps_instaladas') || {};
     carpetasObj = await kvGet('carpetas') || {};
-    
     renderSidebar();
     renderView();
     updateStorageInfo();
@@ -100,27 +100,27 @@
     if (currentView === 'root') {
       breadcrumb.innerHTML = `<i data-lucide="home" style="width:18px;height:18px;color:var(--muted)"></i> Inicio`;
       
+      // 1. Carpetas
       Object.values(carpetasObj).forEach(f => {
-        itemsToRender.push({ type: 'folder', data: f, id: f.id, name: f.nombre, icon: 'folder' });
+        itemsToRender.push({ type: 'folder', id: f.id, name: f.nombre, icon: 'folder' });
       });
 
+      // 2. Apps Instaladas (que no estén en carpetas)
       const appsInFolders = new Set();
       Object.values(carpetasObj).forEach(f => f.apps.forEach(id => appsInFolders.add(id)));
-      
       Object.values(appsObj).forEach(a => {
         if (!appsInFolders.has(a.manifest.id)) {
-          itemsToRender.push({ type: 'app', data: a, id: a.manifest.id, name: a.manifest.titulo, icon: a.manifest.icono || 'box' });
+          itemsToRender.push({ type: 'app', id: a.manifest.id, name: a.manifest.titulo, icon: a.manifest.icono || 'box', data: a });
         }
       });
 
-    } else if (currentView === 'system') {
-      breadcrumb.innerHTML = `<i data-lucide="shield" style="width:18px;height:18px;color:var(--muted)"></i> Sistema`;
-      
+      // 3. Apps del Sistema
       systemApps.forEach(a => {
-        itemsToRender.push({ type: 'system', data: a, id: a.id, name: a.titulo, icon: a.icono });
+        itemsToRender.push({ type: 'system', id: a.id, name: a.titulo, icon: a.icono });
       });
 
     } else {
+      // Vista dentro de una carpeta
       const folder = carpetasObj[currentView];
       if (!folder) return switchView('root');
       
@@ -129,7 +129,7 @@
       folder.apps.forEach(appId => {
         const app = appsObj[appId];
         if (app) {
-          itemsToRender.push({ type: 'app', data: app, id: appId, name: app.manifest.titulo, icon: app.manifest.icono || 'box' });
+          itemsToRender.push({ type: 'app', id: appId, name: app.manifest.titulo, icon: app.manifest.icono || 'box', data: app });
         }
       });
     }
@@ -142,16 +142,22 @@
       const div = document.createElement('div');
       div.className = 'file-item';
       
-      let iconHtml = `<div class="file-icon"><i data-lucide="${item.icon}"></i></div>`;
+      // Candado para apps de sistema
+      let lockHtml = item.type === 'system' ? `<div class="lock-icon"><i data-lucide="lock"></i></div>` : '';
+      let iconHtml = `<div class="file-icon"><i data-lucide="${item.icon}"></i>${lockHtml}</div>`;
+      
       let actionsHtml = '';
       
       if (item.type === 'app') {
         actionsHtml = `
           <div class="file-actions">
+            <button class="action-btn data" onclick="openDataModal('${item.id}', '${item.name.replace(/'/g, "\\'")}', event)" title="Ver y manipular archivos de datos">
+              <i data-lucide="database"></i>
+            </button>
             <button class="action-btn" onclick="openMoveModal('${item.id}', event)" title="Mover a carpeta">
               <i data-lucide="folder-input"></i>
             </button>
-            <button class="action-btn delete" onclick="deleteApp('${item.id}', event)" title="Eliminar App">
+            <button class="action-btn delete" onclick="deleteApp('${item.id}', event)" title="Desinstalar App">
               <i data-lucide="trash-2"></i>
             </button>
           </div>
@@ -169,7 +175,8 @@
       div.innerHTML = `${actionsHtml}${iconHtml}<span class="file-name">${item.name}</span>`;
 
       div.onclick = (e) => {
-        if (e.target.closest('.file-actions')) return;
+        if (e.target.closest('.file-actions') || e.target.closest('.lock-icon')) return;
+        
         if (item.type === 'folder') {
           switchView(item.id);
         } else if (item.type === 'app' || item.type === 'system') {
@@ -182,6 +189,122 @@
 
     if (window.lucide) lucide.createIcons();
   };
+
+  // --- SISTEMA DE DATOS DE APPS ---
+  window.openDataModal = async (appId, appTitle, e) => {
+    e.stopPropagation();
+    appForData = appId;
+    document.getElementById('data-app-title').textContent = `Datos de ${appTitle}`;
+    
+    const dataList = document.getElementById('data-list');
+    dataList.innerHTML = '<p style="text-align:center;font-size:12px;color:var(--muted);">Buscando archivos...</p>';
+    document.getElementById('modal-data').classList.add('active');
+
+    const keysFound = [];
+
+    // 1. Buscar en LocalStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      // Filtramos para que no muestre los datos del núcleo de MyHub
+      const coreKeys = ['cuenta', 'ajustes', 'sesion', 'carpetas', 'apps_instaladas', 'posiciones_iconos'];
+      
+      // Si la clave parece pertenecer a la app (contiene su nombre o usa el prefijo de la app)
+      if (!coreKeys.includes(key) && (key.includes(appId) || key.includes(appTitle.toLowerCase().replace(/\s/g, '')))) {
+        keysFound.push({ type: 'ls', key, value: localStorage.getItem(key) });
+      }
+    }
+
+    // 2. Buscar en IndexedDB (Object Store 'kv')
+    try {
+      const db = await dbP;
+      const tx = db.transaction('kv', 'readonly');
+      const store = tx.objectStore('kv');
+      const req = store.getAllKeys();
+      
+      req.onsuccess = () => {
+        const allKeys = req.result;
+        const coreKeys = ['cuenta', 'ajustes', 'sesion', 'carpetas', 'apps_instaladas', 'posiciones_iconos'];
+        
+        allKeys.forEach(k => {
+          if (!coreKeys.includes(k) && String(k).includes(appId)) {
+            // Es un dato de la app en IDB
+            const valReq = store.get(k);
+            valReq.onsuccess = () => {
+              let strVal = valReq.result;
+              if (typeof strVal === 'object') strVal = JSON.stringify(strVal);
+              keysFound.push({ type: 'idb', key: k, value: strVal });
+              renderDataList(keysFound);
+            };
+          }
+        });
+        
+        // Renderizar inicial después de buscar en IDB (o si no hay, mostrar vacío)
+        setTimeout(() => renderDataList(keysFound), 100);
+      };
+    } catch(err) {
+      renderDataList(keysFound);
+    }
+  };
+
+  const renderDataList = (keys) => {
+    const dataList = document.getElementById('data-list');
+    dataList.innerHTML = '';
+
+    if (keys.length === 0) {
+      dataList.innerHTML = '<p style="text-align:center;font-size:12px;color:var(--muted);padding:20px;">Esta app no tiene datos guardados actualmente.</p>';
+      return;
+    }
+
+    keys.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'data-item';
+      
+      const shortVal = item.value.length > 50 ? item.value.substring(0, 50) + '...' : item.value;
+
+      div.innerHTML = `
+        <div class="data-item-header">
+          <span>${item.key}</span>
+          <span style="font-size:9px;background:var(--line);padding:2px 4px;border-radius:4px;">${item.type === 'ls' ? 'LocalStorage' : 'IndexedDB'}</span>
+        </div>
+        <div class="data-item-value">${shortVal}</div>
+        <div class="data-actions">
+          <button class="btn gray" style="padding:4px 8px;font-size:10px;" onclick="editDataKey('${item.type}', '${item.key}', ${item.value ? `\`${item.value.replace(/`/g, '\\`')}\`` : "''"})">Editar</button>
+          <button class="btn danger" style="padding:4px 8px;font-size:10px;" onclick="deleteDataKey('${item.type}', '${item.key}')">Borrar</button>
+        </div>
+      `;
+      dataList.appendChild(div);
+    });
+  };
+
+  window.editDataKey = async (type, key, currentValue) => {
+    const newValue = prompt(`Editar valor para:\n${key}`, currentValue);
+    if (newValue === null) return; // Cancelado
+
+    if (type === 'ls') {
+      localStorage.setItem(key, newValue);
+    } else {
+      await kvSet(key, newValue); // Asumiendo que IDB guarda strings
+    }
+    
+    if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Dato actualizado');
+    openDataModal(appForData, document.getElementById('data-app-title').textContent.replace('Datos de ', ''), { stopPropagation: () => {} });
+  };
+
+  window.deleteDataKey = async (type, key) => {
+    if (!confirm(`¿Borrar el archivo de datos "${key}"?\nEsto podría hacer que la app pierda configuración.`)) return;
+
+    if (type === 'ls') {
+      localStorage.removeItem(key);
+    } else {
+      const db = await dbP;
+      const tx = db.transaction('kv', 'readwrite');
+      tx.objectStore('kv').delete(key);
+    }
+
+    if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Dato eliminado');
+    openDataModal(appForData, document.getElementById('data-app-title').textContent.replace('Datos de ', ''), { stopPropagation: () => {} });
+  };
+  // -------------------------------
 
   // Navegación
   window.switchView = (view) => {
@@ -209,7 +332,6 @@
     
     if (window.parent && window.parent.MyHub) {
       window.parent.MyHub.toast(`Carpeta "${nombre}" creada`);
-      // Refrescar iconos del lobby si está expuesto
       if (window.parent.renderIconos) window.parent.renderIconos(); 
     }
     init();
@@ -224,7 +346,7 @@
     select.innerHTML = '';
     
     if (currentView !== 'root') {
-      select.innerHTML += `<option value="root">[Sacar de la carpeta]</option>`;
+      select.innerHTML += `<option value="root">Inicio (Sacar de la carpeta)</option>`;
     }
     
     Object.values(carpetasObj).forEach(f => {
@@ -268,10 +390,10 @@
     init();
   };
 
-  // Eliminar
+  // Eliminar App
   window.deleteApp = async (appId, e) => {
     e.stopPropagation();
-    if (!confirm(`¿Eliminar la app "${appsObj[appId]?.manifest.titulo}" permanentemente?`)) return;
+    if (!confirm(`¿Desinstalar la app "${appsObj[appId]?.manifest.titulo}" permanentemente?`)) return;
 
     delete appsObj[appId];
     await kvSet('apps_instaladas', appsObj);
@@ -283,11 +405,12 @@
 
     if (window.parent && window.parent.MyHub) {
       window.parent.MyHub.eliminarApp(appId); 
-      window.parent.MyHub.toast('App eliminada');
+      window.parent.MyHub.toast('App desinstalada');
     }
     init();
   };
 
+  // Eliminar Carpeta
   window.deleteFolder = async (folderId, e) => {
     e.stopPropagation();
     const folder = carpetasObj[folderId];
@@ -336,7 +459,7 @@
     }
   };
 
-  // Borrar Datos
+  // Borrar Todo (Zona de Peligro)
   window.wipeData = async () => {
     if (!confirm('¡ADVERTENCIA! Se borrarán TODAS las apps instaladas y carpetas. ¿Continuar?')) return;
     if (!confirm('¿Estás TOTALMENTE seguro?')) return;
