@@ -171,25 +171,23 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
 
 /* ============================================================================
-   ============ EXTRAS: Carpetas, Minimizar, Quick Launch, Fecha, Carga ========
+   ============ EXTRAS: Carpetas, Minimizar, Quick Launch, Status Pill ========
    ============================================================================ */
 (function() {
   'use strict';
 
-  /* ---------- Estado ---------- */
-  let carpetas = {};              // { [id]: { id, nombre, apps:[], pos:{left,top}|null } }
-  let pinnedApps = [];            // ids fijados a la barra
-  const minimized = new Set();    // ids minimizados
+  let carpetas = {};
+  let pinnedApps = [];
+  const minimized = new Set();
   let ctxMenu = null;
   let dragTracking = null;
   let ready = false;
 
-  /* ---------- Utilidades ---------- */
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
-  /* ---------- IndexedDB (compartida con el Lobby) ---------- */
+  /* ---------- IndexedDB ---------- */
   let dbPromise = null;
   const getDB = () => {
     if (!dbPromise) {
@@ -221,7 +219,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   const guardarCarpetas = () => kvSet('carpetas', carpetas);
   const guardarPinned  = () => kvSet('pinned_apps', pinnedApps);
 
-  /* ---------- Helpers de carpetas ---------- */
+  /* ---------- Helpers ---------- */
   function appsEnCarpetas() {
     const s = new Set();
     Object.values(carpetas).forEach(c => c.apps.forEach(id => s.add(id)));
@@ -244,21 +242,15 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const style = document.createElement('style');
     style.id = 'myhub-extras-style';
     style.textContent = `
-      /* ===== Quick Launch (accesos rápidos) ===== */
+      /* ===== Quick Launch ===== */
       #quicklaunch {
-        display: flex;
-        gap: 4px;
-        padding: 0 6px;
-        margin: 0 2px;
-        border-right: 1px solid var(--line);
-        align-items: center;
+        display: flex; gap: 4px; padding: 0 6px; margin: 0 2px;
+        border-right: 1px solid var(--line); align-items: center;
       }
       #quicklaunch:empty { display: none; }
       .quick-btn {
-        width: 38px; height: 38px;
-        border: none; border-radius: 10px;
-        background: transparent; color: var(--text);
-        cursor: pointer; padding: 0;
+        width: 38px; height: 38px; border: none; border-radius: 10px;
+        background: transparent; color: var(--text); cursor: pointer; padding: 0;
         display: flex; align-items: center; justify-content: center;
         transition: background .15s, color .15s, transform .15s var(--ease-spring);
       }
@@ -266,155 +258,85 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       .quick-btn:active { transform: scale(.9); }
       .quick-btn svg { width: 20px; height: 20px; }
 
-      /* ===== Fecha ===== */
-      .taskbar-date {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--muted);
-        padding: 8px 10px;
-        border-radius: 10px;
-        text-transform: capitalize;
-        white-space: nowrap;
-        letter-spacing: .01em;
+      /* ===== Status Pill (Batería + Fecha + Reloj) ===== */
+      .status-pill {
+        display: flex; align-items: center; gap: 12px;
+        background: var(--accent-soft); border: 1px solid var(--accent-line);
+        border-radius: 12px; padding: 6px 14px;
+        font-size: 13px; font-weight: 600; color: var(--accent);
+        margin-left: auto; font-variant-numeric: tabular-nums;
       }
-
-      /* ===== Monitor de carga ===== */
-      .carga-monitor {
-        position: relative;
-        display: flex; align-items: center; gap: 6px;
-        padding: 8px 12px;
-        border-radius: 10px;
-        background: var(--field);
-        border: 1px solid var(--line);
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--text);
-        font-variant-numeric: tabular-nums;
-        overflow: hidden;
-        min-width: 78px;
-        transition: color .2s;
+      .status-item { display: flex; align-items: center; gap: 6px; }
+      .status-item svg { width: 16px; height: 16px; color: currentColor; }
+      .status-item.low { color: #ef4444; }
+      #clock {
+        margin: 0 !important; padding: 0 !important;
+        background: transparent !important; color: inherit !important;
+        font-size: inherit !important; font-weight: inherit !important;
       }
-      .carga-monitor::before {
-        content: '';
-        position: absolute;
-        left: 0; top: 0; bottom: 0;
-        width: var(--load, 0%);
-        background: var(--accent);
-        opacity: 0.16;
-        transition: width .35s var(--ease-out), background .2s;
-        pointer-events: none;
-      }
-      .carga-monitor > * { position: relative; z-index: 1; }
-      .carga-monitor svg { width: 14px; height: 14px; color: var(--accent); }
-      .carga-monitor.high { color: #ef4444; }
-      .carga-monitor.high svg { color: #ef4444; }
-      .carga-monitor.high::before { background: #ef4444; opacity: 0.22; }
-
-      @media (max-width: 960px) {
-        .taskbar-date { display: none; }
-      }
-      @media (max-width: 760px) {
-        #quicklaunch { display: none; }
-        .carga-monitor { display: none; }
-      }
+      @media (max-width: 860px) { .status-item.date { display: none; } }
+      @media (max-width: 680px) { .status-item.battery { display: none; } }
 
       /* ===== Botón minimizar ===== */
-      .close.minimize:hover {
-        background: #f59e0b;
-        color: #fff;
-      }
-
-      /* ===== Task minimizada ===== */
+      .close.minimize:hover { background: #f59e0b; color: #fff; }
       .task.minimized { opacity: 0.55; }
       .task.minimized.active { opacity: 0.75; }
 
       /* ===== Icono de carpeta ===== */
-      .icon.folder-icon .ico {
-        position: relative;
-        overflow: hidden;
-      }
+      .icon.folder-icon .ico { position: relative; overflow: hidden; }
       .folder-previews {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 2px;
-        width: 74%; height: 74%;
-        align-items: center;
-        justify-content: center;
+        display: flex; flex-wrap: wrap; gap: 2px;
+        width: 74%; height: 74%; align-items: center; justify-content: center;
       }
       .folder-mini {
-        width: calc(50% - 1px);
-        height: calc(50% - 1px);
+        width: calc(50% - 1px); height: calc(50% - 1px);
         display: flex; align-items: center; justify-content: center;
-        background: var(--field);
-        border-radius: 3px;
-        color: var(--accent);
-        border: 1px solid var(--line);
-        overflow: hidden;
-        flex-shrink: 0;
+        background: var(--field); border-radius: 3px; color: var(--accent);
+        border: 1px solid var(--line); overflow: hidden; flex-shrink: 0;
       }
       .folder-mini svg { width: 60%; height: 60%; }
-      .folder-mini[data-single] {
-        width: 82%; height: 82%;
-        border-radius: 6px;
-      }
+      .folder-mini[data-single] { width: 82%; height: 82%; border-radius: 6px; }
 
-      /* ===== Contenido de carpeta (modal) ===== */
+      /* ===== Modal Carpeta ===== */
       .folder-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
-        gap: 12px;
-        padding: 8px 0;
+        display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+        gap: 12px; padding: 8px 0;
       }
       .folder-item {
         display: flex; flex-direction: column; align-items: center; gap: 6px;
         padding: 10px 6px; border-radius: 10px; cursor: pointer;
-        transition: background .15s;
-        color: var(--text);
+        transition: background .15s; color: var(--text);
       }
       .folder-item:hover { background: var(--accent-soft); }
       .folder-item .ico {
         width: 46px; height: 46px; border-radius: 12px;
         display: flex; align-items: center; justify-content: center;
-        background: var(--card);
-        border: 1.5px solid var(--accent-line);
-        color: var(--accent);
+        background: var(--card); border: 1.5px solid var(--accent-line); color: var(--accent);
       }
       .folder-item .ico svg { width: 22px; height: 22px; }
       .folder-item span {
-        font-size: 12px; font-weight: 600;
-        text-align: center; max-width: 100%;
-        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        font-size: 12px; font-weight: 600; text-align: center;
+        max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
 
       /* ===== Menú contextual ===== */
       .ctx-menu {
-        position: fixed;
-        background: var(--glass);
-        backdrop-filter: blur(20px) saturate(1.5);
-        -webkit-backdrop-filter: blur(20px) saturate(1.5);
-        border: 1.5px solid var(--accent-line);
-        border-radius: 10px;
-        padding: 6px;
-        box-shadow: var(--shadow-xl);
-        z-index: 500;
-        min-width: 190px;
-        animation: dropIn .14s var(--ease-out);
-        color: var(--text);
+        position: fixed; background: var(--glass);
+        backdrop-filter: blur(20px) saturate(1.5); -webkit-backdrop-filter: blur(20px) saturate(1.5);
+        border: 1.5px solid var(--accent-line); border-radius: 10px;
+        padding: 6px; box-shadow: var(--shadow-xl); z-index: 500;
+        min-width: 190px; animation: dropIn .14s var(--ease-out); color: var(--text);
       }
       .ctx-item {
         display: flex; align-items: center; gap: 10px;
-        width: 100%; padding: 9px 12px;
-        border: none; border-radius: 7px;
+        width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
         background: transparent; color: var(--text);
         font: inherit; font-size: 13px; font-weight: 500;
         cursor: pointer; text-align: left;
       }
       .ctx-item:hover { background: var(--accent); color: #fff; }
       .ctx-item svg { width: 14px; height: 14px; flex-shrink: 0; }
-      .ctx-menu hr {
-        border: none; border-top: 1px solid var(--line);
-        margin: 4px 2px;
-      }
+      .ctx-menu hr { border: none; border-top: 1px solid var(--line); margin: 4px 2px; }
     `;
     document.head.appendChild(style);
   }
@@ -422,7 +344,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   /* =========================================================================
      FEATURE 1: CARPETAS
      ========================================================================= */
-
   function overrideRenderIconos() {
     window.renderIconos = function renderIconosExt() {
       const iconsEl = document.getElementById('icons');
@@ -436,10 +357,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       const maxY = MARGEN + (maxRows - 1) * GY;
       const inFolder = appsEnCarpetas();
 
-      // Limpiar posiciones de apps que están dentro de carpetas
       inFolder.forEach(id => { delete posicionesIconos[id]; });
 
-      // Construir lista final: apps libres + carpetas (en ese orden)
       const items = [];
       (typeof orden !== 'undefined' ? orden : []).forEach(id => {
         if (inFolder.has(id)) return;
@@ -486,8 +405,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         if (item.kind === 'app') {
           el.dataset.appId = item.id;
           el.innerHTML = `<div class="ico"><i data-lucide="${esc(item.app.icono || 'app-window')}"></i></div><span>${esc(item.app.titulo)}</span>`;
-          el.addEventListener('contextmenu', (e) => contextoApp(e, item.id));
-          // Delegado al drag original de JsLobby
+          el.addEventListener('contextmenu', (e) => { e.stopPropagation(); contextoApp(e, item.id); });
           hacerArrastrable(el, item.id, maxRows, maxY);
         } else {
           el.classList.add('folder-icon');
@@ -504,14 +422,13 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
             }).join('');
           }
           el.innerHTML = `<div class="ico"><div class="folder-previews">${previews}</div></div><span>${esc(item.folder.nombre)}</span>`;
-          el.addEventListener('contextmenu', (e) => contextoCarpeta(e, item.id));
+          el.addEventListener('contextmenu', (e) => { e.stopPropagation(); contextoCarpeta(e, item.id); });
           hacerArrastrableCarpeta(el, item.id, maxRows, maxY);
         }
 
         iconsEl.appendChild(el);
       });
 
-      // Persistir posiciones
       posicionesIconos = Object.assign(posicionesIconos, posUpdates);
       kvSet('posiciones_iconos', posicionesIconos);
       if (Object.keys(carpetas).length > 0) guardarCarpetas();
@@ -520,7 +437,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
-  // Drag propio para iconos de carpeta (misma mecánica que las apps, pero abre carpeta al click)
   function hacerArrastrableCarpeta(el, folderId, maxRows, maxY) {
     const MARGEN = 16, GX = 100, GY = 110;
     let isDragging = false, startX, startY, startLeft, startTop;
@@ -583,7 +499,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     });
   }
 
-  /* ---------- Detección de drop sobre carpeta ---------- */
   function setupDragDetection() {
     const iconsEl = document.getElementById('icons');
     if (!iconsEl) return;
@@ -592,12 +507,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       if (e.button !== 0) return;
       const icon = e.target.closest('.icon[data-app-id]');
       if (!icon) return;
-      dragTracking = {
-        appId: icon.dataset.appId,
-        startX: e.clientX,
-        startY: e.clientY,
-        moved: false
-      };
+      dragTracking = { appId: icon.dataset.appId, startX: e.clientX, startY: e.clientY, moved: false };
     }, true);
 
     window.addEventListener('pointermove', (e) => {
@@ -628,15 +538,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     return null;
   }
 
-  /* ---------- CRUD de carpetas ---------- */
   async function crearCarpeta(nombre, appsIniciales = []) {
     const id = 'folder_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    carpetas[id] = {
-      id,
-      nombre: nombre || 'Nueva carpeta',
-      apps: appsIniciales.slice(),
-      pos: null
-    };
+    carpetas[id] = { id, nombre: nombre || 'Nueva carpeta', apps: appsIniciales.slice(), pos: null };
     appsIniciales.forEach(a => { delete posicionesIconos[a]; });
     await guardarCarpetas();
     await kvSet('posiciones_iconos', posicionesIconos);
@@ -658,8 +562,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
   async function moverAppACarpeta(appId, folderId) {
     const folder = carpetas[folderId];
-    if (!folder) return;
-    if (folder.apps.includes(appId)) return;
+    if (!folder || folder.apps.includes(appId)) return;
     folder.apps.push(appId);
     delete posicionesIconos[appId];
     await guardarCarpetas();
@@ -719,11 +622,36 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
+  // Modal para pedir el nombre de la carpeta (evita bugs de prompt)
+  function pedirNombreCarpeta(callback, nombreActual = 'Nueva carpeta') {
+    window.abrirModal(nombreActual === 'Nueva carpeta' ? 'Nueva carpeta' : 'Renombrar carpeta', () => {
+      const d = document.createElement('div');
+      d.innerHTML = `
+        <label>Nombre de la carpeta
+          <input type="text" id="folder-name-input" value="${esc(nombreActual)}" maxlength="24" style="margin-top:6px;" />
+        </label>
+        <button class="btn btn-bloque" id="folder-create-btn" style="margin-top:16px;"><i data-lucide="check"></i> Guardar</button>
+      `;
+      d.querySelector('#folder-create-btn').onclick = () => {
+        const nombre = d.querySelector('#folder-name-input').value.trim() || 'Nueva carpeta';
+        window.cerrarModal();
+        callback(nombre);
+      };
+      d.querySelector('#folder-name-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') d.querySelector('#folder-create-btn').click();
+      });
+      setTimeout(() => {
+        const inp = d.querySelector('#folder-name-input');
+        if (inp) { inp.focus(); inp.select(); }
+      }, 100);
+      return d;
+    });
+  }
+
   /* =========================================================================
      FEATURE 2: MINIMIZAR VENTANAS
      ========================================================================= */
   function setupMinimize() {
-    // --- override abrir: añade botón minimizar al abrir ---
     const origAbrir = window.abrir;
     window.abrir = async function (id) {
       const wasOpen = !!win[id];
@@ -731,14 +659,12 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       if (!wasOpen && win[id]) addMinimizeButton(id);
     };
 
-    // --- override cerrar: limpia estado minimizado ---
     const origCerrar = window.cerrar;
     window.cerrar = function (id) {
       minimized.delete(id);
       return origCerrar.call(this, id);
     };
 
-    // --- override renderTareas: refleja minimizado ---
     window.renderTareas = function () {
       const c = document.getElementById('tasks');
       if (!c) return;
@@ -827,74 +753,73 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   /* =========================================================================
-     FEATURE 4: FECHA EN LA BARRA
+     FEATURE 4 y 5: STATUS PILL (Batería + Fecha + Reloj)
      ========================================================================= */
-  function initDate() {
+  function setupStatusPill() {
     const clock = document.getElementById('clock');
-    if (!clock || document.getElementById('date-display')) return;
-    const dateEl = document.createElement('span');
-    dateEl.id = 'date-display';
-    dateEl.className = 'taskbar-date';
-    clock.parentNode.insertBefore(dateEl, clock);
+    if (!clock || document.getElementById('status-pill')) return;
 
-    const update = () => {
+    const pill = document.createElement('div');
+    pill.id = 'status-pill';
+    pill.className = 'status-pill';
+    
+    // Mover el reloj dentro de la píldora
+    clock.parentNode.insertBefore(pill, clock);
+    pill.appendChild(clock);
+
+    // 1. Batería
+    const batteryEl = document.createElement('div');
+    batteryEl.className = 'status-item battery';
+    pill.insertBefore(batteryEl, clock);
+    
+    const updateBattery = (battery) => {
+      if (!battery) {
+        batteryEl.innerHTML = `<i data-lucide="battery"></i>`;
+        refrescarIconos();
+        return;
+      }
+      const level = Math.round(battery.level * 100);
+      const charging = battery.charging;
+      
+      let icon = 'battery';
+      if (charging) icon = 'battery-charging';
+      else if (level >= 90) icon = 'battery-full';
+      else if (level >= 60) icon = 'battery-medium';
+      else if (level >= 30) icon = 'battery-low';
+      else icon = 'battery-warning';
+      
+      batteryEl.innerHTML = `<i data-lucide="${icon}"></i><span>${level}%</span>`;
+      refrescarIconos();
+      
+      if (level <= 20 && !charging) batteryEl.classList.add('low');
+      else batteryEl.classList.remove('low');
+    };
+
+    if (navigator.getBattery) {
+      navigator.getBattery().then(battery => {
+        updateBattery(battery);
+        battery.addEventListener('levelchange', () => updateBattery(battery));
+        battery.addEventListener('chargingchange', () => updateBattery(battery));
+      }).catch(() => { batteryEl.style.display = 'none'; });
+    } else {
+      batteryEl.style.display = 'none'; // API no soportada
+    }
+
+    // 2. Fecha
+    const dateEl = document.createElement('div');
+    dateEl.className = 'status-item date';
+    pill.insertBefore(dateEl, clock);
+
+    const updateDate = () => {
       const now = new Date();
       const wd = now.toLocaleDateString('es', { weekday: 'short' });
       const day = now.getDate();
       const mo = now.toLocaleDateString('es', { month: 'short' });
-      dateEl.textContent = `${wd} ${day} ${mo}`.replace(/\./g, '');
+      dateEl.innerHTML = `<i data-lucide="calendar"></i><span>${wd} ${day} ${mo}`.replace(/\./g, '') + '</span>';
+      refrescarIconos();
     };
-    update();
-    setInterval(update, 60000);
-  }
-
-  /* =========================================================================
-     FEATURE 5: MONITOR DE CARGA
-     ========================================================================= */
-  function initCarga() {
-    const clock = document.getElementById('clock');
-    if (!clock || document.getElementById('carga-monitor')) return;
-
-    const monitor = document.createElement('div');
-    monitor.id = 'carga-monitor';
-    monitor.className = 'carga-monitor';
-    monitor.title = 'Carga del dispositivo';
-    monitor.innerHTML = `<i data-lucide="cpu"></i><span>—</span>`;
-    clock.parentNode.insertBefore(monitor, clock);
-
-    // Medición de FPS (vía rAF)
-    let lastT = performance.now();
-    let frames = 0;
-    let fps = 60;
-    const tick = () => {
-      frames++;
-      const now = performance.now();
-      if (now - lastT >= 1000) {
-        fps = Math.round((frames * 1000) / (now - lastT));
-        frames = 0; lastT = now;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-
-    const update = () => {
-      let memLoad = null;
-      if (performance.memory) {
-        memLoad = Math.round((performance.memory.usedJSHeapSize / performance.memory.jsHeapSizeLimit) * 100);
-      }
-      const fpsLoad = Math.max(0, Math.min(100, Math.round(100 - (fps / 60) * 100)));
-      const finalLoad = memLoad == null ? fpsLoad : Math.round((memLoad + fpsLoad) / 2);
-
-      const span = monitor.querySelector('span');
-      if (span) span.textContent = finalLoad + '%';
-      monitor.style.setProperty('--load', finalLoad + '%');
-      monitor.classList.toggle('high', finalLoad > 70);
-      monitor.title =
-        `CPU estimada: ${finalLoad}%  ·  FPS: ${fps}` +
-        (memLoad != null ? `  ·  Memoria: ${memLoad}%` : '');
-    };
-    update();
-    setInterval(update, 2000);
+    updateDate();
+    setInterval(updateDate, 60000);
   }
 
   /* =========================================================================
@@ -920,6 +845,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     refrescarIconos();
     setTimeout(() => document.addEventListener('pointerdown', cerrarContexto, { once: true, capture: true }), 0);
   }
+  
   function cerrarContexto() {
     if (ctxMenu) { ctxMenu.remove(); ctxMenu = null; }
   }
@@ -935,8 +861,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       { separator: true },
       { icon: pinned ? 'pin-off' : 'pin', text: pinned ? 'Quitar de la barra' : 'Fijar a la barra', fn: () => togglePinned(appId) },
       { icon: 'folder-plus', text: 'Nueva carpeta con esta app', fn: () => {
-        const nombre = prompt('Nombre de la carpeta:', 'Nueva carpeta');
-        if (nombre) crearCarpeta(nombre, [appId]);
+        pedirNombreCarpeta((nombre) => crearCarpeta(nombre, [appId]));
       }}
     ];
 
@@ -951,12 +876,12 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function contextoDesktop(e) {
-    if (e.target.id !== 'desktop') return;
+    // Evitar que salte el menú si hacemos clic en un icono, ventana o menú
+    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu')) return;
     e.preventDefault();
     mostrarContexto(e.clientX, e.clientY, [
       { icon: 'folder-plus', text: 'Nueva carpeta', fn: () => {
-        const nombre = prompt('Nombre de la carpeta:', 'Nueva carpeta');
-        if (nombre) crearCarpeta(nombre);
+        pedirNombreCarpeta((nombre) => crearCarpeta(nombre));
       }}
     ]);
   }
@@ -969,12 +894,13 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       { icon: 'folder-open', text: 'Abrir', fn: () => abrirCarpeta(folderId) },
       { separator: true },
       { icon: 'pencil', text: 'Renombrar', fn: () => {
-        const nuevo = prompt('Nuevo nombre:', folder.nombre);
-        if (nuevo && nuevo.trim()) {
-          folder.nombre = nuevo.trim();
-          guardarCarpetas();
-          window.renderIconos();
-        }
+        pedirNombreCarpeta((nuevo) => {
+          if (nuevo && nuevo.trim()) {
+            folder.nombre = nuevo.trim();
+            guardarCarpetas();
+            window.renderIconos();
+          }
+        }, folder.nombre);
       }},
       { icon: 'folder-minus', text: 'Vaciar (sacar todas las apps)', fn: async () => {
         folder.apps.forEach(a => { delete posicionesIconos[a]; });
@@ -999,35 +925,24 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     if (ready) return;
     ready = true;
 
-    // 1) Cargar datos persistidos
     carpetas = (await kvGet('carpetas')) || {};
     pinnedApps = (await kvGet('pinned_apps')) || [];
 
-    // 2) Inyectar CSS
     injectStyles();
-
-    // 3) Limpiar referencias huérfanas (apps eliminadas)
     limpiarCarpetasHuerfanas();
-
-    // 4) Overrides
     overrideRenderIconos();
     setupMinimize();
-
-    // 5) UI
-    initDate();
-    initCarga();
+    
+    setupStatusPill(); // <--- NUEVA PÍLDORA
     renderQuickLaunch();
     setupDragDetection();
 
-    // 6) Context menu del escritorio
     const desktopEl = document.getElementById('desktop');
     if (desktopEl) desktopEl.addEventListener('contextmenu', contextoDesktop);
 
-    // 7) Re-render con carpetas
     window.renderIconos();
   }
 
-  /* ---------- Arranque (espera a que JsLobby exista) ---------- */
   function waitForLobby() {
     const ok = window.MyHub
       && typeof window.renderIconos === 'function'
