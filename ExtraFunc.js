@@ -185,6 +185,11 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
+  // Constantes para el formulario de edición de perfil
+  const PAISES = [['CL','Chile'],['AR','Argentina'],['BO','Bolivia'],['BR','Brasil'],['CO','Colombia'],['CR','Costa Rica'],['CU','Cuba'],['EC','Ecuador'],['SV','El Salvador'],['ES','España'],['US','Estados Unidos'],['GT','Guatemala'],['HN','Honduras'],['MX','México'],['NI','Nicaragua'],['PA','Panamá'],['PY','Paraguay'],['PE','Perú'],['PR','Puerto Rico'],['DO','República Dominicana'],['UY','Uruguay'],['VE','Venezuela'],['CA','Canadá'],['FR','Francia'],['DE','Alemania'],['IT','Italia'],['PT','Portugal'],['GB','Reino Unido'],['JP','Japón'],['CN','China'],['IN','India'],['AU','Australia'],['OTRO','Otro']];
+  const GENEROS = { 'hombre': 'Hombre', 'mujer': 'Mujer', 'no-binario': 'No binario', 'otro': 'Otro' };
+  const IDIOMAS = { es: 'Español', en: 'English', pt: 'Português', fr: 'Français' };
+
   // Puente para capturar variables de JsLobby
   const exposeGlobals = setInterval(() => {
     if (typeof registro !== 'undefined' && !window.registro) {
@@ -325,41 +330,30 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         border-color: var(--accent);
       }
 
-      /* ===== Icono de carpeta (Corregido con Grid) ===== */
+      /* ===== Icono de carpeta (Grid) ===== */
       .icon.folder-icon .ico { 
         position: relative; 
         overflow: hidden; 
-        padding: 6px; /* Espaciado interno para que no toque los bordes */
+        padding: 6px;
       }
       .folder-previews {
         display: grid;
         grid-template-columns: 1fr 1fr;
         grid-template-rows: 1fr 1fr;
         gap: 3px;
-        width: 100%; 
-        height: 100%; 
-        align-items: center; 
-        justify-content: center;
+        width: 100%; height: 100%;
+        align-items: center; justify-content: center;
       }
       .folder-mini {
         display: flex; align-items: center; justify-content: center;
         background: var(--field); border-radius: 4px; color: var(--accent);
         border: 1px solid var(--line); overflow: hidden;
       }
-      /* Forzamos un tamaño exacto al SVG para que Lucide no lo recorte */
-      .folder-mini svg { 
-        width: 14px !important; 
-        height: 14px !important; 
-      }
+      .folder-mini svg { width: 14px !important; height: 14px !important; }
       .folder-mini[data-single] { 
-        grid-column: 1 / -1;
-        grid-row: 1 / -1;
-        border-radius: 8px; 
+        grid-column: 1 / -1; grid-row: 1 / -1; border-radius: 8px; 
       }
-      .folder-mini[data-single] svg { 
-        width: 26px !important; 
-        height: 26px !important; 
-      }
+      .folder-mini[data-single] svg { width: 26px !important; height: 26px !important; }
 
       /* ===== Modal Carpeta ===== */
       .folder-grid {
@@ -674,9 +668,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
-  // Modal propio con estilos en línea (100% a prueba de fallos)
+  // Modal propio con estilos en línea
   function promptCarpeta(titulo, defaultValue, callback) {
-    console.log('[Extras] Abriendo modal de carpeta');
     const overlay = document.createElement('div');
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 99999;
@@ -707,9 +700,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     document.body.appendChild(overlay);
 
     const input = box.querySelector('#prompt-input');
-    input.focus();
-    input.select();
-
+    input.focus(); input.select();
     const close = () => overlay.remove();
     
     box.querySelector('#prompt-cancel').onclick = close;
@@ -877,8 +868,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const updateBattery = (battery) => {
       if (!battery) {
         batteryEl.innerHTML = `<i data-lucide="battery"></i>`;
-        refrescarIconos();
-        return;
+        refrescarIconos(); return;
       }
       const level = Math.round(battery.level * 100);
       const charging = battery.charging;
@@ -929,9 +919,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   let ctxMenu = null;
 
   function mostrarContexto(x, y, items) {
-    console.log('[Extras] Mostrando menú contextual en', x, y);
     cerrarContexto();
-    
     const backdrop = document.createElement('div');
     backdrop.style.cssText = 'position:fixed;inset:0;z-index:499;';
     backdrop.addEventListener('pointerdown', (e) => {
@@ -1020,7 +1008,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function contextoDesktop(e) {
-    console.log('[Extras] Click derecho detectado en el escritorio');
     if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu') || e.target.closest('#taskbar')) return;
     e.preventDefault();
     mostrarContexto(e.clientX, e.clientY, [
@@ -1086,12 +1073,180 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       };
       menuOps.insertBefore(btn, docBtn.nextSibling);
       refrescarIconos();
-      console.log('[Extras] Botón "Nueva carpeta" inyectado en el menú de inicio');
     };
 
     injectButton();
     const observer = new MutationObserver(injectButton);
     observer.observe(menuOps, { childList: true });
+  }
+
+  /* =========================================================================
+     NUEVO: EDITAR PERFIL
+     ========================================================================= */
+  function setupEditProfile() {
+    const modal = document.getElementById('modal');
+    const mTitulo = document.getElementById('mTitulo');
+    const mBody = document.getElementById('mBody');
+    if (!modal || !mBody) return;
+
+    const observer = new MutationObserver(() => {
+      // Si el modal se abre y es de "Mi cuenta" y no tiene el botón de editar
+      if (mTitulo.textContent === 'Mi cuenta' && !document.getElementById('btn-editar-perfil')) {
+        const perfilDiv = mBody.querySelector('.perfil');
+        if (perfilDiv) {
+          const editBtn = document.createElement('button');
+          editBtn.id = 'btn-editar-perfil';
+          editBtn.className = 'btn btn-bloque';
+          editBtn.style.marginBottom = '8px';
+          editBtn.innerHTML = '<i data-lucide="pencil"></i> Editar perfil';
+          editBtn.onclick = () => abrirFormularioEdicion();
+          
+          const salirBtn = perfilDiv.querySelector('.btn.red');
+          if (salirBtn) perfilDiv.insertBefore(editBtn, salirBtn);
+          else perfilDiv.appendChild(editBtn);
+          
+          refrescarIconos();
+        }
+      }
+    });
+    observer.observe(modal, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+
+    async function abrirFormularioEdicion() {
+      const cuenta = await kvGet('cuenta');
+      if (!cuenta) return;
+
+      mTitulo.textContent = 'Editar perfil';
+      mBody.innerHTML = '';
+
+      const d = document.createElement('div');
+      
+      let optionsPaises = PAISES.map(([c, n]) => `<option value="${c}" ${cuenta.pais === c ? 'selected' : ''}>${esc(n)}</option>`).join('');
+      let optionsGeneros = Object.entries(GENEROS).map(([v, t]) => `<option value="${v}" ${cuenta.genero === v ? 'selected' : ''}>${esc(t)}</option>`).join('');
+      let optionsIdiomas = Object.entries(IDIOMAS).map(([c, n]) => `<option value="${c}" ${cuenta.idioma === c ? 'selected' : ''}>${esc(n)}</option>`).join('');
+
+      d.innerHTML = `
+        <div class="avatar-up">
+          <div class="avatar" id="editFotoBox"></div>
+          <div>
+            <button class="btn gray" id="editFotoBtn"><i data-lucide="image-plus"></i>Cambiar foto</button>
+            <input type="file" id="editFoto" accept="image/png,image/jpeg,image/webp" hidden>
+          </div>
+        </div>
+        <div class="grid2">
+          <label>Nombre<input type="text" id="editNombre" value="${esc(cuenta.nombre)}" maxlength="32"></label>
+          <label>Apellido<input type="text" id="editApellido" value="${esc(cuenta.apellido || '')}" maxlength="48"></label>
+        </div>
+        <div class="grid2" style="margin-top:12px;">
+          <label>Nacimiento<input type="date" id="editNacimiento" value="${cuenta.nacimiento}"></label>
+          <label>Género<select id="editGenero">${optionsGeneros}</select></label>
+        </div>
+        <div class="grid2" style="margin-top: 12px;">
+          <label>País<select id="editPais">${optionsPaises}</select></label>
+          <label>Idioma<select id="editIdioma">${optionsIdiomas}</select></label>
+        </div>
+        <button class="btn btn-bloque" id="editGuardar" style="margin-top:16px;"><i data-lucide="check"></i>Guardar cambios</button>
+      `;
+
+      // Cargar avatar
+      const editFotoBox = d.querySelector('#editFotoBox');
+      if (cuenta.foto) {
+        const img = document.createElement('img');
+        const url = URL.createObjectURL(cuenta.foto);
+        img.src = url; img.onload = () => URL.revokeObjectURL(url);
+        editFotoBox.appendChild(img);
+      } else {
+        editFotoBox.innerHTML = '<i data-lucide="user-round"></i>';
+      }
+
+      // Manejo de foto
+      let nuevaFotoBlob = cuenta.foto;
+      const editFotoInput = d.querySelector('#editFoto');
+      d.querySelector('#editFotoBtn').onclick = () => editFotoInput.click();
+      
+      editFotoInput.onchange = async () => {
+        const f = editFotoInput.files[0]; if (!f) return;
+        if (f.size > 5 * 1024 * 1024) return window.MyHub.toast('La foto debe pesar menos de 5 MB');
+        
+        // Redimensionar
+        const url = URL.createObjectURL(f);
+        const img = await new Promise((res) => { const i = new Image(); i.onload = () => res(i); i.src = url; });
+        const lado = Math.min(img.width, img.height);
+        const c = document.createElement('canvas'); c.width = c.height = 256;
+        c.getContext('2d').drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, 256, 256);
+        URL.revokeObjectURL(url);
+        
+        nuevaFotoBlob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+        
+        const newUrl = URL.createObjectURL(nuevaFotoBlob);
+        const newImg = document.createElement('img'); newImg.src = newUrl; newImg.onload = () => URL.revokeObjectURL(newUrl);
+        editFotoBox.replaceChildren(newImg);
+      };
+
+      // Guardar
+      d.querySelector('#editGuardar').onclick = async () => {
+        const nuevaCuenta = {
+          ...cuenta,
+          nombre: d.querySelector('#editNombre').value.trim(),
+          apellido: d.querySelector('#editApellido').value.trim(),
+          nacimiento: d.querySelector('#editNacimiento').value,
+          genero: d.querySelector('#editGenero').value,
+          pais: d.querySelector('#editPais').value,
+          idioma: d.querySelector('#editIdioma').value,
+          foto: nuevaFotoBlob
+        };
+
+        if (!nuevaCuenta.nombre) return window.MyHub.toast('El nombre no puede estar vacío');
+
+        await kvSet('cuenta', nuevaCuenta);
+        window.MyHub.toast('Perfil actualizado correctamente');
+        
+        // Recargar la página para aplicar cambios en toda la interfaz de JsLobby
+        setTimeout(() => window.location.reload(), 800);
+      };
+
+      mBody.appendChild(d);
+      refrescarIconos();
+    }
+  }
+
+  /* =========================================================================
+     SOPORTE PARA PAPELERA
+     ========================================================================= */
+  function setupEliminarApp() {
+    if (!window.MyHub) return;
+
+    window.MyHub.eliminarCarpetaLobby = function(folderId) {
+      if (carpetas[folderId]) {
+        delete carpetas[folderId];
+        window.renderIconos();
+        kvSet('posiciones_iconos', window.posicionesIconos);
+      }
+    };
+
+    const origEliminarApp = window.MyHub.eliminarApp;
+    if (origEliminarApp) {
+      window.MyHub.eliminarApp = function(appId) {
+        origEliminarApp.call(this, appId);
+
+        let carpetasModificadas = false;
+        let carpetasParaEliminar = [];
+
+        Object.values(carpetas).forEach(folder => {
+          const index = folder.apps.indexOf(appId);
+          if (index > -1) {
+            folder.apps.splice(index, 1);
+            carpetasModificadas = true;
+            if (folder.apps.length === 0) carpetasParaEliminar.push(folder.id);
+          }
+        });
+
+        if (carpetasModificadas) {
+          carpetasParaEliminar.forEach(id => delete carpetas[id]);
+          guardarCarpetas();
+          window.renderIconos();
+        }
+      };
+    }
   }
 
   /* =========================================================================
@@ -1109,6 +1264,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     limpiarCarpetasHuerfanas();
     overrideRenderIconos();
     setupMinimize();
+    setupEditProfile();
+    setupEliminarApp();
     
     setupStatusPill();
     renderQuickLaunch();
@@ -1118,7 +1275,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const desktopEl = document.getElementById('desktop');
     if (desktopEl) {
       desktopEl.addEventListener('contextmenu', contextoDesktop);
-      console.log('[Extras] Evento contextmenu asociado');
     }
 
     window.renderIconos();
