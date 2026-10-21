@@ -306,9 +306,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         background: var(--accent-soft);
         border-color: var(--accent-line);
       }
-      .task.minimized span {
-        display: none; /* Ocultar el texto */
-      }
+      .task.minimized span { display: none; }
       .task.minimized svg {
         width: 20px !important;
         height: 20px !important;
@@ -320,29 +318,48 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         color: #fff;
         border-color: var(--accent);
       }
-      .task.minimized:hover svg {
-        color: #fff;
-      }
+      .task.minimized:hover svg { color: #fff; }
       .task.minimized.active {
         opacity: 1;
         background: var(--accent-soft);
         border-color: var(--accent);
       }
 
-      /* ===== Icono de carpeta ===== */
-      .icon.folder-icon .ico { position: relative; overflow: hidden; }
+      /* ===== Icono de carpeta (Corregido con Grid) ===== */
+      .icon.folder-icon .ico { 
+        position: relative; 
+        overflow: hidden; 
+        padding: 6px; /* Espaciado interno para que no toque los bordes */
+      }
       .folder-previews {
-        display: flex; flex-wrap: wrap; gap: 2px;
-        width: 74%; height: 74%; align-items: center; justify-content: center;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 3px;
+        width: 100%; 
+        height: 100%; 
+        align-items: center; 
+        justify-content: center;
       }
       .folder-mini {
-        width: calc(50% - 1px); height: calc(50% - 1px);
         display: flex; align-items: center; justify-content: center;
-        background: var(--field); border-radius: 3px; color: var(--accent);
-        border: 1px solid var(--line); overflow: hidden; flex-shrink: 0;
+        background: var(--field); border-radius: 4px; color: var(--accent);
+        border: 1px solid var(--line); overflow: hidden;
       }
-      .folder-mini svg { width: 60%; height: 60%; }
-      .folder-mini[data-single] { width: 82%; height: 82%; border-radius: 6px; }
+      /* Forzamos un tamaño exacto al SVG para que Lucide no lo recorte */
+      .folder-mini svg { 
+        width: 14px !important; 
+        height: 14px !important; 
+      }
+      .folder-mini[data-single] { 
+        grid-column: 1 / -1;
+        grid-row: 1 / -1;
+        border-radius: 8px; 
+      }
+      .folder-mini[data-single] svg { 
+        width: 26px !important; 
+        height: 26px !important; 
+      }
 
       /* ===== Modal Carpeta ===== */
       .folder-grid {
@@ -724,7 +741,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       return origCerrar.call(this, id);
     };
 
-    // Observar el taskbar para aplicar estilos visuales sin reescribir renderTareas
     const tasksContainer = document.getElementById('tasks');
     if (tasksContainer) {
       const observer = new MutationObserver(() => {
@@ -739,7 +755,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       });
       observer.observe(tasksContainer, { childList: true, subtree: true });
 
-      // Interceptar clic para restaurar ventanas minimizadas
       tasksContainer.addEventListener('pointerdown', (e) => {
         const task = e.target.closest('.task');
         if (!task) return;
@@ -775,7 +790,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     minimized.add(id);
     w.el.style.display = 'none';
     
-    // Forzar actualización del taskbar
     const tasksContainer = document.getElementById('tasks');
     if (tasksContainer) {
       Array.from(tasksContainer.children).forEach((t, i) => {
@@ -791,7 +805,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     minimized.delete(id);
     w.el.style.display = '';
     
-    // Simular un clic en el taskbar para que JsLobby lo enfoque
     const tasksContainer = document.getElementById('tasks');
     if (tasksContainer) {
       const index = Object.keys(window.win).indexOf(id);
@@ -799,7 +812,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         Array.from(tasksContainer.children).forEach((t, i) => {
           if (i === index) t.classList.remove('minimized');
         });
-        // Enfocar la ventana
         window.win[id].el.style.zIndex = 5;
         window.win[id].el.classList.add('focused');
       }
@@ -912,7 +924,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   /* =========================================================================
-     MENÚS CONTEXTUALES (Estilos en línea para evitar fallos)
+     MENÚS CONTEXTUALES
      ========================================================================= */
   let ctxMenu = null;
 
@@ -920,7 +932,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     console.log('[Extras] Mostrando menú contextual en', x, y);
     cerrarContexto();
     
-    // Backdrop invisible para detectar clics fuera
     const backdrop = document.createElement('div');
     backdrop.style.cssText = 'position:fixed;inset:0;z-index:499;';
     backdrop.addEventListener('pointerdown', (e) => {
