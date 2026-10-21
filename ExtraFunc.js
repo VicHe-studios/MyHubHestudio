@@ -187,6 +187,24 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
+  // --- PUENTE DE VARIABLES GLOBALES ---
+  // Como JsLobby.js usa 'const', sus variables no están en 'window'.
+  // Este intervalo las busca en el ámbito global y las expone a 'window'.
+  const exposeGlobals = setInterval(() => {
+    if (typeof registro !== 'undefined' && !window.registro) {
+      window.registro = registro;
+      window.orden = orden;
+      window.win = win;
+      window.posicionesIconos = posicionesIconos;
+      window.hacerArrastrable = hacerArrastrable;
+      window.renderIconos = renderIconos;
+      window.abrir = abrir;
+      window.cerrar = cerrar;
+      window.renderTareas = renderTareas;
+      console.log('[Extras] Variables de JsLobby capturadas con éxito.');
+    }
+  }, 50);
+
   /* ---------- IndexedDB ---------- */
   let dbPromise = null;
   const getDB = () => {
@@ -226,11 +244,11 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     return s;
   }
   function limpiarCarpetasHuerfanas() {
-    if (typeof registro === 'undefined') return;
+    if (typeof window.registro === 'undefined') return;
     let changed = false;
     Object.values(carpetas).forEach(f => {
       const orig = f.apps.length;
-      f.apps = f.apps.filter(id => registro.has(id));
+      f.apps = f.apps.filter(id => window.registro.has(id));
       if (f.apps.length !== orig) changed = true;
     });
     if (changed) guardarCarpetas();
@@ -360,12 +378,12 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       const maxY = MARGEN + (maxRows - 1) * GY;
       const inFolder = appsEnCarpetas();
 
-      inFolder.forEach(id => { delete posicionesIconos[id]; });
+      inFolder.forEach(id => { delete window.posicionesIconos[id]; });
 
       const items = [];
-      (typeof orden !== 'undefined' ? orden : []).forEach(id => {
+      (typeof window.orden !== 'undefined' ? window.orden : []).forEach(id => {
         if (inFolder.has(id)) return;
-        const app = registro.get(id);
+        const app = window.registro.get(id);
         if (app) items.push({ kind: 'app', id, app });
       });
       Object.values(carpetas).forEach(f => items.push({ kind: 'folder', id: f.id, folder: f }));
@@ -374,7 +392,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       const posUpdates = {};
 
       items.forEach((item) => {
-        let savedPos = item.kind === 'app' ? posicionesIconos[item.id] : item.folder.pos;
+        let savedPos = item.kind === 'app' ? window.posicionesIconos[item.id] : item.folder.pos;
         let tx = -1, ty = -1;
 
         if (savedPos) {
@@ -409,18 +427,18 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
           el.dataset.appId = item.id;
           el.innerHTML = `<div class="ico"><i data-lucide="${esc(item.app.icono || 'app-window')}"></i></div><span>${esc(item.app.titulo)}</span>`;
           el.addEventListener('contextmenu', (e) => { e.stopPropagation(); contextoApp(e, item.id); });
-          hacerArrastrable(el, item.id, maxRows, maxY);
+          window.hacerArrastrable(el, item.id, maxRows, maxY);
         } else {
           el.classList.add('folder-icon');
           el.dataset.folderId = item.id;
           const apps = item.folder.apps.slice(0, 4);
           let previews;
           if (apps.length === 1) {
-            const a = registro.get(apps[0]);
+            const a = window.registro.get(apps[0]);
             previews = a ? `<div class="folder-mini" data-single><i data-lucide="${esc(a.icono || 'app-window')}"></i></div>` : '';
           } else {
             previews = apps.map(aid => {
-              const a = registro.get(aid);
+              const a = window.registro.get(aid);
               return a ? `<div class="folder-mini"><i data-lucide="${esc(a.icono || 'app-window')}"></i></div>` : '';
             }).join('');
           }
@@ -432,8 +450,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         iconsEl.appendChild(el);
       });
 
-      posicionesIconos = Object.assign(posicionesIconos, posUpdates);
-      kvSet('posiciones_iconos', posicionesIconos);
+      window.posicionesIconos = Object.assign(window.posicionesIconos, posUpdates);
+      kvSet('posiciones_iconos', window.posicionesIconos);
       if (Object.keys(carpetas).length > 0) guardarCarpetas();
 
       refrescarIconos();
@@ -545,9 +563,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     try {
       const id = 'folder_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
       carpetas[id] = { id, nombre: nombre || 'Nueva carpeta', apps: appsIniciales.slice(), pos: null };
-      appsIniciales.forEach(a => { delete posicionesIconos[a]; });
+      appsIniciales.forEach(a => { delete window.posicionesIconos[a]; });
       await guardarCarpetas();
-      await kvSet('posiciones_iconos', posicionesIconos);
+      await kvSet('posiciones_iconos', window.posicionesIconos);
       window.renderIconos();
       window.MyHub.toast(`Carpeta "${carpetas[id].nombre}" creada`);
     } catch (err) {
@@ -572,9 +590,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const folder = carpetas[folderId];
     if (!folder || folder.apps.includes(appId)) return;
     folder.apps.push(appId);
-    delete posicionesIconos[appId];
+    delete window.posicionesIconos[appId];
     await guardarCarpetas();
-    await kvSet('posiciones_iconos', posicionesIconos);
+    await kvSet('posiciones_iconos', window.posicionesIconos);
     window.renderIconos();
     window.MyHub.toast(`App movida a "${folder.nombre}"`);
   }
@@ -602,7 +620,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       grid.className = 'folder-grid';
 
       folder.apps.forEach(appId => {
-        const app = registro.get(appId);
+        const app = window.registro.get(appId);
         if (!app) return;
         const item = document.createElement('div');
         item.className = 'folder-item';
@@ -630,14 +648,14 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     };
   }
 
-  // Modal 100% propio (evita bloqueos de prompt o fallos de abrirModal)
+  // Modal propio sin dependencias
   function promptCarpeta(titulo, defaultValue, callback) {
+    console.log('[Extras] Abriendo prompt de carpeta');
     const overlay = document.createElement('div');
     overlay.style.cssText = `
       position: fixed; inset: 0; z-index: 9999;
       background: rgba(7, 12, 28, 0.55); backdrop-filter: blur(6px);
       display: flex; align-items: center; justify-content: center;
-      animation: fadeIn 0.2s var(--ease-out);
     `;
     const box = document.createElement('div');
     box.style.cssText = `
@@ -647,7 +665,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       box-shadow: 0 20px 40px rgba(0,0,0,0.3);
       width: 320px; max-width: 90vw;
       display: flex; flex-direction: column; gap: 12px;
-      animation: scaleIn 0.2s var(--ease-out);
     `;
     box.innerHTML = `
       <h3 style="margin:0;font-size:16px;font-weight:700;">${esc(titulo)}</h3>
@@ -687,9 +704,9 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   function setupMinimize() {
     const origAbrir = window.abrir;
     window.abrir = async function (id) {
-      const wasOpen = !!win[id];
+      const wasOpen = !!window.win[id];
       await origAbrir.call(this, id);
-      if (!wasOpen && win[id]) addMinimizeButton(id);
+      if (!wasOpen && window.win[id]) addMinimizeButton(id);
     };
 
     const origCerrar = window.cerrar;
@@ -702,8 +719,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       const c = document.getElementById('tasks');
       if (!c) return;
       c.innerHTML = '';
-      for (const id of Object.keys(win)) {
-        const app = registro.get(id);
+      for (const id of Object.keys(window.win)) {
+        const app = window.registro.get(id);
         if (!app) continue;
         const t = document.createElement('div');
         const isMin = minimized.has(id);
@@ -717,7 +734,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function addMinimizeButton(id) {
-    const w = win[id];
+    const w = window.win[id];
     if (!w || w.el.querySelector('.minimize')) return;
     const closeBtn = w.el.querySelector('.close');
     if (!closeBtn) return;
@@ -732,7 +749,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function minimizar(id) {
-    const w = win[id];
+    const w = window.win[id];
     if (!w) return;
     minimized.add(id);
     w.el.style.display = 'none';
@@ -740,7 +757,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function restaurar(id) {
-    const w = win[id];
+    const w = window.win[id];
     if (!w) { minimized.delete(id); return; }
     minimized.delete(id);
     w.el.style.display = '';
@@ -764,7 +781,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
     ql.innerHTML = '';
     pinnedApps.forEach(appId => {
-      const app = registro.get(appId);
+      const app = window.registro.get(appId);
       if (!app) return;
       const btn = document.createElement('button');
       btn.className = 'quick-btn';
@@ -882,7 +899,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
 
   function contextoApp(e, appId) {
     e.preventDefault();
-    const app = registro.get(appId);
+    const app = window.registro.get(appId);
     if (!app) return;
     const pinned = pinnedApps.includes(appId);
 
@@ -906,6 +923,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   function contextoDesktop(e) {
+    console.log('[Extras] Click derecho detectado en el escritorio');
     if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu')) return;
     e.preventDefault();
     mostrarContexto(e.clientX, e.clientY, [
@@ -932,10 +950,10 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
         });
       }},
       { icon: 'folder-minus', text: 'Vaciar (sacar todas las apps)', fn: async () => {
-        folder.apps.forEach(a => { delete posicionesIconos[a]; });
+        folder.apps.forEach(a => { delete window.posicionesIconos[a]; });
         folder.apps = [];
         await guardarCarpetas();
-        await kvSet('posiciones_iconos', posicionesIconos);
+        await kvSet('posiciones_iconos', window.posicionesIconos);
         window.renderIconos();
         window.MyHub.toast('Carpeta vaciada');
       }},
@@ -954,7 +972,8 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     const menuOps = document.getElementById('menuOps');
     if (!menuOps) return;
     
-    const observer = new MutationObserver(() => {
+    // Inyectar inmediatamente si ya está listo
+    const injectButton = () => {
       if (document.getElementById('menu-nueva-carpeta')) return;
       const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
       if (!docBtn) return;
@@ -970,7 +989,11 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
       };
       menuOps.insertBefore(btn, docBtn.nextSibling);
       refrescarIconos();
-    });
+      console.log('[Extras] Botón "Nueva carpeta" inyectado en el menú de inicio');
+    };
+
+    injectButton();
+    const observer = new MutationObserver(injectButton);
     observer.observe(menuOps, { childList: true });
   }
 
@@ -978,6 +1001,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
      SETUP
      ========================================================================= */
   async function setup() {
+    console.log('[Extras] Setup iniciado correctamente');
     if (ready) return;
     ready = true;
 
@@ -995,25 +1019,21 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     setupMenuOption();
 
     const desktopEl = document.getElementById('desktop');
-    if (desktopEl) desktopEl.addEventListener('contextmenu', contextoDesktop);
+    if (desktopEl) {
+      desktopEl.addEventListener('contextmenu', contextoDesktop);
+      console.log('[Extras] Evento contextmenu asociado al escritorio');
+    }
 
     window.renderIconos();
   }
 
+  // Espera a que el puente de variables capture las variables y luego hace el setup
   function waitForLobby() {
-    const ok = window.MyHub
-      && typeof window.renderIconos === 'function'
-      && typeof window.abrir === 'function'
-      && typeof window.cerrar === 'function'
-      && typeof window.renderTareas === 'function'
-      && typeof window.hacerArrastrable === 'function'
-      && typeof registro !== 'undefined'
-      && typeof orden !== 'undefined'
-      && typeof win !== 'undefined'
-      && typeof posicionesIconos !== 'undefined';
-
-    if (!ok) return setTimeout(waitForLobby, 25);
-    setup().catch(err => console.error('[Extras] Error en setup:', err));
+    if (window.MyHub && window.registro && window.renderIconos && window.abrir) {
+      setup().catch(err => console.error('[Extras] Error en setup:', err));
+    } else {
+      setTimeout(waitForLobby, 50);
+    }
   }
   setTimeout(waitForLobby, 0);
 })();
