@@ -27,34 +27,35 @@ body {
   overflow: hidden;
 }
 
-/* ================= Sidebar ================= */
+/* ================= Sidebar (Como Windows) ================= */
 .sidebar {
-  width: 180px; background: var(--sidebar-bg); 
+  width: 200px; background: var(--sidebar-bg); 
   border-right: 1px solid var(--line);
   display: flex; flex-direction: column; flex-shrink: 0;
 }
 
 .sidebar-header {
-  padding: 16px; font-size: 14px; font-weight: 700; 
+  padding: 12px 16px; font-size: 14px; font-weight: 700; 
   display: flex; align-items: center; gap: 8px;
   border-bottom: 1px solid var(--line);
 }
 .sidebar-header svg { color: var(--accent); width: 18px; height: 18px; }
 
-.sidebar-menu { flex: 1; overflow-y: auto; padding: 8px 6px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-menu { flex: 1; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 2px; }
 
 .menu-item {
   display: flex; align-items: center; gap: 10px; 
-  padding: 8px 10px; border-radius: 8px; cursor: pointer; 
+  padding: 6px 10px; border-radius: 6px; cursor: pointer; 
   font-size: 13px; font-weight: 500; color: var(--text); 
-  transition: 0.2s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: 0.1s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  border: 1px solid transparent;
 }
 .menu-item:hover { background: var(--line); }
 .menu-item.active { background: var(--accent-soft); color: var(--accent); }
 .menu-item svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-/* Zona de drop en la barra lateral */
-.menu-item.drop-target { background: var(--accent); color: #fff; border: 2px dashed #fff; }
+/* Indicador visual para Drop en la barra lateral */
+.menu-item.drop-target { background: var(--accent); color: #fff; }
 
 .menu-separator { height: 1px; background: var(--line); margin: 8px 0; }
 .menu-title { padding: 8px 10px 4px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
@@ -63,103 +64,82 @@ body {
 .main-area { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 
 .toolbar {
-  height: 52px; display: flex; align-items: center; justify-content: space-between;
+  height: 44px; display: flex; align-items: center; justify-content: space-between;
   padding: 0 16px; border-bottom: 1px solid var(--line); flex-shrink: 0; gap: 10px;
 }
 
-.breadcrumb { 
-  font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; 
-  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
+.breadcrumb { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 
 .btn-new {
-  background: var(--accent); color: #fff; border: none; padding: 6px 12px;
-  border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line); 
+  padding: 4px 10px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer;
   display: flex; align-items: center; gap: 6px;
 }
-.btn-new:hover { filter: brightness(1.1); }
+.btn-new:hover { background: var(--accent); color: #fff; }
 
-.content { flex: 1; overflow-y: auto; padding: 16px; position: relative; }
+.content { flex: 1; overflow-y: auto; padding: 12px; position: relative; }
 
-/* ================= Grid de Archivos ================= */
-.file-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
-  gap: 16px; align-content: start;
+/* ================= List View (Estilo Detalles) ================= */
+.list-view { display: none; flex-direction: column; width: 100%; }
+
+.list-header {
+  display: flex; padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--muted);
+  border-bottom: 1px solid var(--line); margin-bottom: 4px; text-transform: uppercase;
 }
 
-.file-item {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 12px 8px; border-radius: 12px; cursor: pointer; position: relative;
-  border: 2px solid transparent; transition: 0.2s;
-  user-select: none;
-}
-.file-item:hover { background: var(--field); }
-.file-item.dragging { opacity: 0.5; }
+.col-name { flex: 1; min-width: 0; }
+.col-type { width: 100px; flex-shrink: 0; }
+.col-actions { width: 80px; text-align: right; flex-shrink: 0; }
 
-/* Indicador visual al arrastrar sobre una carpeta */
-.file-item.drag-over {
+/* Filas de Archivos */
+.file-row {
+  display: flex; align-items: center; padding: 8px 12px;
+  border-radius: 6px; cursor: pointer; user-select: none;
+  border: 1px solid transparent; transition: 0.1s;
+}
+.file-row:hover { background: var(--field); border-color: var(--line); }
+
+/* Fila siendo arrastrada */
+.file-row.dragging { opacity: 0.4; }
+
+/* Fila de carpeta recibiendo drop */
+.file-row.drag-over {
   background: var(--accent-soft);
-  border: 2px dashed var(--accent);
-  transform: scale(1.05);
+  border: 1px dashed var(--accent);
 }
 
-.file-icon {
-  width: 48px; height: 48px; border-radius: 12px; background: var(--card);
-  display: flex; align-items: center; justify-content: center; color: var(--accent);
-  border: 1.5px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  position: relative;
-}
-.file-icon svg { width: 24px; height: 24px; }
-
-/* Candado para apps de sistema */
-.lock-icon {
-  position: absolute; bottom: -4px; right: -4px;
-  background: var(--card); border: 1px solid var(--line);
-  border-radius: 50%; width: 18px; height: 18px;
+.row-icon {
+  width: 20px; height: 20px; margin-right: 10px; color: var(--accent);
   display: flex; align-items: center; justify-content: center;
-  color: var(--muted); box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.lock-icon svg { width: 10px; height: 10px; }
+.row-icon svg { width: 16px; height: 16px; }
 
-.file-name { 
-  font-size: 12px; font-weight: 600; text-align: center; 
-  width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
-}
+.row-name { flex: 1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-type { width: 100px; font-size: 12px; color: var(--muted); }
+.row-actions { width: 80px; display: flex; justify-content: flex-end; gap: 4px; }
 
-/* Botón de borrar en hover */
-.file-actions {
-  position: absolute; top: 2px; right: 2px; display: none;
-  background: var(--card); border: 1px solid var(--line); border-radius: 6px;
-  z-index: 10;
-}
-.file-item:hover .file-actions { display: flex; }
 .action-btn {
   background: transparent; border: none; width: 24px; height: 24px;
   display: flex; align-items: center; justify-content: center;
   color: var(--muted); cursor: pointer; border-radius: 4px;
 }
-.action-btn:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.action-btn:hover { background: var(--line); color: var(--text); }
+.action-btn.delete:hover { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
 .action-btn svg { width: 14px; height: 14px; }
 
-/* ================= DB View ================= */
-.db-view { display: none; flex-direction: column; }
-.db-list { display: flex; flex-direction: column; gap: 10px; }
-.db-item { background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
-.db-key { font-size: 13px; font-weight: 700; color: var(--accent); display: flex; justify-content: space-between; margin-bottom: 6px; }
-.db-value { font-family: monospace; font-size: 11px; background: var(--card); padding: 8px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; max-height: 100px; color: var(--text); margin-bottom: 8px; }
-.db-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.lock-icon { color: var(--muted); opacity: 0.6; }
 
 /* ================= Storage View ================= */
-.storage-view { display: none; flex-direction: column; gap: 16px; }
-.storage-card, .danger-zone { background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.storage-view { display: none; flex-direction: column; gap: 16px; max-width: 500px; }
+.storage-card, .danger-zone { background: var(--field); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
 .storage-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; font-weight: 600; }
-.storage-bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
-.storage-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+.storage-bar { height: 8px; background: var(--line); border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
+.storage-fill { height: 100%; background: var(--accent); border-radius: 4px; }
 .storage-text { font-size: 11px; color: var(--muted); text-align: right; }
 .danger-zone { border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.05); }
 .danger-zone h3 { margin: 0 0 6px; font-size: 13px; color: var(--danger); }
 .danger-zone p { margin: 0 0 16px; font-size: 12px; color: var(--muted); }
-.btn-danger { background: var(--danger); color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 12px; cursor: pointer; width: 100%; }
+.btn-danger { background: var(--danger); color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; width: 100%; }
 
 /* ================= Modales ================= */
 .modal-overlay {
@@ -167,14 +147,13 @@ body {
   display: none; align-items: center; justify-content: center; z-index: 100;
 }
 .modal-overlay.active { display: flex; }
-.modal { background: var(--card); width: 90%; max-width: 300px; padding: 20px; border-radius: 16px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.modal { background: var(--card); width: 90%; max-width: 300px; padding: 20px; border-radius: 12px; border: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
 .modal h3 { margin: 0; font-size: 15px; }
-.modal input { padding: 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--field); color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
+.modal input { padding: 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--field); color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-.btn { padding: 8px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+.btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
 .btn.gray { background: var(--field); color: var(--text); border: 1px solid var(--line); }
 .btn.primary { background: var(--accent); color: #fff; }
-.btn.small { padding: 4px 8px; font-size: 11px; }
 
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
