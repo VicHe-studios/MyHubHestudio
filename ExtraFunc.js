@@ -3,11 +3,19 @@ window.descargarDocApps = function() {
   const doc = `
 ==================================================
 MYHUBHESTUDIO - GUÍA DEFINITIVA DE DESARROLLO
+Versión 2.0 - Edición "ADN VicHeStudios"
 ==================================================
 
-Bienvenido al entorno de desarrollo de MyHubHestudio. 
+Bienvenido al entorno de desarrollo de MyHubHestudio.
 Has creado el Web OS definitivo para la productividad y la rapidez.
-Aquí aprenderás a crear aplicaciones que se integren perfectamente.
+
+Esta guía es diferente a las anteriores: no solo te dice QUÉ puedes
+hacer, también te dice CÓMO lo hacen las apps oficiales. Ese conjunto
+de patrones repetidos en TODAS las apps del sistema es lo que
+llamamos el "ADN VicHeStudios". Si tu app lo cumple, se verá y
+sentirá nativa. Si no, se notará "pegada con cinta adhesiva".
+
+Léela una vez. Vuelve a la sección 4 y 9 cada vez que empieces una app.
 
 --------------------------------------------------
 1. FORMAS DE CREAR UNA APP
@@ -38,12 +46,14 @@ window.MyHub.registrarApp({
 
 C) APP INSTALABLE (Archivo ZIP) - RECOMENDADO PARA DISTRIBUIR:
 El usuario la instala usando "Forge" o "Stor-He".
+Esta guía se enfoca en este formato porque es el único que garantiza
+que tu app sobreviva a cualquier cambio del sistema.
 
 --------------------------------------------------
 2. REGLA DE ORO: 1 SOLO ARCHIVO HTML + MANIFEST
 --------------------------------------------------
-¡ATENCIÓN! Para garantizar que tu app cargue de forma instantánea y sin 
-errores de rutas (Error 404) dentro del sistema, la app instalable 
+¡ATENCIÓN! Para garantizar que tu app cargue de forma instantánea y sin
+errores de rutas (Error 404) dentro del sistema, la app instalable
 DEBE constar únicamente de 2 archivos:
 
 MiApp.zip
@@ -51,108 +61,380 @@ MiApp.zip
  ┗ 📜 index.html     (Obligatorio, contiene TODO el HTML, CSS y JS)
 
 NO uses archivos separados como style.css, app.js o carpetas de imágenes.
-En su lugar, integra todo dentro del index.html usando las etiquetas 
+En su lugar, integra todo dentro del index.html usando las etiquetas
 <style> para el diseño y <script> para la lógica.
 
 --- EL MANIFEST.JSON EXPLICADO ---
 {
-  "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas. Ej: "calculadora".
-  "titulo": "Mi App",         // (Obligatorio) El nombre que aparecerá debajo del icono.
-  "icono": "layout",          // (Obligatorio) El nombre del icono de Lucide (ej: "clock", "settings").
-  "main": "index.html",       // (Obligatorio) El archivo HTML principal que se cargará.
-  
-  // --- CAMPOS OPCIONALES (Mejoran la vista en la tienda Stor-He) ---
-  "autor": "Tu Nombre",       // (Opcional) Creador de la app.
-  "descripcion": "Una app que hace cosas increíbles." // (Opcional) Breve descripción.
+  "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas.
+  "titulo": "Mi App",         // (Obligatorio) Nombre visible bajo el icono.
+  "icono": "sparkles",        // (Obligatorio) Nombre del icono de Lucide.
+  "main": "index.html",       // (Obligatorio) Archivo HTML principal.
+
+  // --- CAMPOS OPCIONALES (Mejoran la vista en Stor-He) ---
+  "autor": "VicHeStudios",    // (Opcional) Creador de la app.
+  "descripcion": "Una app."   // (Opcional) Breve descripción, sin punto final.
 }
 
---- EJEMPLO DE INDEX.HTML TODO-EN-UNO ---
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="utf-8">
-  <style>
-    /* Todo tu CSS va aquí adentro */
-    body { margin: 0; background: var(--card); color: var(--text); font-family: sans-serif; }
-  </style>
-</head>
-<body>
-  <h1>Mi Súper App</h1>
-  <script>
-    /* Todo tu JS va aquí adentro */
-    console.log('App cargada correctamente');
-  </script>
-</body>
-</html>
-
 --------------------------------------------------
-3. TAMAÑO DE PANTALLA Y LAYOUT
+3. LAYOUT: 3 VENTANAS FIJAS
 --------------------------------------------------
-MyHubHestudio utiliza un sistema de 3 ventanas fijas (Izquierda, Centro, Derecha).
-Esto significa que tu app NO ocupará toda la pantalla, sino 1/3 de ella.
+MyHubHestudio usa un sistema de 3 ventanas fijas (Izquierda, Centro, Derecha).
+Tu app NO ocupará toda la pantalla, sino 1/3 de ella.
 
-- Resolución aproximada: En un monitor de 1920x1080, tu app tendrá unos ~600px de ancho.
-- Tu HTML y CSS DEBEN ser responsivos. Usa siempre:
+- Resolución aproximada: En 1920x1080, tu app tendrá ~600px de ancho.
+- Tu HTML y CSS DEBEN ser responsivos. Regla obligatoria en body:
   html, body { height: 100vh; width: 100%; margin: 0; overflow: hidden; }
-- Si tu app tiene muchos elementos, usa contenedores con overflow-y: auto; para que el usuario pueda hacer scroll dentro de tu app.
+- Si tu app tiene muchos elementos, usa overflow-y: auto en el contenedor
+  interno (nunca en el body completo, salvo excepciones justificadas).
 
 --------------------------------------------------
-4. ESTILOS, TEMAS Y COLORES (¡OPCIONAL!)
+4. ⭐ ADN VICHeSTUDIOS (LO QUE HACE QUE UNA APP SEA "OFICIAL")
 --------------------------------------------------
-Los colores y modos son mecánicas opcionales. ¡Puedes usarlas a tu placer!
-Si decides adaptarte al sistema, MyHub expone variables CSS globales:
+Esta sección es el corazón de la guía. Todo lo que aparece aquí se
+repite en TODAS las apps oficiales del sistema. Cópialo tal cual.
 
-- var(--accent)     -> Color principal actual (azul, rojo, morado, etc.)
-- var(--text)       -> Color del texto (se adapta a claro/oscuro)
-- var(--card)       -> Color de fondo principal (blanco o gris oscuro)
-- var(--field)      -> Color de inputs y áreas de texto
-- var(--line)       -> Color de los bordes sutiles
-- var(--muted)      -> Color del texto secundario
+4.1 VARIABLES CSS OBLIGATORIAS
+Todo el color de tu app debe salir de estas variables. Nunca uses
+hex codes sueltos (salvo en la paleta de colores fija de la sección 5).
 
-Para que tu app detecte el modo oscuro, MyHub le inyecta el atributo 
-data-modo="oscuro" a la etiqueta <html>. Úsalo así en tu CSS:
+:root {
+  --accent: #2563eb;                /* Azul identidad VicHeStudios */
+  --accent-soft: rgba(37, 99, 235, 0.15);
+  --text: #0b1220;
+  --muted: #64748b;
+  --line: rgba(15, 23, 42, 0.08);
+  --card: #ffffff;
+  --field: #f6f8fb;                 /* Inputs, áreas de texto, fondos secundarios */
+  --danger: #ef4444;                /* Errores, borrar, cerrar */
+}
+
+4.2 MODO OSCURO
+MyHub inyecta data-modo="oscuro" al <html>. Tú solo defines las
+variables oscuras. NO uses preferencias del sistema (prefers-color-scheme).
 
 html[data-modo="oscuro"] {
-  /* Tus estilos oscuros aquí */
-  background: #1a1a1a;
+  --text: #f4f4f6;
+  --muted: #9ea1aa;
+  --line: rgba(255, 255, 255, 0.09);
+  --card: #222227;
+  --field: #2a2a31;
 }
 
+4.3 RESET Y TIPOGRAFÍA
+* { box-sizing: border-box; }
+body {
+  margin: 0; height: 100vh; display: flex; flex-direction: column;
+  font-family: 'Segoe UI Variable', system-ui, sans-serif;
+  background: var(--card); color: var(--text);
+  overflow: hidden;
+}
+
+4.4 BOTÓN PRIMARIO (regla universal)
+Fondo var(--accent), texto blanco, radius 8px, font-weight 600,
+hover con filter: brightness(1.1). Sin excepciones.
+
+.btn-primary {
+  background: var(--accent); color: #fff; border: none;
+  padding: 8px 14px; border-radius: 8px;
+  font-family: inherit; font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: 0.2s;
+}
+.btn-primary:hover { filter: brightness(1.1); }
+
+4.5 BOTÓN SECUNDARIO
+Fondo var(--field), borde var(--line), texto var(--text).
+Se usa para acciones no destructivas.
+
+.btn-secondary {
+  background: var(--field); color: var(--text);
+  border: 1px solid var(--line); padding: 8px 14px;
+  border-radius: 8px; font-family: inherit;
+  font-weight: 600; font-size: 13px;
+  cursor: pointer; transition: 0.2s;
+}
+
+4.6 INPUT ESTÁNDAR (radius 10px)
+Todos los inputs, selects y textareas comparten estos estilos.
+En focus: borde var(--accent). Sin excepciones.
+
+.input {
+  padding: 10px 12px; border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--field); color: var(--text);
+  font-family: inherit; font-size: 13px; outline: none;
+  transition: border-color 0.2s;
+}
+.input:focus { border-color: var(--accent); }
+
+4.7 HEADER ESTÁNDAR
+Borde inferior var(--line), padding 12px 16px, flex space-between,
+background var(--card). Se repite en el 100% de las apps oficiales.
+
+.header {
+  padding: 12px 16px; border-bottom: 1px solid var(--line);
+  background: var(--card); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+4.8 FOOTER CREDIT
+Toda app oficial cierra con un crédito. Dos formatos válidos:
+
+  A) "Hecho con ❤️ por VicHeStudios" (uso general)
+  B) "Usa [Librería] por [Autor]" (cuando se apoya en una librería externa)
+
+.app-credit {
+  text-align: center; font-size: 11px; color: var(--muted);
+  padding: 8px; border-top: 1px solid var(--line);
+  background: var(--card); flex-shrink: 0;
+}
+.app-credit a { color: var(--accent); text-decoration: none; font-weight: 600; }
+
+4.9 SCROLLBAR PERSONALIZADA (6px)
+En todas las apps oficiales. En móvil se ignora, pero en desktop
+es parte del "feel" del sistema.
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+4.10 MODALES (opcional pero recomendado)
+Si tu app usa modales, este es el patrón oficial:
+Overlay rgba(0,0,0,0.5) + backdrop-filter: blur(4px),
+caja con background var(--card), radius 16px, borde var(--line).
+
+4.11 ICONOS
+Usa Lucide. Dos formas válidas:
+  A) <script src="../../vendor/lucide.min.js"></script> + <i data-lucide="nombre">
+  B) SVG inline con stroke="currentColor" stroke-width="2"
+
 --------------------------------------------------
-5. COMUNICACIÓN CON EL LOBBY (PostMessage)
+5. SINCRONIZACIÓN DE TEMA CON EL LOBBY (OBLIGATORIO)
 --------------------------------------------------
-Como tu app corre dentro de un iframe, si necesitas datos del usuario o del sistema,
-debes usar window.parent.postMessage.
+Toda app instalable DEBE escuchar el tema del sistema. Sin esto,
+tu app se queda con los colores por defecto y rompe la armonía
+visual del escritorio.
+
+Pega esto al inicio de tu <script>, sin excepciones:
+
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
+  }
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'myhub:tema:res') {
+      document.documentElement.dataset.modo = e.data.modo;
+      document.documentElement.style.setProperty('--accent', e.data.color);
+      document.documentElement.style.setProperty('--accent-soft', e.data.color + '26');
+    }
+  });
+
+Nota: '26' es la opacidad en hex (~15%). Es el estándar oficial para
+--accent-soft. Si tu app no usa --accent-soft, puedes omitir esa línea.
+
+--------------------------------------------------
+6. CONVENCIONES DE NOMENCLATURA
+--------------------------------------------------
+Para que tu app se sienta parte del sistema, sigue estas reglas:
+
+ID en manifest.json:
+  Formato: [nombre-descriptivo]-he (sufijo)
+  ✅ calcul-he, clim-he, pass-he, qr-he
+  ❌ calculadora, MiApp, CALC
+
+Título visible:
+  Formato: Capitalizado con guion, sufijo -He
+  ✅ Calcul-He, Clim-He, QR-He
+  ❌ calculadora, Calculadora
+
+Icono Lucide:
+  Nombre exacto de la librería (sin "icon-", sin guiones bajos)
+  ✅ calculator, cloud-sun, key-round, qr-code
+  ❌ Calculator, cloud_sun
+
+Autor (opcional):
+  ✅ VicHeStudios (el nombre oficial del estudio)
+
+--------------------------------------------------
+7. COMUNICACIÓN CON EL LOBBY (postMessage)
+--------------------------------------------------
+Tu app corre dentro de un iframe. Si necesitas datos del sistema,
+usa window.parent.postMessage. Nunca uses window.top ni localStorage
+del padre.
 
 --- Obtener el Perfil del Usuario ---
 window.parent.postMessage({ type: 'myhub:perfil' }, '*');
-
 window.addEventListener('message', (e) => {
   if (e.data?.type === 'myhub:perfil:res') {
     console.log('Datos:', e.data.data);
-    // Retorna: { nombre, apellido, nacimiento, genero, pais, idioma, foto (Base64) }
+    // { nombre, apellido, nacimiento, genero, pais, idioma, foto (Base64) }
   }
 });
 
---- Obtener el Tema Actual ---
-window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
+--- API Global Útil ---
+window.MyHub.toast('Mensaje');          // Notificación flotante
+window.MyHub.cerrar('mi-app');          // Cierra la ventana
+window.MyHub.minimizar('mi-app');       // Minimiza la ventana
+window.MyHub.restaurar('mi-app');       // Restaura la ventana
 
-window.addEventListener('message', (e) => {
-  if (e.data?.type === 'myhub:tema:res') {
-    console.log('Color:', e.data.color); // Ej: '#2563eb'
-    console.log('Modo:', e.data.modo);   // 'claro' u 'oscuro'
+--------------------------------------------------
+8. CHECKLIST ANTES DE EMPAQUETAR
+--------------------------------------------------
+Marca todas antes de generar el ZIP:
+
+[ ] index.html contiene TODO el CSS y JS inline (nada externo)
+[ ] manifest.json con id, titulo, icono, main (los 4 obligatorios)
+[ ] Las variables :root y html[data-modo="oscuro"] están definidas
+[ ] El bloque de postMessage myhub:get-tema está presente
+[ ] body { height: 100vh; overflow: hidden; }
+[ ] Header con border-bottom y padding estándar
+[ ] Botones con radius 8px y font-weight 600
+[ ] Inputs con radius 10px y focus var(--accent)
+[ ] Footer .app-credit con "Hecho con ❤️ por VicHeStudios"
+[ ] Scrollbar 6px estilizada (desktop)
+[ ] Iconos Lucide o SVG inline (no emojis en el header)
+[ ] Probado en modo claro Y oscuro
+[ ] Probado en ventana estrecha (~600px de ancho)
+
+--------------------------------------------------
+9. PLANTILLA BASE COMPLETA (copiar y pegar)
+--------------------------------------------------
+Este es el esqueleto mínimo de una app oficial. Cópialo y empieza
+a construir encima. Todo lo que está aquí es obligatorio.
+
+--- index.html ---
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --accent: #2563eb;
+    --accent-soft: rgba(37, 99, 235, 0.15);
+    --text: #0b1220;
+    --muted: #64748b;
+    --line: rgba(15, 23, 42, 0.08);
+    --card: #ffffff;
+    --field: #f6f8fb;
+    --danger: #ef4444;
   }
-});
+  html[data-modo="oscuro"] {
+    --text: #f4f4f6;
+    --muted: #9ea1aa;
+    --line: rgba(255, 255, 255, 0.09);
+    --card: #222227;
+    --field: #2a2a31;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    height: 100vh; width: 100%; margin: 0; overflow: hidden;
+  }
+  body {
+    display: flex; flex-direction: column;
+    font-family: 'Segoe UI Variable', system-ui, sans-serif;
+    background: var(--card); color: var(--text);
+  }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+  .header {
+    padding: 12px 16px; border-bottom: 1px solid var(--line);
+    background: var(--card); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .header h1 { margin: 0; font-size: 16px; font-weight: 700; }
+
+  .content {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  .btn-primary {
+    background: var(--accent); color: #fff; border: none;
+    padding: 8px 14px; border-radius: 8px;
+    font-family: inherit; font-weight: 600; font-size: 13px;
+    cursor: pointer; transition: 0.2s;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+
+  .input {
+    padding: 10px 12px; border-radius: 10px;
+    border: 1.5px solid var(--line);
+    background: var(--field); color: var(--text);
+    font-family: inherit; font-size: 13px; outline: none;
+    transition: border-color 0.2s;
+  }
+  .input:focus { border-color: var(--accent); }
+
+  .app-credit {
+    text-align: center; font-size: 11px; color: var(--muted);
+    padding: 8px; border-top: 1px solid var(--line);
+    background: var(--card); flex-shrink: 0;
+  }
+  .app-credit a { color: var(--accent); text-decoration: none; font-weight: 600; }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>Mi App</h1>
+    <button class="btn-primary" id="btn-accion">Acción</button>
+  </div>
+
+  <div class="content">
+    <input class="input" type="text" placeholder="Escribe algo...">
+    <p>Contenido de la app aquí.</p>
+  </div>
+
+  <div class="app-credit">
+    Hecho con ❤️ por VicHeStudios
+  </div>
+
+<script>
+  // 1. Sincronización de tema (OBLIGATORIO)
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
+  }
+  window.addEventListener('message', (e) => {
+    if (e.data?.type === 'myhub:tema:res') {
+      document.documentElement.dataset.modo = e.data.modo;
+      document.documentElement.style.setProperty('--accent', e.data.color);
+      document.documentElement.style.setProperty('--accent-soft', e.data.color + '26');
+    }
+  });
+
+  // 2. Lógica de la app
+  document.getElementById('btn-accion').onclick = () => {
+    if (window.MyHub) window.MyHub.toast('¡Funciona!');
+    else alert('¡Funciona!');
+  };
+</script>
+</body>
+</html>
+
+--- manifest.json ---
+{
+  "id": "mi-app",
+  "titulo": "Mi App",
+  "icono": "sparkles",
+  "main": "index.html",
+  "autor": "VicHeStudios",
+  "descripcion": "Una app que hace cosas increíbles"
+}
 
 --------------------------------------------------
-6. API GLOBAL ÚTIL
+10. FILOSOFÍA
 --------------------------------------------------
-- window.MyHub.toast('Mensaje');  // Muestra una notificación flotante en el sistema
-- window.MyHub.cerrar('mi-app');  // Cierra la ventana de tu app por su ID
-- window.MyHub.minimizar('mi-app'); // Minimiza la ventana
-- window.MyHub.restaurar('mi-app'); // Restaura la ventana
+El objetivo no es que cada app se vea igual, sino que todas se
+sientan parte del mismo sistema. Un usuario no debería notar dónde
+termina el escritorio y dónde empieza tu app.
+
+Cuando dudes entre dos opciones de diseño, pregúntate:
+"¿Esto ya existe en alguna otra app del sistema?"
+Si la respuesta es sí, úsalo igual. Si es no, pregúntate por qué.
 
 ==================================================
 Hecho con amor para MyHubHestudio. ¡Feliz código!
+==================================================
 `;
 
   const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
@@ -816,7 +1098,7 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
   }
 
   /* =========================================================================
-     MENÚS CONTEXTUALES (Aquí está lo que faltaba)
+     MENÚS CONTEXTUALES
      ========================================================================= */
   let ctxMenu = null;
 
@@ -1158,8 +1440,6 @@ Hecho con amor para MyHubHestudio. ¡Feliz código!
     injectStyles();
     limpiarCarpetasHuerfanas();
     overrideRenderIconos();
-    
-    // NOTA: Ya no llamamos a setupMinimize() porque JsLobby lo maneja nativamente.
     
     setupEditProfile();
     setupEliminarApp();
