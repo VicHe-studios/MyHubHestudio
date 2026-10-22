@@ -13,7 +13,13 @@
         <i data-lucide="trash-2"></i>
         <h2>Papelera</h2>
       </div>
-      <button class="btn btn-red-outline" id="btn-vaciar"><i data-lucide="x-circle"></i>Vaciar</button>
+      <div class="papelera-tools">
+        <input type="text" id="search-input" placeholder="Buscar..." autocomplete="off">
+        <button class="btn btn-red" id="btn-borrar-seleccion" style="display: none;">
+          <i data-lucide="trash-2"></i> Eliminar (<span id="contador-sel">0</span>)
+        </button>
+        <button class="btn btn-red-outline" id="btn-vaciar"><i data-lucide="x-circle"></i>Vaciar</button>
+      </div>
     </div>
     <div class="papelera-lista" id="lista"></div>
   </div>
