@@ -29,23 +29,30 @@
   };
 
   // ================= SISTEMA DE SONIDO (snd-lib) =================
+  // Inicializamos la instancia de Snd si la clase existe (viene del vendor/snd.js)
+  if (typeof Snd !== 'undefined' && !window.snd) {
+    window.snd = new Snd();
+    // Cargamos el kit de sonidos por defecto de la librería
+    window.snd.load(Snd.KITS.SND01).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+  }
+
   const playSound = (type) => {
     if (!sonidosActivos) return;
     
-    // Verificamos que la librería se haya cargado correctamente
-    if (typeof snd === 'undefined') {
-      console.warn('[ExtraFunc] La librería snd-lib no está cargada.');
+    // Verificamos que la instancia global exista
+    if (!window.snd) {
+      console.warn('[ExtraFunc] La instancia de sonido "snd" no está lista.');
       return;
     }
 
     try {
       switch (type) {
-        case 'open':    snd.open(); break;
-        case 'close':   snd.caution(); break;
-        case 'minimize':snd.tap(); break;
-        case 'start':   snd.success(); break;
-        case 'move':    snd.click(); break;
-        case 'click':   snd.click(); break;
+        case 'open':    window.snd.open(); break;
+        case 'close':   window.snd.caution(); break;
+        case 'minimize':window.snd.tap(); break;
+        case 'start':   window.snd.success(); break;
+        case 'move':    window.snd.click(); break;
+        case 'click':   window.snd.click(); break;
       }
     } catch(e) {
       console.error('Error al reproducir sonido:', e);
