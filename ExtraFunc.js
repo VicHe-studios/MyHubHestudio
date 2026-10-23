@@ -361,15 +361,22 @@
     });
   };
 
-  // ================= GESTIÓN DE MENÚ CONTEXTUAL =================
+  // ================= EL TRUCO PARA EL MENÚ CONTEXTUAL =================
+  // Escuchamos el botón derecho ANTES de que el navegador intente abrir el menú
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button === 2) {
+      // Si hay un menú abierto, lo cerramos inmediatamente
+      if (typeof cerrarContexto === 'function') {
+        cerrarContexto();
+      }
+    }
+  }, true);
+
   document.addEventListener('contextmenu', (e) => {
-    // 1. EVITAR QUE SE INYECTE SI ESTAMOS EN UNA CARPETA (MODAL)
     if (e.target.closest('#modal')) return;
 
-    // 2. Evitar el menú nativo de Chrome en el escritorio
     e.preventDefault(); 
     
-    // 3. No mostrar el menú de widgets si estamos en un icono, ventana o taskbar
     if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
     
     setTimeout(() => {
