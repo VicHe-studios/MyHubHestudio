@@ -127,7 +127,7 @@ svg { display: inline-block; flex-shrink: 0; }
 [data-lucide] svg, i[data-lucide] svg { stroke-width: 1.9; }
 
 /* ================= Escritorio ================= */
-#desktop { position: absolute; left: 0; right: 0; top: 0; bottom: 90px; padding: 20px; z-index: 1; }
+#desktop { position: absolute; left: 0; right: 0; top: 0; bottom: 60px; padding: 20px; z-index: 1; }
 
 #desktop::before {
   content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 0;
@@ -139,11 +139,22 @@ svg { display: inline-block; flex-shrink: 0; }
 }
 body.con-fondo #desktop::before { opacity: 0; }
 
+/* ================= Widgets: misma cuadrícula centrada ================= */
+#widgets-layer {
+  position: absolute !important; top: 0; bottom: 0;
+  left: 50% !important; right: auto !important;
+  transform: translateX(-50%);
+  width: calc(var(--grid-margin) * 2 + var(--grid-cols) * var(--cell-w)) !important;
+  pointer-events: none;
+}
+
 /* ================= Iconos ================= */
 #icons {
-  position: absolute; inset: 0; z-index: 1;
+  position: absolute; top: 0; bottom: 0; z-index: 1;
+  left: 50%; transform: translateX(-50%);
+  width: calc(var(--grid-margin) * 2 + var(--grid-cols) * var(--cell-w));
   pointer-events: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .icon {
@@ -264,10 +275,10 @@ body.con-fondo #desktop::before { opacity: 0; }
 
 /* ================= Taskbar ================= */
 #taskbar {
-  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
-  width: min(760px, calc(100vw - 24px)); height: 64px;
-  display: flex; align-items: center; gap: 10px;
-  padding: 0 14px; border-radius: var(--radius-xl);
+  position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 60;
+  width: min(760px, calc(100vw - 24px)); height: 46px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 10px; border-radius: 16px;
   background: var(--bar);
   border: 1.5px solid var(--line);
   box-shadow: var(--shadow-xl);
@@ -276,7 +287,7 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 
 .inicio {
-  width: 44px; height: 44px; border: none; border-radius: 12px;
+  width: 34px; height: 34px; border: none; border-radius: 10px;
   cursor: pointer; padding: 0; background: transparent; color: var(--text);
   display: flex; align-items: center; justify-content: center;
   transition: transform .18s var(--ease-spring), background .2s, color .2s;
@@ -284,15 +295,15 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 .inicio:hover { background: var(--accent-soft); color: var(--accent); }
 .inicio:active { transform: scale(.92); }
-.inicio svg { width: 24px; height: 24px; }
+.inicio svg { width: 20px; height: 20px; }
 
 #tasks { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 
 .task {
   position: relative;
-  width: 42px; height: 42px;
+  width: 34px; height: 34px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 10px; cursor: pointer;
+  border-radius: 9px; cursor: pointer;
   background: var(--field); 
   color: var(--text);
   border: 1.5px solid var(--line);
@@ -301,7 +312,7 @@ body.con-fondo #desktop::before { opacity: 0; }
   transition: background .18s, color .18s, border-color .18s,
               opacity .18s, transform .15s var(--ease-spring);
 }
-.task svg { width: 20px; height: 20px; pointer-events: none; }
+.task svg { width: 18px; height: 18px; pointer-events: none; }
 .task:hover {
   background: var(--accent-soft);
   border-color: var(--accent-line);
@@ -330,8 +341,8 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 
 #clock {
-  margin-left: auto; font-size: 13px; font-weight: 600;
-  padding: 8px 14px; border-radius: 12px;
+  margin-left: auto; font-size: 12.5px; font-weight: 600;
+  padding: 5px 12px; border-radius: 10px;
   font-variant-numeric: tabular-nums;
   background: var(--accent-soft); 
   color: var(--accent);
@@ -339,7 +350,7 @@ body.con-fondo #desktop::before { opacity: 0; }
 
 /* ================= Menú ================= */
 .menu {
-  position: absolute; bottom: 88px; left: max(12px, calc(50% - 380px));
+  position: absolute; bottom: 62px; left: max(12px, calc(50% - 380px));
   width: 280px; z-index: 100;
   padding: 8px; border-radius: var(--radius-lg);
   background: var(--glass); color: var(--text);
