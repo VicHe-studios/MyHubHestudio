@@ -54,6 +54,10 @@
       .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
       .extrafunc-btn.danger { color: #ef4444; }
       .extrafunc-btn.danger:hover { background: #ef4444; color: #fff; }
+      
+      /* Botón bloqueado para apps de sistema */
+      .extrafunc-btn.locked { color: var(--muted); cursor: not-allowed; }
+      .extrafunc-btn.locked:hover { background: transparent; color: var(--muted); }
 
       /* --- MODAL PERSONALIZADO --- */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
@@ -117,6 +121,7 @@
           case 'Digit1': e.preventDefault(); window.MyHub.abrir('papelera'); break;
           case 'Digit2': e.preventDefault(); window.MyHub.abrir('forge'); break;
           case 'Digit3': e.preventDefault(); window.MyHub.abrir('storhe'); break;
+          case 'Digit4': e.preventDefault(); window.MyHub.abrir('cmdhe'); break; // Atajo para CMD-HE
           case 'KeyM': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
           case 'KeyC': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
           case 'KeyD': 
@@ -246,16 +251,32 @@
               return btn;
             };
 
-            // Único botón extra: Eliminar App
-            const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
-              const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
-              if (ok) {
-                await window.MyHub.eliminarApp(targetAppId);
-                window.MyHub.toast('App eliminada');
-              }
-            });
+            // MAGIA AQUÍ: Detectar si es app de sistema
+            const esAppSistema = ['papelera', 'forge', 'storhe', 'cmdhe'].includes(targetAppId) || app.url;
 
-            menu.appendChild(btnDelete);
+            if (esAppSistema) {
+              // Botón bloqueado
+              const btnLocked = document.createElement('button');
+              btnLocked.className = 'extrafunc-btn locked';
+              btnLocked.innerHTML = `<i data-lucide="lock"></i><span>App de Sistema</span>`;
+              btnLocked.onclick = async () => {
+                if (typeof cerrarContexto === 'function') cerrarContexto();
+                else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
+                window.MyHub.toast('Las apps base no se pueden borrar desde aquí. Usa CMD-HE.');
+              };
+              menu.appendChild(btnLocked);
+            } else {
+              // Botón normal de eliminar
+              const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
+                const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
+                if (ok) {
+                  await window.MyHub.eliminarApp(targetAppId);
+                  window.MyHub.toast('App eliminada');
+                }
+              });
+              menu.appendChild(btnDelete);
+            }
+
             refrescarIconos();
           }
         }, 20);
