@@ -8,6 +8,8 @@
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
+  const MARGEN = 16, GX = 100, GY = 110;
+
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
     const style = document.createElement('style');
@@ -48,6 +50,61 @@
     await kvSet('widgets_activos', widgetsActivos);
   };
 
+  // Función para saber cuántas celdas ocupa un widget
+  const getWidgetCells = (size) => {
+    if (size === '2x2') return { cols: 2, rows: 2 };
+    if (size === '2x1') return { cols: 2, rows: 1 };
+    return { cols: 1, rows: 1 };
+  };
+
+  // Función para buscar el primer hueco libre
+  const findFreeSpot = (size) => {
+    const { cols, rows } = getWidgetCells(size);
+    const deskH = document.getElementById('desktop').clientHeight || window.innerHeight - 90;
+    const maxRows = Math.max(1, Math.floor((deskH - MARGEN) / GY));
+    const maxCols = Math.max(1, Math.floor((document.getElementById('desktop').clientWidth - MARGEN) / GX));
+
+    // Recolectar todas las celdas ocupadas por iconos y widgets
+    const ocupadas = new Set();
+    
+    if (typeof posicionesIconos !== 'undefined') {
+      Object.values(posicionesIconos).forEach(pos => {
+        const c = Math.round((parseFloat(pos.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(pos.top) - MARGEN) / GY);
+        ocupadas.add(`${c}-${r}`);
+      });
+    }
+
+    widgetsActivos.forEach(w => {
+      if (!w.pos) return;
+      const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+      const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+      const wsize = getWidgetCells(w.size);
+      for (let i = 0; i < wsize.cols; i++) {
+        for (let j = 0; j < wsize.rows; j++) {
+          ocupadas.add(`${wc + i}-${wr + j}`);
+        }
+      }
+    });
+
+    // Buscar hueco
+    for (let r = 0; r < maxRows; r++) {
+      for (let c = 0; c < maxCols; c++) {
+        let libre = true;
+        for (let i = 0; i < cols; i++) {
+          for (let j = 0; j < rows; j++) {
+            if (ocupadas.has(`${c + i}-${r + j}`)) libre = false;
+          }
+        }
+        if (libre) {
+          return { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN}px` };
+        }
+      }
+    }
+    // Si no hay hueco, devolver una posición por defecto (fuera del grid, abajo)
+    return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN}px` };
+  };
+
   const renderWidgets = () => {
     let layer = document.getElementById('widgets-layer');
     if (!layer) {
@@ -62,7 +119,6 @@
       const el = document.createElement('div');
       el.className = 'widget-container';
       
-      // TAMAÑOS PERFECTOS (Grid: icono=90x100, gap=10)
       const wSize = w.size === '2x2' ? '190px' : (w.size === '2x1' ? '190px' : '90px');
       const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
       
@@ -135,6 +191,7 @@
 
   const hacerArrastrableWidget = (el, widgetData) => {
     let isDragging = false, startX, startY, startLeft, startTop;
+    
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       isDragging = false;
@@ -153,13 +210,52 @@
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
         if (isDragging) {
-          const snapX = Math.round((parseFloat(el.style.left) - 16) / 100) * 100 + 16;
-          const snapY = Math.round((parseFloat(el.style.top) - 16) / 110) * 110 + 16;
-          el.style.left = snapX + 'px';
-          el.style.top = snapY + 'px';
+          const snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
+          const snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
           
-          widgetData.pos = { left: el.style.left, top: el.style.top };
-          guardarWidgets();
+          const { cols, rows } = getWidgetCells(widgetData.size);
+          const startCol = Math.round((snapX - MARGEN) / GX);
+          const startRow = Math.round((snapY - MARGEN) / GY);
+          
+          let colision = false;
+          
+          // 1. Verificar colisión con iconos
+          if (typeof posicionesIconos !== 'undefined') {
+            for (const pos of Object.values(posicionesIconos)) {
+              const iCol = Math.round((parseFloat(pos.left) - MARGEN) / GX);
+              const iRow = Math.round((parseFloat(pos.top) - MARGEN) / GY);
+              if (iCol >= startCol && iCol < startCol + cols && iRow >= startRow && iRow < startRow + rows) {
+                colision = true; break;
+              }
+            }
+          }
+          
+          // 2. Verificar colisión con otros widgets
+          if (!colision) {
+            for (const other of widgetsActivos) {
+              if (other === widgetData || !other.pos) continue;
+              const oCol = Math.round((parseFloat(other.pos.left) - MARGEN) / GX);
+              const oRow = Math.round((parseFloat(other.pos.top) - MARGEN) / GY);
+              const oSize = getWidgetCells(other.size);
+              
+              // Lógica de intersección de rectángulos
+              if (startCol < oCol + oSize.cols && startCol + cols > oCol && 
+                  startRow < oRow + oSize.rows && startRow + rows > oRow) {
+                colision = true; break;
+              }
+            }
+          }
+
+          if (colision) {
+            el.style.left = startLeft + 'px';
+            el.style.top = startTop + 'px';
+            window.MyHub.toast('Espacio ocupado por otra app o widget');
+          } else {
+            el.style.left = snapX + 'px';
+            el.style.top = snapY + 'px';
+            widgetData.pos = { left: el.style.left, top: el.style.top };
+            guardarWidgets();
+          }
         }
       };
       window.addEventListener('pointermove', mover);
@@ -220,7 +316,8 @@
     modal.querySelectorAll('.extrafunc-btn').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos: { left: '116px', top: '16px' } });
+        const pos = findFreeSpot(w.size);
+        widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
         renderWidgets();
         cerrarPanel();
