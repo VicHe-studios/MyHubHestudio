@@ -5,34 +5,6 @@
 (function() {
   'use strict';
 
-  // ================= PWA: Service Worker + persistencia =================
-  const setupPWA = async () => {
-    if ('serviceWorker' in navigator) {
-      try {
-        await navigator.serviceWorker.register('./sw.js', { scope: './' });
-      } catch (err) {}
-    }
-    if (navigator.storage && navigator.storage.persist) {
-      try {
-        const already = await navigator.storage.persisted();
-        if (!already) await navigator.storage.persist();
-      } catch (e) {}
-    }
-  };
-
-  // ================= theme-color dinámico =================
-  const hookThemeColor = () => {
-    if (typeof window.aplicarAjustes !== 'function' || window.aplicarAjustes._pwaHook) return;
-    const original = window.aplicarAjustes;
-    window.aplicarAjustes = function() {
-      original.apply(this, arguments);
-      const color = (typeof COLORES !== 'undefined' && typeof ajustes !== 'undefined' && COLORES[ajustes.color]) || '#2563eb';
-      const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute('content', color);
-    };
-    window.aplicarAjustes._pwaHook = true;
-  };
-
   // ================= Panel de almacenamiento en Configuración =================
   const inyectarEstilosStorage = () => {
     if (document.getElementById('pwa-storage-style')) return;
@@ -66,7 +38,7 @@
               <b id="storage-pct">0%</b>
             </div>
           </div>
-          <p class="nota">Tus apps y datos viven en este navegador. Instalá MyHub como PWA para que el navegador no los borre automáticamente.</p>
+          <p class="nota">Tus apps y datos viven de forma local en este navegador.</p>
         `;
         mBody.appendChild(container);
         if (navigator.storage && navigator.storage.estimate) {
@@ -115,36 +87,6 @@
     window.addEventListener('resize', applyZoom);
   };
 
-  // ================= Iniciar al abrir + Límite físico =================
-  const setupWindowBehavior = () => {
-    if (!window.matchMedia('(display-mode: standalone)').matches) return;
-
-    setTimeout(() => {
-      try {
-        window.moveTo(0, 0);
-        window.resizeTo(screen.availWidth, screen.availHeight);
-      } catch (e) {}
-    }, 200);
-
-    const MIN_WIDTH = 900;
-    const MIN_HEIGHT = 600;
-    let resizeTimeout;
-
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        if (window.outerWidth < MIN_WIDTH || window.outerHeight < MIN_HEIGHT) {
-          try {
-            window.resizeTo(
-              Math.max(window.outerWidth, MIN_WIDTH),
-              Math.max(window.outerHeight, MIN_HEIGHT)
-            );
-          } catch(e) {}
-        }
-      }, 100);
-    });
-  };
-
   // ================= Nuevos Botones de Ventana (Recargar y Agrandar) =================
   const setupWindowControls = () => {
     if (!document.getElementById('win-controls-style')) {
@@ -157,81 +99,35 @@
       document.head.appendChild(style);
     }
 
-    window.expandedWins = window.expandedWins || {};
+    // Mapa para rastrear ventanas expandidas y sus observadores de estilo
+    const expandedWins = new Map();
 
-    // 1. Hookear la función acomodar de JsLobby para manejar los espacios
-    if (!window._origAcomodar) {
-      window._origAcomodar = window.acomodar;
-      window.acomodar = function() {
-        if (typeof window._origAcomodar === 'function') window._origAcomodar();
-
-        for (const id in window.expandedWins) {
-          const _win = window.win;
-          const _minimized = window.minimized;
-
-          // Si la ventana se cerró o minimizó, limpiamos el bloqueo
-          if (!_win || !_win[id] || (_minimized && _minimized.has(id))) {
-            const blockSlot = window.expandedWins[id] === 'left' ? 'center' : (window.expandedWins[id] === 'center' ? 'right' : 'center');
-            if (window.slots[blockSlot] === '__expanded__' + id) window.slots[blockSlot] = null;
-            delete window.expandedWins[id];
-            continue;
-          }
-
-          const appWin = _win[id];
-          const currentSlot = appWin.slot;
-
-          const G = 18, W = desk.clientWidth, H = desk.clientHeight;
-          const w = (W - G * 4) / 3;
-
-          let blockSlot = null;
-
-          // Calcular posición y bloquear el espacio adyacente
-          if (currentSlot === 'left') {
-            blockSlot = 'center';
-            Object.assign(appWin.el.style, { left: G + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
-          } else if (currentSlot === 'center') {
-            blockSlot = 'right';
-            Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
-          } else if (currentSlot === 'right') {
-            blockSlot = 'center';
-            Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
-          }
-
-          if (blockSlot) {
-            // Minimizar la ventana adyacente si existe
-            if (window.slots[blockSlot] && window.slots[blockSlot] !== '__expanded__' + id) {
-              window.MyHub.minimizar(window.slots[blockSlot]);
-            }
-            // Bloquear el slot para que JsLobby no lo use
-            window.slots[blockSlot] = '__expanded__' + id;
-          }
+    // Función para colapsar todas las ventanas expandidas
+    const colapsarExpandidas = () => {
+      expandedWins.forEach((data, node) => {
+        expandedWins.delete(node);
+        if (data.observer) data.observer.disconnect();
+        node.style.width = '';
+        node.style.left = '';
+        
+        const btn = node.querySelector('.expand-btn');
+        if (btn) {
+          btn.innerHTML = '<i data-lucide="maximize-2"></i>';
+          btn.title = 'Agrandar (2 espacios)';
         }
-      };
-    }
+      });
+      window.dispatchEvent(new Event('resize'));
+    };
 
-    // 2. Hookear la función abrir para evitar conflictos
+    // Interceptar la apertura de apps para que no se abran 3 y se pisen
     if (!window._origAbrir) {
       window._origAbrir = window.MyHub.abrir;
       window.MyHub.abrir = function(id) {
-        // Si abrimos una nueva app, restauramos las expandidas para liberar espacio
-        for (const expId in window.expandedWins) {
-          const blockSlot = window.expandedWins[expId] === 'left' ? 'center' : (window.expandedWins[expId] === 'center' ? 'right' : 'center');
-          if (window.slots[blockSlot] === '__expanded__' + expId) window.slots[blockSlot] = null;
-          delete window.expandedWins[expId];
-
-          if (window.win[expId]) {
-            const expBtn = window.win[expId].el.querySelector('.expand-btn');
-            if (expBtn) {
-              expBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
-              expBtn.title = 'Agrandar (2 espacios)';
-            }
-          }
-        }
+        colapsarExpandidas();
         window._origAbrir(id);
       };
     }
 
-    // 3. Observer para inyectar botones
     const deskEl = document.getElementById('desktop');
     if (!deskEl) return;
 
@@ -280,46 +176,74 @@
             expandBtn.className = 'close expand-btn';
             expandBtn.title = 'Agrandar (2 espacios)';
             expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
+            
             expandBtn.onclick = (e) => {
               e.stopPropagation();
 
-              const _win = window.win;
-              const _slots = window.slots;
-
-              if (!_win || !_win[appId]) return;
-              const appWin = _win[appId];
-
-              if (window.expandedWins[appId]) {
-                // Restaurar tamaño normal
-                const blockSlot = window.expandedWins[appId] === 'left' ? 'center' : (window.expandedWins[appId] === 'center' ? 'right' : 'center');
-                if (_slots && _slots[blockSlot] === '__expanded__' + appId) _slots[blockSlot] = null;
-
-                delete window.expandedWins[appId];
-                window.acomodar();
+              if (expandedWins.has(node)) {
+                // Restaurar tamaño
+                const data = expandedWins.get(node);
+                if (data.observer) data.observer.disconnect();
+                expandedWins.delete(node);
+                node.style.width = '';
+                node.style.left = '';
+                window.dispatchEvent(new Event('resize'));
                 expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
                 expandBtn.title = 'Agrandar (2 espacios)';
               } else {
-                // Agrandar a 2 espacios
-                window.expandedWins[appId] = appWin.slot;
-                window.acomodar();
+                // Expandir a 2 espacios
+                const deskW = deskEl.clientWidth;
+                const G = 18;
+                const w = (deskW - G * 4) / 3;
+                const doubleW = w * 2 + G;
+
+                const rect = node.getBoundingClientRect();
+                const deskRect = deskEl.getBoundingClientRect();
+                const relativeX = rect.left - deskRect.left;
+
+                let newLeft = G;
+                if (relativeX > deskW / 2) {
+                  newLeft = deskW - doubleW - G;
+                }
+
+                const applyExpandedStyle = () => {
+                  node.style.left = newLeft + 'px';
+                  node.style.width = doubleW + 'px';
+                };
+
+                applyExpandedStyle();
+
+                // Observer para evitar que JsLobby sobrescriba el tamaño
+                const styleObserver = new MutationObserver(() => {
+                  const data = expandedWins.get(node);
+                  if (!data) return;
+                  if (node.style.left !== data.left + 'px' || node.style.width !== data.width + 'px') {
+                    applyExpandedStyle();
+                  }
+                });
+                
+                expandedWins.set(node, { left: newLeft, width: doubleW, observer: styleObserver });
+                styleObserver.observe(node, { attributes: true, attributeFilter: ['style'] });
+
+                // Si el usuario intenta mover la ventana, cancelamos la expansión automáticamente
+                const onDragStart = () => {
+                  if (expandedWins.has(node)) {
+                    const data = expandedWins.get(node);
+                    if (data.observer) data.observer.disconnect();
+                    expandedWins.delete(node);
+                    node.style.width = '';
+                    node.style.left = '';
+                    window.dispatchEvent(new Event('resize'));
+                  }
+                  titlebar.removeEventListener('pointerdown', onDragStart);
+                };
+                titlebar.addEventListener('pointerdown', onDragStart);
+
                 expandBtn.innerHTML = '<i data-lucide="minimize-2"></i>';
                 expandBtn.title = 'Restaurar tamaño';
               }
               if (window.lucide) window.lucide.createIcons();
             };
-
-            // Escuchar arrastre para des-expandir automáticamente y evitar bugs visuales
-            titlebar.addEventListener('pointerdown', (e) => {
-              if (e.target.closest('.close')) return;
-              if (window.expandedWins[appId]) {
-                const blockSlot = window.expandedWins[appId] === 'left' ? 'center' : (window.expandedWins[appId] === 'center' ? 'right' : 'center');
-                if (window.slots[blockSlot] === '__expanded__' + appId) window.slots[blockSlot] = null;
-                delete window.expandedWins[appId];
-                expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
-                expandBtn.title = 'Agrandar (2 espacios)';
-                window.acomodar();
-              }
-            });
 
             const minimizeBtn = titlebar.querySelector('.minimize');
             titlebar.insertBefore(expandBtn, minimizeBtn);
@@ -328,18 +252,6 @@
             if (window.lucide) window.lucide.createIcons();
           }
         });
-
-        // Limpieza por si se cerró alguna ventana de golpe
-        const _win = window.win;
-        if (_win) {
-          for (const id in window.expandedWins) {
-            if (!_win[id]) {
-              const blockSlot = window.expandedWins[id] === 'left' ? 'center' : (window.expandedWins[id] === 'center' ? 'right' : 'center');
-              if (window.slots[blockSlot] === '__expanded__' + id) window.slots[blockSlot] = null;
-              delete window.expandedWins[id];
-            }
-          }
-        }
       });
     });
 
@@ -350,15 +262,12 @@
   const init = () => {
     if (!window.MyHub) { setTimeout(init, 100); return; }
 
-    setupPWA();
-    hookThemeColor();
     inyectarEstilosStorage();
     setupStoragePanel();
-    setupWindowBehavior();
     setupDynamicZoom();
     setupWindowControls();
 
-    console.log('%c[ExtraFunc] Sistema cargado al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] Extensiones cargadas al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
