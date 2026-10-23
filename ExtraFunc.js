@@ -1,4 +1,13 @@
-  // ================= SISTEMA DE WIDGETS =================
+// ============================================================================
+// ExtraFunc.js - Motor de Widgets para MyHub
+// ============================================================================
+
+(function() {
+  'use strict';
+
+  const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
+  const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
+
   let widgetsActivos = []; // Guarda { id, file, size, pos: {left, top} }
   
   // 1. Cargar posiciones guardadas
@@ -198,5 +207,20 @@
     }, 20);
   }, true);
 
-  // Inicializar sistema
-  cargarWidgets();
+  // ================= INICIALIZACIÓN =================
+  const init = () => {
+    if (!window.MyHub || !getReg()) {
+      setTimeout(init, 100);
+      return;
+    }
+    cargarWidgets();
+    console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
+  } else {
+    setTimeout(init, 100);
+  }
+
+})();
