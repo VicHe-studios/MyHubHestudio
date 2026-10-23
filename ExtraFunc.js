@@ -21,7 +21,13 @@
       }
       .toast { animation: dropInFixed .3s var(--ease-out) !important; }
 
-      /* Estilos para evitar la selección azul */
+      /* SELECCIÓN MÚLTIPLE */
+      .icon.selected {
+        background: rgba(255, 255, 255, 0.15) !important;
+        outline: 2px solid var(--accent) !important;
+        border-radius: 12px;
+      }
+
       .widget-container {
         user-select: none;
         -webkit-user-select: none;
@@ -167,7 +173,6 @@
       });
       
       const iframe = document.createElement('iframe');
-      // BLOQUEO DE ARRASTRE NATIVO EN EL IFRAME
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
       
       const app = getReg().get(w.id);
@@ -218,7 +223,6 @@
     
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      // EVITA LA SELECCIÓN AZUL Y EL ARRASTRE FANTASMA
       e.preventDefault(); 
       
       isDragging = false;
@@ -293,7 +297,6 @@
           el.style.transition = 'left .2s, top .2s, transform .2s, box-shadow .2s';
         }
       };
-      // Escuchar a nivel window por si sueltas el mouse fuera de la ventana
       window.addEventListener('pointermove', mover);
       window.addEventListener('pointerup', soltar);
     });
@@ -365,8 +368,13 @@
     });
   };
 
+  // ================= GESTIÓN DE MENÚ CONTEXTUAL Y DOBLE CLIC =================
   document.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
+    // 1. Evitar el menú nativo de Chrome en todo el escritorio
+    e.preventDefault(); 
+    
+    // 2. No mostrar el menú de widgets si estamos en un icono, ventana, taskbar, widget o MODAL (carpeta)
+    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container') || e.target.closest('#modal')) return;
     
     setTimeout(() => {
       const menus = document.querySelectorAll('div[style*="z-index: 500"]');
@@ -390,50 +398,82 @@
     }, 20);
   }, true);
 
-  const descargarDocWidgets = () => {
-    const doc = `
-==================================================
-MYHUBHESTUDIO - GUÍA DE WIDGETS
-==================================================
-[Los mismos textos de la guía...]
-==================================================
-`;
-    const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'DocWidgets.txt';
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-  };
+  // ================= MULTI-SELECCIÓN Y ARRASTRE GRUPAL =================
+  let selectedIcons = [];
+  let groupDragStart = { x: 0, y: 0 };
+  let groupDragData = {};
 
-  const setupMenuWidgetsDocs = () => {
-    const menuOps = document.getElementById('menuOps');
-    if (!menuOps) return;
+  document.addEventListener('pointerdown', (e) => {
+    const icon = e.target.closest('.icon');
+    if (icon) {
+      if (e.ctrlKey || e.metaKey) {
+        icon.classList.toggle('selected');
+      } else if (!icon.classList.contains('selected')) {
+        document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
+        icon.classList.add('selected');
+      }
+      
+      selectedIcons = Array.from(document.querySelectorAll('.icon.selected'));
+      
+      // Preparar datos para arrastre grupal
+      groupDragStart = { x: e.clientX, y: e.clientY };
+      groupDragData = {};
+      selectedIcons.forEach(i => {
+        const id = i.dataset.appId || i.dataset.folderId;
+        groupDragData[id] = { el: i, left: parseFloat(i.style.left), top: parseFloat(i.style.top) };
+      });
+      
+    } else if (!e.target.closest('.win') && !e.target.closest('.menu') && !e.target.closest('#taskbar') && !e.target.closest('#modal')) {
+      // Si se hace clic en el escritorio vacío, deseleccionar todo
+      document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
+      selectedIcons = [];
+    }
+  }, true);
 
-    const injectButton = () => {
-      if (document.getElementById('menu-doc-widgets')) return;
-      const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
-      if (!docBtn) return;
+  // Interceptar el movimiento para mover el grupo
+  document.addEventListener('pointermove', (e) => {
+    if (!groupDragStart.x || selectedIcons.length < 2) return;
+    const dx = e.clientX - groupDragStart.x;
+    const dy = e.clientY - groupDragStart.y;
+    
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      selectedIcons.forEach(i => {
+        if (i === e.target.closest('.icon')) return; // El icono principal ya lo mueve JsLobby
+        const id = i.dataset.appId || i.dataset.folderId;
+        const data = groupDragData[id];
+        if (data) {
+          data.el.style.left = (data.left + dx) + 'px';
+          data.el.style.top = (data.top + dy) + 'px';
+        }
+      });
+    }
+  }, true);
 
-      const btn = document.createElement('button');
-      btn.id = 'menu-doc-widgets';
-      btn.className = 'menu-op';
-      btn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('menu');
-        if (menu) menu.classList.add('hidden');
-        descargarDocWidgets();
-      };
-      menuOps.insertBefore(btn, docBtn.nextSibling);
-      refrescarIconos();
-    };
+  // Al soltar, guardar las posiciones de los demás iconos
+  document.addEventListener('pointerup', (e) => {
+    if (groupDragStart.x && selectedIcons.length > 1) {
+      const dx = e.clientX - groupDragStart.x;
+      const dy = e.clientY - groupDragStart.y;
+      
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        selectedIcons.forEach(i => {
+          if (i === e.target.closest('.icon')) return; // El principal lo guarda el kernel
+          const id = i.dataset.appId;
+          if (id && typeof posicionesIconos !== 'undefined') {
+            posicionesIconos[id] = { left: i.style.left, top: i.style.top };
+          }
+        });
+        if (typeof kvSet === 'function') kvSet('posiciones_iconos', posicionesIconos);
+        
+        // Opcional: deseleccionar después de mover
+        document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
+        selectedIcons = [];
+      }
+    }
+    groupDragStart = { x: 0, y: 0 };
+  }, true);
 
-    injectButton();
-    const observer = new MutationObserver(injectButton);
-    observer.observe(menuOps, { childList: true });
-  };
-
+  // ================= INTERCEPTOR DE COLISIONES (APPS SOBRE WIDGETS) =================
   let dragStartIcon = null;
   let dragStartPos = null;
 
@@ -485,6 +525,50 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
       }
     }, 50);
   }, true);
+
+  const descargarDocWidgets = () => {
+    const doc = `
+==================================================
+MYHUBHESTUDIO - GUÍA DE WIDGETS
+==================================================
+[Los mismos textos de la guía...]
+==================================================
+`;
+    const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'DocWidgets.txt';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  };
+
+  const setupMenuWidgetsDocs = () => {
+    const menuOps = document.getElementById('menuOps');
+    if (!menuOps) return;
+
+    const injectButton = () => {
+      if (document.getElementById('menu-doc-widgets')) return;
+      const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
+      if (!docBtn) return;
+
+      const btn = document.createElement('button');
+      btn.id = 'menu-doc-widgets';
+      btn.className = 'menu-op';
+      btn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById('menu');
+        if (menu) menu.classList.add('hidden');
+        descargarDocWidgets();
+      };
+      menuOps.insertBefore(btn, docBtn.nextSibling);
+      refrescarIconos();
+    };
+
+    injectButton();
+    const observer = new MutationObserver(injectButton);
+    observer.observe(menuOps, { childList: true });
+  };
 
   const hookEliminarApp = () => {
     if (!window.MyHub || !window.MyHub.eliminarApp || window.MyHub._eliminarAppHook) return;
