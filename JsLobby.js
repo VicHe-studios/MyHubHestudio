@@ -388,7 +388,13 @@ function injectStyles() {
     .quick-btn:active { transform: scale(.9); }
     .quick-btn svg { width: 20px; height: 20px; }
 
-    /* STATUS PILL (Plano) */
+    /* FIX PARA EL RECORTE DEL ICONO AL HOVER */
+    #tasks { 
+      overflow-x: auto !important; 
+      overflow-y: visible !important; 
+    }
+
+    /* STATUS PILL */
     .status-pill {
       display: flex; align-items: center; gap: 12px;
       background: var(--field); border: 1.5px solid var(--line);
@@ -399,11 +405,9 @@ function injectStyles() {
     .status-item { display: flex; align-items: center; gap: 6px; }
     .status-item svg { width: 16px; height: 16px; color: currentColor; }
     .status-item.low { color: #ef4444; }
-    #clock {
-      margin: 0 !important; padding: 0 !important;
-      background: transparent !important; color: inherit !important;
-      font-size: inherit !important; font-weight: inherit !important;
-    }
+    
+    /* EL OVERRIDE DE #clock HA SIDO ELIMINADO PARA QUE LobbyStyle.css MANDE */
+
     @media (max-width: 860px) { .status-item.date { display: none; } }
     @media (max-width: 680px) { .status-item.battery { display: none; } }
 
