@@ -931,7 +931,9 @@ function vistaCarpetaContenido(folderId) {
       item.onclick = () => { cerrarModal(); abrir(appId); };
       item.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        mostrarContexto(e.clientX, e.clientY, [
+        e.stopPropagation();
+        const esSistemaApp = ['papelera', 'forge', 'storhe', 'cmdhe'].includes(appId) || !!app.url;
+        const opciones = [
           { icon: 'play', text: 'Abrir', fn: () => { cerrarModal(); abrir(appId); } },
           { separator: true },
           { icon: 'folder-minus', text: 'Sacar de la carpeta', fn: async () => {
@@ -940,8 +942,23 @@ function vistaCarpetaContenido(folderId) {
             renderIconos();
             window.MyHub.toast('App sacada de la carpeta');
             recargar();
-          }}
-        ]);
+          }},
+          { separator: true }
+        ];
+        if (esSistemaApp) {
+          opciones.push({ icon: 'lock', text: 'App de Sistema', locked: true,
+            fn: () => toast('Las apps base no se pueden borrar desde aquí. Usa CMD-HE.') });
+        } else {
+          opciones.push({ icon: 'trash-2', text: 'Eliminar App', danger: true, fn: async () => {
+            const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
+            if (!ok) return;
+            // Usar la versión pública: así se limpia también la carpeta y sus cambios se guardan
+            await window.MyHub.eliminarApp(appId);
+            toast('App eliminada');
+            if (carpetas[folderId]) recargar(); else cerrarModal();
+          }});
+        }
+        mostrarContexto(e.clientX, e.clientY, opciones);
       });
       grid.appendChild(item);
     });
@@ -2490,7 +2507,9 @@ reloj(); setInterval(reloj, 15000);
     sndInstance.load(Snd.KITS.SND01).then(() => {
       sndReady = true;
       console.log('[ExtraFunc] Kit de sonidos cargado.');
-    }).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+    }).catch(e => console.error('[ExtraFunc] Error cargando kit de sonidos (snd-lib):', e));
+  } else {
+    console.error('[ExtraFunc] snd-lib NO está cargada: los sonidos del sistema no sonarán. Incluye el <script> de snd-lib antes de este bloque.');
   }
 
   const playSound = (type) => {
@@ -2505,7 +2524,9 @@ reloj(); setInterval(reloj, 15000);
         case 'move': soundToPlay = Snd.SOUNDS.CLICK; break;
       }
       if (soundToPlay) sndInstance.play(soundToPlay);
-    } catch(e) {}
+    } catch (e) {
+      console.error('[ExtraFunc] Error al reproducir sonido:', e);
+    }
   };
 
   // ================= INYECCIÓN DE ESTILOS =================
