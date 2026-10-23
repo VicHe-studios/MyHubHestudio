@@ -8,12 +8,22 @@
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
-  // Inyectar estilos base para el modal de widgets (por si no están en el CSS global)
+  // Inyectar estilos base para el modal y FIX del Toast
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
     const style = document.createElement('style');
     style.id = 'widgets-style';
     style.textContent = `
+      /* FIX DEL TOAST: Evita el salto al centrar */
+      @keyframes dropInFixed {
+        0% { opacity: 0; transform: translate(-50%, -10px); }
+        100% { opacity: 1; transform: translate(-50%, 0); }
+      }
+      .toast {
+        animation: dropInFixed .3s var(--ease-out) !important;
+      }
+
+      /* ESTILOS DEL MODAL DE WIDGETS */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
@@ -146,7 +156,7 @@
     });
   };
 
-  // 4. Panel para elegir qué widgets añadir (CON FIX DEL REFLOW)
+  // 4. Panel para elegir qué widgets añadir
   const abrirPanelWidgets = () => {
     // Buscar todas las apps que tengan widgets en su manifest
     const appsConWidgets = [];
@@ -189,7 +199,7 @@
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
     
-    // EL TRUCO: Forzar un reflow para que el navegador pinte el estado inicial (opacidad 0, scale 0.95)
+    // EL TRUCO: Forzar un reflow para que el navegador pinte el estado inicial
     void overlay.offsetWidth; 
     
     // Ahora sí, activamos la animación
@@ -251,7 +261,7 @@
     }
     inyectarEstilosWidgets();
     cargarWidgets();
-    console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
+    console.log('%c[ExtraFunc] Motor de Widgets cargado', '%c');
   };
 
   if (document.readyState === 'loading') {
