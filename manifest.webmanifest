@@ -1,6 +1,6 @@
 {
   "name": "MyHubHestudio",
-  "short_name": "MyHub",
+  "short_name": "MyHubHestudio",
   "description": "Tu Mini Web OS. Guardá y ejecutá tus apps HTML.",
   "start_url": "./index.html",
   "scope": "./",
