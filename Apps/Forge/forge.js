@@ -35,7 +35,7 @@
   };
 
   // ---------- Helpers de widgets ----------
-  // Igual criterio que la tienda: solo consideramos array válido.
+  // Mismo criterio que la tienda: solo consideramos array válido.
   const getWidgets = (manifest) => {
     if (!manifest || !manifest.widgets) return [];
     return Array.isArray(manifest.widgets) ? manifest.widgets : [];
