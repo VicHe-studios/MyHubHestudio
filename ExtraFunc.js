@@ -1,6 +1,5 @@
 // ============================================================================
 // ExtraFunc.js — Capa de extensiones incrementales
-// Solo código NUEVO. Lo que ya existe en JsLobby.js no se re-registra acá.
 // ============================================================================
 
 (function() {
@@ -10,47 +9,28 @@
   const setupPWA = async () => {
     if ('serviceWorker' in navigator) {
       try {
-        const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
-        console.log('[PWA] SW registrado:', reg.scope);
-      } catch (err) {
-        console.warn('[PWA] SW no registrado:', err);
-      }
+        await navigator.serviceWorker.register('./sw.js', { scope: './' });
+      } catch (err) {}
     }
-
     if (navigator.storage && navigator.storage.persist) {
       try {
         const already = await navigator.storage.persisted();
-        if (already) {
-          console.log('[PWA] Storage ya persistente.');
-        } else {
-          const granted = await navigator.storage.persist();
-          if (granted) console.log('[PWA] Storage persistente concedido.');
-          else console.warn('[PWA] Storage NO persistente (instalá como PWA).');
-        }
-      } catch (e) {
-        console.warn('[PWA] Error al pedir persistencia:', e);
-      }
+        if (!already) await navigator.storage.persist();
+      } catch (e) {}
     }
   };
 
   // ================= theme-color dinámico =================
   const hookThemeColor = () => {
     if (typeof window.aplicarAjustes !== 'function' || window.aplicarAjustes._pwaHook) return;
-
     const original = window.aplicarAjustes;
     window.aplicarAjustes = function() {
       original.apply(this, arguments);
-      const color = (typeof COLORES !== 'undefined' && typeof ajustes !== 'undefined' && COLORES[ajustes.color])
-        || '#2563eb';
+      const color = (typeof COLORES !== 'undefined' && typeof ajustes !== 'undefined' && COLORES[ajustes.color]) || '#2563eb';
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', color);
     };
     window.aplicarAjustes._pwaHook = true;
-
-    const color = (typeof COLORES !== 'undefined' && typeof ajustes !== 'undefined' && COLORES[ajustes.color])
-      || '#2563eb';
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', color);
   };
 
   // ================= Panel de almacenamiento en Configuración =================
@@ -73,7 +53,6 @@
     const mTitulo = document.getElementById('mTitulo');
     const mBody = document.getElementById('mBody');
     if (!modalEl || !mBody || !mTitulo) return;
-
     const observer = new MutationObserver(() => {
       if (mTitulo.textContent === 'Configuración' && !document.getElementById('pwa-storage-panel')) {
         const container = document.createElement('div');
@@ -90,13 +69,10 @@
           <p class="nota">Tus apps y datos viven en este navegador. Instalá MyHub como PWA para que el navegador no los borre automáticamente.</p>
         `;
         mBody.appendChild(container);
-
         if (navigator.storage && navigator.storage.estimate) {
           navigator.storage.estimate().then(({ usage, quota }) => {
             const pct = quota > 0 ? Math.min(100, (usage / quota) * 100) : 0;
-            const fmt = (b) => b >= 1024 * 1024 * 1024 ? (b / 1024 / 1024 / 1024).toFixed(1) + ' GB'
-                            : b >= 1024 * 1024        ? (b / 1024 / 1024).toFixed(1) + ' MB'
-                            :                           (b / 1024).toFixed(0) + ' KB';
+            const fmt = (b) => b >= 1024 * 1024 * 1024 ? (b / 1024 / 1024 / 1024).toFixed(1) + ' GB' : b >= 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : (b / 1024).toFixed(0) + ' KB';
             const fill = document.getElementById('storage-fill');
             const text = document.getElementById('storage-text');
             const pctEl = document.getElementById('storage-pct');
@@ -104,50 +80,55 @@
             if (text) text.textContent = `${fmt(usage)} de ${fmt(quota)} usados`;
             if (pctEl) pctEl.textContent = pct.toFixed(1) + '%';
           }).catch(() => {});
-        } else {
-          const text = document.getElementById('storage-text');
-          if (text) text.textContent = 'Tu navegador no soporta estimate().';
         }
       }
     });
     observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
-  // ================= Comportamiento de Ventana (Maximizar + Tamaño Mínimo) =================
+  // ================= Zoom Dinámico (El Escritorio como una foto) =================
+  const setupDynamicZoom = () => {
+    // Tamaño "ideal" base para el que está diseñado MyHub
+    const BASE_WIDTH = 1200;
+    const BASE_HEIGHT = 800;
+
+    const applyZoom = () => {
+      // Si estamos en PWA, calculamos el tamaño de la ventana. Si no, usamos el viewport.
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      
+      // Calculamos cuánto tiene que escalar (achicar o agrandar) para encajar
+      const scaleX = w / BASE_WIDTH;
+      const scaleY = h / BASE_HEIGHT;
+      
+      // Usamos el menor para que nada se corte (siempre entra todo)
+      const scale = Math.min(scaleX, scaleY);
+
+      // Aplicamos el zoom al body (afecta a todo el OS: iconos, ventanas, barra)
+      document.body.style.zoom = scale;
+      
+      // Ajuste extra: forzamos al body a ocupar el 100% del espacio virtual escalado
+      // para que el fondo no quede con bordes blancos.
+      document.body.style.width = (100 / scale) + '%';
+      document.body.style.height = (100 / scale) + '%';
+    };
+
+    // Aplicar al iniciar y al redimensionar
+    applyZoom();
+    window.addEventListener('resize', applyZoom);
+  };
+
+  // ================= Iniciar al abrir (Pantalla Completa sin romper) =================
   const setupWindowBehavior = () => {
-    // Solo aplicamos esto si está corriendo como PWA instalada
     if (!window.matchMedia('(display-mode: standalone)').matches) return;
 
-    const MIN_WIDTH = 900;
-    const MIN_HEIGHT = 600;
-    let resizeTimeout;
-
-    // 1. Maximizar al abrir (respetando la barra de tareas)
-    // Usamos un pequeño delay para darle tiempo a Windows a crear el marco
+    // Al abrir, maximizamos la ventana nativa
     setTimeout(() => {
       try {
         window.moveTo(0, 0);
-        // availWidth y availHeight excluyen la barra de tareas del SO
         window.resizeTo(screen.availWidth, screen.availHeight);
-      } catch (e) {
-        console.warn('El navegador bloqueó el maximizado automático.');
-      }
-    }, 150);
-
-    // 2. Evitar que se achique más del límite (con rebote suave)
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(() => {
-        if (window.outerWidth < MIN_WIDTH || window.outerHeight < MIN_HEIGHT) {
-          try {
-            window.resizeTo(
-              Math.max(window.outerWidth, MIN_WIDTH),
-              Math.max(window.outerHeight, MIN_HEIGHT)
-            );
-          } catch (e) {}
-        }
-      }, 500); // 500ms para que no pelee mientras arrastrás el mouse
-    });
+      } catch (e) {}
+    }, 200);
   };
 
   // ================= Init =================
@@ -158,9 +139,10 @@
     hookThemeColor();
     inyectarEstilosStorage();
     setupStoragePanel();
-    setupWindowBehavior(); // <--- Función actualizada
+    setupWindowBehavior();
+    setupDynamicZoom(); // <--- LA SOLUCIÓN
 
-    console.log('%c[ExtraFunc] PWA + Storage + Ventana cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] Zoom Dinámico + PWA cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
