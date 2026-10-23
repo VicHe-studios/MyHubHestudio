@@ -1495,28 +1495,60 @@ function setupEliminarApp() {
   }
 }
 
-// ================= Ventanas =================
-const win = {};
+// ================= Ventanas (sistema de 3 columnas) =================
+// Cada ventana ocupa 1 columna (normal) o 2 columnas contiguas (agrandada).
+// Ninguna ventana puede solaparse con otra. Con una ventana agrandada solo
+// queda 1 columna libre, así que el límite visible baja de 3 a 2 apps.
+const win = {};            // id -> { el, span: 1|2, start: 0|1|2, cols: [..] }
 const minimized = new Set();
-const slots = { left: null, center: null, right: null };
 let focused = null;
 
-function rectSlot(s) {
+const colsDe = (start, span) => Array.from({ length: span }, (_, i) => start + i);
+
+function rectCol(start, span) {
   const G = 18, W = desk.clientWidth, H = desk.clientHeight;
   const w = (W - G * 4) / 3;
   return {
-    left: s === 'left' ? G : s === 'center' ? G * 2 + w : W - G - w,
+    left: G + start * (w + G),
     top: G,
-    width: w,
+    width: span === 2 ? w * 2 + G : w,
     height: H - G * 2
   };
+}
+
+// Qué ventana (visible) ocupa cada columna
+function ocupacion() {
+  const occ = [null, null, null];
+  for (const id in win) {
+    if (minimized.has(id)) continue;
+    win[id].cols.forEach(c => { occ[c] = id; });
+  }
+  return occ;
+}
+
+// Primer inicio con 'span' columnas libres, o -1
+function bloqueLibre(span, occ) {
+  const inicios = span === 2 ? [0, 1] : [0, 1, 2];
+  for (const s of inicios) {
+    if (colsDe(s, span).every(c => !occ[c])) return s;
+  }
+  return -1;
+}
+
+// Libera una ventana visible (la enfocada, o la primera visible) para abrir otra
+function liberarUna(excepto = null) {
+  let candidato = null;
+  if (focused && focused !== excepto && win[focused] && !minimized.has(focused)) candidato = focused;
+  if (!candidato) candidato = Object.keys(win).find(k => k !== excepto && !minimized.has(k)) || null;
+  if (candidato) minimizar(candidato);
+  return !!candidato;
 }
 
 function acomodar() {
   for (const id in win) {
     const w = win[id];
     if (w.el.classList.contains('dragging') || minimized.has(id)) continue;
-    const r = rectSlot(w.slot);
+    const r = rectCol(w.start, w.span);
     Object.assign(w.el.style, { left: r.left + 'px', top: r.top + 'px', width: r.width + 'px', height: r.height + 'px' });
   }
 }
@@ -1570,17 +1602,9 @@ async function abrir(id) {
 
   const app = registro.get(id); if (!app) return;
 
-  let libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
-
-  if (!libre) {
-    const idToMinimize = focused || Object.keys(win).find(k => !minimized.has(k));
-    if (idToMinimize) {
-      minimizar(idToMinimize);
-      libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
-    }
-  }
-
-  if (!libre) return;
+  let start = bloqueLibre(1, ocupacion());
+  if (start === -1 && liberarUna()) start = bloqueLibre(1, ocupacion());
+  if (start === -1) return;
 
   const el = document.createElement('div'); el.className = 'win';
   el.innerHTML = `
@@ -1594,7 +1618,7 @@ async function abrir(id) {
   el.querySelector('.titlebar span').textContent = app.titulo;
   desk.appendChild(el);
 
-  win[id] = { el, slot: libre }; slots[libre] = id;
+  win[id] = { el, span: 1, start, cols: colsDe(start, 1) };
 
   el.querySelector('.minimize').onclick = (e) => { e.stopPropagation(); minimizar(id); };
   el.querySelector('.close:not(.minimize)').onclick = () => cerrar(id);
@@ -1645,9 +1669,6 @@ async function abrir(id) {
 
 function cerrar(id) {
   const w = win[id]; if (!w) return;
-  if (!minimized.has(id) && w.slot) {
-    slots[w.slot] = null;
-  }
   minimized.delete(id);
   w.el.remove();
   delete win[id];
@@ -1663,7 +1684,6 @@ function cerrar(id) {
 function minimizar(id) {
   const w = win[id]; if (!w || minimized.has(id)) return;
   minimized.add(id);
-  slots[w.slot] = null;
   w.el.style.display = 'none';
 
   if (focused === id) {
@@ -1677,19 +1697,13 @@ function minimizar(id) {
 function restaurar(id) {
   const w = win[id]; if (!w || !minimized.has(id)) return;
 
-  let libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
-
-  if (!libre) {
-    const idToMinimize = focused || Object.keys(win).find(k => k !== id && !minimized.has(k));
-    if (idToMinimize) minimizar(idToMinimize);
-    libre = !slots.left ? 'left' : !slots.center ? 'center' : !slots.right ? 'right' : null;
-  }
-
-  if (!libre) return;
+  let start = bloqueLibre(w.span, ocupacion());
+  if (start === -1 && liberarUna(id)) start = bloqueLibre(w.span, ocupacion());
+  if (start === -1) { toast('No hay espacio para restaurar esta app'); return; }
 
   minimized.delete(id);
-  w.slot = libre;
-  slots[libre] = id;
+  w.start = start;
+  w.cols = colsDe(start, w.span);
   w.el.style.display = '';
   acomodar(); enfocar(id);
 }
@@ -1701,6 +1715,35 @@ function enfocar(id) {
     win[x].el.classList.toggle('focused', x === id);
   }
   renderTareas();
+}
+
+// ================= Agrandar / contraer =================
+// Agrandar ocupa la columna actual y una vecina libre (prefiere mantener su posición).
+function alternarExpansion(id) {
+  const w = win[id];
+  if (!w || minimized.has(id)) return false;
+
+  if (w.span === 2) {
+    w.span = 1;
+    w.cols = colsDe(w.start, 1);
+    acomodar();
+    return true;
+  }
+
+  const occ = ocupacion();
+  const candidatos = [0, 1].filter(s => colsDe(s, 2).every(c => !occ[c] || occ[c] === id));
+  if (candidatos.length === 0) { toast('No hay espacio libre al lado para agrandar'); return false; }
+  candidatos.sort((a, b) => Math.abs(a - w.start) - Math.abs(b - w.start));
+
+  w.start = candidatos[0];
+  w.span = 2;
+  w.cols = colsDe(w.start, 2);
+  acomodar(); enfocar(id);
+  return true;
+}
+
+function estaExpandida(id) {
+  return !!win[id] && win[id].span === 2;
 }
 
 // ICON-ONLY TASKBAR
@@ -1722,42 +1765,71 @@ function renderTareas() {
   refrescarIconos();
 }
 
+// ================= Arrastre entre columnas =================
 function arrastrar(e, id) {
   if (e.target.closest('.close')) return;
   const w = win[id];
   const dr = desk.getBoundingClientRect(); const wr = w.el.getBoundingClientRect();
   const ox = e.clientX - wr.left, oy = e.clientY - wr.top;
 
-  const ladoDe = ev => {
-    const relX = ev.clientX - dr.left;
-    if (relX < dr.width / 3) return 'left';
-    if (relX < (dr.width / 3) * 2) return 'center';
-    return 'right';
-  };
-
   w.el.classList.add('dragging'); enfocar(id);
   const mover = ev => {
-    w.el.style.left = (ev.clientX - dr.left - ox) + 'px'; w.el.style.top = (ev.clientY - dr.top - oy) + 'px';
+    w.el.style.left = (ev.clientX - dr.left - ox) + 'px';
+    w.el.style.top = (ev.clientY - dr.top - oy) + 'px';
   };
   const soltar = ev => {
     window.removeEventListener('pointermove', mover);
     window.removeEventListener('pointerup', soltar);
     w.el.classList.remove('dragging');
-    soltarEn(id, ladoDe(ev));
+    soltarEn(id, ev.clientX - dr.left, dr.width);
   };
   window.addEventListener('pointermove', mover);
   window.addEventListener('pointerup', soltar);
 }
 
-function soltarEn(id, lado) {
+// Columna de destino según dónde se suelta
+function inicioDestino(span, relX, anchoDesk) {
+  if (span === 2) return relX < anchoDesk / 2 ? 0 : 1;
+  return Math.min(2, Math.max(0, Math.floor(relX / (anchoDesk / 3))));
+}
+
+// Suelta la ventana en su destino. Si el destino tiene otras ventanas, se
+// reubican en el espacio que deja libre la ventana arrastrada (como un swap).
+// Si no caben, se rechaza el movimiento: nunca se solapan.
+function soltarEn(id, relX, anchoDesk) {
   const w = win[id]; if (!w) return;
-  if (w.slot !== lado) {
-    const otro = slots[lado];
-    if (otro) { slots[w.slot] = otro; win[otro].slot = w.slot; }
-    else slots[w.slot] = null;
-    slots[lado] = id; w.slot = lado;
+
+  const destino = inicioDestino(w.span, relX, anchoDesk);
+  const colsDestino = colsDe(destino, w.span);
+
+  const otros = Object.keys(win).filter(k => k !== id && !minimized.has(k));
+  const afectados = otros.filter(k => win[k].cols.some(c => colsDestino.includes(c)));
+  const fijos = otros.filter(k => !afectados.includes(k));
+
+  // Columnas que quedan disponibles para reubicar a los afectados
+  let disponibles = [0, 1, 2].filter(c =>
+    !colsDestino.includes(c) && !fijos.some(k => win[k].cols.includes(c)));
+
+  const reubicar = [];
+  for (const k of afectados) {
+    const sp = win[k].span;
+    const cand = (sp === 2 ? [0, 1] : [0, 1, 2]).find(s => colsDe(s, sp).every(c => disponibles.includes(c)));
+    if (cand === undefined) {
+      toast('Ese espacio está ocupado y no hay lugar para la otra app');
+      acomodar();
+      return;
+    }
+    reubicar.push([k, cand]);
+    colsDe(cand, sp).forEach(c => { disponibles = disponibles.filter(x => x !== c); });
   }
-  acomodar();
+
+  w.start = destino;
+  w.cols = colsDestino;
+  reubicar.forEach(([k, s]) => {
+    win[k].start = s;
+    win[k].cols = colsDe(s, win[k].span);
+  });
+  acomodar(); enfocar(id);
 }
 
 window.descargarDocApps = function() {
@@ -2443,6 +2515,7 @@ window.addEventListener('message', async e => {
 
 window.MyHub = {
   registrarApp, eliminarApp, abrir, cerrar, minimizar, restaurar, isMinimized: (id) => minimized.has(id),
+  alternarExpansion, estaExpandida,
   toast, perfil, sesion: () => sesionActiva,
   tema: () => ({ color: COLORES[ajustes.color] || COLORES.azul, modo: ajustes.modo })
 };
@@ -3387,32 +3460,6 @@ reloj(); setInterval(reloj, 15000);
       document.head.appendChild(style);
     }
 
-    const expandedWins = new Map();
-
-    const colapsarExpandidas = () => {
-      expandedWins.forEach((data, node) => {
-        expandedWins.delete(node);
-        if (data.observer) data.observer.disconnect();
-        node.style.width = '';
-        node.style.left = '';
-
-        const btn = node.querySelector('.expand-btn');
-        if (btn) {
-          btn.innerHTML = '<i data-lucide="maximize-2"></i>';
-          btn.title = 'Agrandar (2 espacios)';
-        }
-      });
-      window.dispatchEvent(new Event('resize'));
-    };
-
-    if (!window._origAbrir) {
-      window._origAbrir = window.MyHub.abrir;
-      window.MyHub.abrir = function(id) {
-        colapsarExpandidas();
-        window._origAbrir(id);
-      };
-    }
-
     const deskEl = document.getElementById('desktop');
     if (!deskEl) return;
 
@@ -3456,73 +3503,17 @@ reloj(); setInterval(reloj, 15000);
               window.MyHub.toast('Ventana recargada');
             };
 
-            // Botón Agrandar
+            // Botón Agrandar: el sistema de ventanas decide el espacio (2 columnas)
             const expandBtn = document.createElement('button');
             expandBtn.className = 'close expand-btn';
             expandBtn.title = 'Agrandar (2 espacios)';
             expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
-
             expandBtn.onclick = (e) => {
               e.stopPropagation();
-
-              if (expandedWins.has(node)) {
-                const data = expandedWins.get(node);
-                if (data.observer) data.observer.disconnect();
-                expandedWins.delete(node);
-                node.style.width = '';
-                node.style.left = '';
-                window.dispatchEvent(new Event('resize'));
-                expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
-                expandBtn.title = 'Agrandar (2 espacios)';
-              } else {
-                const deskW = deskEl.clientWidth;
-                const G = 18;
-                const w = (deskW - G * 4) / 3;
-                const doubleW = w * 2 + G;
-
-                const rect = node.getBoundingClientRect();
-                const deskRect = deskEl.getBoundingClientRect();
-                const relativeX = rect.left - deskRect.left;
-
-                let newLeft = G;
-                if (relativeX > deskW / 2) {
-                  newLeft = deskW - doubleW - G;
-                }
-
-                const applyExpandedStyle = () => {
-                  node.style.left = newLeft + 'px';
-                  node.style.width = doubleW + 'px';
-                };
-
-                applyExpandedStyle();
-
-                const styleObserver = new MutationObserver(() => {
-                  const data = expandedWins.get(node);
-                  if (!data) return;
-                  if (node.style.left !== data.left + 'px' || node.style.width !== data.width + 'px') {
-                    applyExpandedStyle();
-                  }
-                });
-
-                expandedWins.set(node, { left: newLeft, width: doubleW, observer: styleObserver });
-                styleObserver.observe(node, { attributes: true, attributeFilter: ['style'] });
-
-                const onDragStart = () => {
-                  if (expandedWins.has(node)) {
-                    const data = expandedWins.get(node);
-                    if (data.observer) data.observer.disconnect();
-                    expandedWins.delete(node);
-                    node.style.width = '';
-                    node.style.left = '';
-                    window.dispatchEvent(new Event('resize'));
-                  }
-                  titlebar.removeEventListener('pointerdown', onDragStart);
-                };
-                titlebar.addEventListener('pointerdown', onDragStart);
-
-                expandBtn.innerHTML = '<i data-lucide="minimize-2"></i>';
-                expandBtn.title = 'Restaurar tamaño';
-              }
+              if (!window.MyHub.alternarExpansion(appId)) return;
+              const expandida = window.MyHub.estaExpandida(appId);
+              expandBtn.innerHTML = `<i data-lucide="${expandida ? 'minimize-2' : 'maximize-2'}"></i>`;
+              expandBtn.title = expandida ? 'Restaurar tamaño' : 'Agrandar (2 espacios)';
               if (window.lucide) window.lucide.createIcons();
             };
 
