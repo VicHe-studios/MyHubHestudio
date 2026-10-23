@@ -29,30 +29,33 @@
   };
 
   // ================= SISTEMA DE SONIDO (snd-lib) =================
-  // Inicializamos la instancia de Snd si la clase existe (viene del vendor/snd.js)
-  if (typeof Snd !== 'undefined' && !window.snd) {
-    window.snd = new Snd();
-    // Cargamos el kit de sonidos por defecto de la librería
-    window.snd.load(Snd.KITS.SND01).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+  // Instancia global de sonido
+  let sndInstance = null;
+
+  // Inicializamos la instancia de Snd si la clase existe
+  if (typeof Snd !== 'undefined') {
+    sndInstance = new Snd();
+    // Cargamos el kit de sonidos. Es una promesa.
+    sndInstance.load(Snd.KITS.SND01).then(() => {
+        console.log('[ExtraFunc] Kit de sonidos cargado correctamente.');
+    }).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+  } else {
+    console.warn('[ExtraFunc] La librería Snd no está disponible.');
   }
 
   const playSound = (type) => {
     if (!sonidosActivos) return;
-    
-    // Verificamos que la instancia global exista
-    if (!window.snd) {
-      console.warn('[ExtraFunc] La instancia de sonido "snd" no está lista.');
-      return;
-    }
+    if (!sndInstance) return; // Si no se inicializó, no hacer nada.
 
     try {
+      // Mapeo de acciones a sonidos de la librería Snd
       switch (type) {
-        case 'open':    window.snd.open(); break;
-        case 'close':   window.snd.caution(); break;
-        case 'minimize':window.snd.tap(); break;
-        case 'start':   window.snd.success(); break;
-        case 'move':    window.snd.click(); break;
-        case 'click':   window.snd.click(); break;
+        case 'open':    sndInstance.play(Snd.SOUNDS.OPEN); break;
+        case 'close':   sndInstance.play(Snd.SOUNDS.CAUTION); break;
+        case 'minimize':sndInstance.play(Snd.SOUNDS.TAP); break;
+        case 'start':   sndInstance.play(Snd.SOUNDS.CELEBRATION); break;
+        case 'move':    sndInstance.play(Snd.SOUNDS.TAP); break;
+        case 'click':   sndInstance.play(Snd.SOUNDS.TAP); break;
       }
     } catch(e) {
       console.error('Error al reproducir sonido:', e);
