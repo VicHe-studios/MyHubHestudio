@@ -9,7 +9,6 @@
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const MARGEN = 16, GX = 100, GY = 110;
-  const OFFSET_Y = -10; 
 
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
@@ -34,7 +33,6 @@
       .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
       .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
       
-      /* CSS del botón de la lista mejorado */
       .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; box-sizing: border-box; }
       .widget-list-item:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: translateY(-1px); }
       .widget-list-item i { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
@@ -82,7 +80,7 @@
     widgetsActivos.forEach(w => {
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
-      const wr = Math.round((parseFloat(w.pos.top) - MARGEN - OFFSET_Y) / GY);
+      const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
       const wsize = getWidgetCells(w.size);
       for (let i = 0; i < wsize.cols; i++) {
         for (let j = 0; j < wsize.rows; j++) {
@@ -92,7 +90,7 @@
     });
 
     const targetCol = Math.round((targetLeft - MARGEN) / GX);
-    const targetRow = Math.round((targetTop - MARGEN - OFFSET_Y) / GY);
+    const targetRow = Math.round((targetTop - MARGEN) / GY);
 
     let bestSpot = null;
     let minDist = Infinity;
@@ -109,7 +107,7 @@
           const dist = Math.abs(c - targetCol) + Math.abs(r - targetRow);
           if (dist < minDist) {
             minDist = dist;
-            bestSpot = { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN + OFFSET_Y}px` };
+            bestSpot = { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN}px` };
           }
         }
       }
@@ -135,11 +133,12 @@
       const el = document.createElement('div');
       el.className = 'widget-container';
       
+      // TAMAÑOS PERFECTOS ALINEADOS CON LOS ICONOS
       const wSize = w.size === '2x2' ? '190px' : (w.size === '2x1' ? '190px' : '90px');
       const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
       
       el.style.cssText = `
-        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '6px'};
+        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '16px'};
         width: ${wSize}; height: ${hSize}; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
@@ -240,7 +239,7 @@
         
         if (isDragging) {
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
-          let snapY = Math.round((parseFloat(el.style.top) - MARGEN - OFFSET_Y) / GY) * GY + MARGEN + OFFSET_Y;
+          let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
 
           const deskW = document.getElementById('desktop').clientWidth;
           const deskH = document.getElementById('desktop').clientHeight;
@@ -311,7 +310,6 @@
     modal.className = 'extrafunc-modal';
     modal.style.width = '400px';
     
-    // LISTA CON PADDING INTERNO PARA EVITAR CORTES
     modal.innerHTML = `
       <h3>Añadir Widget</h3>
       <p>Elige un widget para colocarlo en tu escritorio.</p>
@@ -347,7 +345,7 @@
     modal.querySelectorAll('.widget-list-item').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        const pos = findClosestFreeSpot(w.size, 116, 6);
+        const pos = findClosestFreeSpot(w.size, 116, 16);
         widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
         renderWidgets();
@@ -426,7 +424,6 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     observer.observe(menuOps, { childList: true });
   };
 
-  // ================= INTERCEPTOR DE APPS =================
   let dragStartIcon = null;
   let dragStartPos = null;
 
@@ -479,7 +476,6 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     }, 50);
   }, true);
 
-  // ================= ELIMINACIÓN AUTOMÁTICA DE WIDGETS =================
   const hookEliminarApp = () => {
     if (!window.MyHub || !window.MyHub.eliminarApp || window.MyHub._eliminarAppHook) return;
     
