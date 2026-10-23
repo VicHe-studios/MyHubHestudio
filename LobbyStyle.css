@@ -241,43 +241,42 @@ body.con-fondo #desktop::before { opacity: 0; }
 .close:active { transform: scale(.95); }
 .close svg { width: 18px; height: 18px; pointer-events: none; }
 
-/* ================= Taskbar ================= */
+/* ================= Taskbar Plana (Sin luces) ================= */
 #taskbar {
   position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
   width: min(760px, calc(100vw - 24px)); height: 64px;
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px; border-radius: var(--radius-xl);
-  background: var(--bar);
+  background: var(--card); /* Fondo plano sólido */
   border: 1.5px solid var(--line);
-  box-shadow: var(--shadow-xl);
-  backdrop-filter: blur(24px) saturate(1.6);
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  /* Sin sombras ni desenfoques */
 }
+
 .inicio {
   width: 44px; height: 44px; border: none; border-radius: 12px;
   cursor: pointer; padding: 0; background: transparent; color: var(--text);
   display: flex; align-items: center; justify-content: center;
-  transition: transform .18s var(--ease-spring), background .2s, color .2s;
+  transition: background .18s, color .18s, transform .15s;
   flex-shrink: 0;
 }
-.inicio:hover { background: var(--accent-soft); color: var(--accent); }
+.inicio:hover { background: var(--field); color: var(--accent); }
 .inicio:active { transform: scale(.92); }
 .inicio svg { width: 24px; height: 24px; }
 
 #tasks { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 
-/* --- TASK ICON-ONLY --- */
+/* 1. APP ABIERTA PERO NO ENFOCADA */
 .task {
   position: relative;
   width: 42px; height: 42px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 10px; cursor: pointer;
-  background: transparent; color: var(--text);
-  border: 1.5px solid transparent;
+  background: var(--field); /* Fondo plano */
+  color: var(--text);
+  border: 1.5px solid var(--line);
   flex-shrink: 0;
   animation: fadeIn .2s var(--ease-out);
-  transition: background .18s, color .18s, border-color .18s,
-              opacity .18s, transform .15s var(--ease-spring);
+  transition: background .18s, color .18s, border-color .18s, opacity .18s, transform .15s;
 }
 .task svg { width: 20px; height: 20px; pointer-events: none; }
 .task:hover {
@@ -286,32 +285,44 @@ body.con-fondo #desktop::before { opacity: 0; }
   transform: translateY(-1px);
 }
 .task:active { transform: scale(.93); }
-.task.active {
-  background: var(--accent); color: #fff;
-  border-color: var(--accent);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-.task.active svg { color: #fff; }
 
-/* Minimizada: se ve más apagada pero sigue siendo un cuadrado */
-.task.minimized {
-  opacity: 0.5;
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-}
-.task.minimized:hover {
-  opacity: 1;
+/* 2. APP ENFOCADA (ACTIVA) */
+.task.active {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
 }
-.task.minimized:hover svg { color: #fff; }
 
+/* 3. APP MINIMIZADA (Oculta pero corriendo) */
+.task.minimized {
+  background: transparent;
+  border: 1.5px dashed var(--muted);
+  color: var(--muted);
+  opacity: 0.7;
+}
+.task.minimized:hover {
+  background: var(--field);
+  border: 1.5px solid var(--line);
+  color: var(--text);
+  opacity: 1;
+}
+
+/* Reloj / Status Pill (Ahora es plano) */
+.status-pill {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--field); 
+  border: 1.5px solid var(--line);
+  border-radius: 12px; padding: 6px 14px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  margin-left: auto; font-variant-numeric: tabular-nums;
+}
+.status-item { display: flex; align-items: center; gap: 6px; }
+.status-item svg { width: 16px; height: 16px; color: currentColor; }
+.status-item.low { color: #ef4444; }
 #clock {
-  margin-left: auto; font-size: 13px; font-weight: 600;
-  padding: 8px 14px; border-radius: 12px;
-  font-variant-numeric: tabular-nums;
-  background: var(--accent-soft); color: var(--accent);
+  margin: 0 !important; padding: 0 !important;
+  background: transparent !important; color: inherit !important;
+  font-size: inherit !important; font-weight: inherit !important;
 }
 
 /* ================= Menú ================= */
