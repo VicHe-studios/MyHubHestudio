@@ -42,6 +42,27 @@
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
+      /* --- BOTONES DEL MENÚ CONTEXTUAL (CSS Puro) --- */
+      .extrafunc-btn {
+        display: flex; align-items: center; gap: 10px;
+        width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
+        background: transparent; color: var(--text);
+        font: inherit; font-size: 13px; font-weight: 500;
+        cursor: pointer; text-align: left;
+        transition: background 0.15s, color 0.15s;
+      }
+      .extrafunc-btn:hover {
+        background: var(--accent, #2563eb); 
+        color: #fff;
+      }
+      .extrafunc-btn.danger {
+        color: #ef4444;
+      }
+      .extrafunc-btn.danger:hover {
+        background: #ef4444; 
+        color: #fff;
+      }
+
       /* --- MODAL PERSONALIZADO (Confirmaciones) --- */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
@@ -80,8 +101,7 @@
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
       
-      // Forzar reflow para la animación
-      void overlay.offsetWidth;
+      void overlay.offsetWidth; // Trigger animation
       overlay.classList.add('active');
 
       const close = (result) => {
@@ -99,10 +119,8 @@
   // ================= 2. ATAJOS DE TECLADO (Ctrl + Shift) =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
-      // Usamos Ctrl + Shift para no chocar con los atajos del navegador
       if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
         const key = e.key.toUpperCase();
-        const reg = getReg();
         const winObj = getWin();
 
         switch (key) {
@@ -198,17 +216,13 @@
   const setupContextMenuExtendido = () => {
     let targetAppId = null;
 
-    // Capturamos el clic derecho antes de que JsLobby lo procese
     document.addEventListener('contextmenu', (e) => {
       targetAppId = null;
       
-      // Caso 1: Icono en el escritorio
       const deskIcon = e.target.closest('.icon[data-app-id]');
       if (deskIcon) {
         targetAppId = deskIcon.dataset.appId;
-      } 
-      // Caso 2: App dentro de una carpeta (el modal)
-      else {
+      } else {
         const folderItem = e.target.closest('.folder-item');
         if (folderItem) {
           const title = folderItem.querySelector('span').textContent;
@@ -217,11 +231,10 @@
         }
       }
 
-      // Si encontramos una app válida, esperamos a que JsLobby dibuje su menú
       if (targetAppId) {
         setTimeout(() => {
           const menus = document.querySelectorAll('div[style*="z-index: 500"]');
-          const menu = menus[menus.length - 1]; // El último menú creado
+          const menu = menus[menus.length - 1];
           
           if (menu && !menu.querySelector('.extrafunc-btn')) {
             const app = getReg().get(targetAppId);
@@ -232,35 +245,30 @@
             hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
             menu.appendChild(hr);
 
-            // Botón: Eliminar App
-            const btnDelete = document.createElement('button');
-            btnDelete.className = 'extrafunc-btn';
-            btnDelete.style.cssText = `display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: #ef4444; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: 0.15s;`;
-            btnDelete.onmouseover = () => { btnDelete.style.background = '#ef4444'; btnDelete.style.color = '#fff'; };
-            btnDelete.onmouseout = () => { btnDelete.style.background = 'transparent'; btnDelete.style.color = '#ef4444'; };
-            btnDelete.innerHTML = `<i data-lucide="trash-2"></i><span>Eliminar App</span>`;
-            btnDelete.onclick = async () => {
-              if (typeof cerrarContexto === 'function') cerrarContexto();
-              else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
-              
+            // Función auxiliar para crear los botones sin errores de hover
+            const createBtn = (icon, text, isDanger, action) => {
+              const btn = document.createElement('button');
+              btn.className = `extrafunc-btn ${isDanger ? 'danger' : ''}`;
+              btn.innerHTML = `<i data-lucide="${icon}"></i><span>${esc(text)}</span>`;
+              btn.onclick = async () => {
+                if (typeof cerrarContexto === 'function') cerrarContexto();
+                else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
+                await action();
+              };
+              return btn;
+            };
+
+            // Botón Eliminar
+            const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
               const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
               if (ok) {
                 await window.MyHub.eliminarApp(targetAppId);
                 window.MyHub.toast('App eliminada');
               }
-            };
+            });
 
-            // Botón: Limpiar Datos
-            const btnClear = document.createElement('button');
-            btnClear.className = 'extrafunc-btn';
-            btnClear.style.cssText = btnDelete.style.cssText;
-            btnClear.onmouseover = btnDelete.onmouseover;
-            btnClear.onmouseout = btnDelete.onmouseout;
-            btnClear.innerHTML = `<i data-lucide="database"></i><span>Limpiar Datos</span>`;
-            btnClear.onclick = async () => {
-              if (typeof cerrarContexto === 'function') cerrarContexto();
-              else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
-              
+            // Botón Limpiar Datos
+            const btnClear = createBtn('database', 'Limpiar Datos', true, async () => {
               const ok = await showConfirm('Limpiar Datos', `¿Borrar TODA la caché, notas y configuraciones de "${app.titulo}"?`);
               if (ok) {
                 Object.keys(localStorage).forEach(k => { if (k.includes(targetAppId)) localStorage.removeItem(k); });
@@ -268,7 +276,7 @@
                 for (let db of dbs) { if (db.name && db.name.includes(targetAppId)) indexedDB.deleteDatabase(db.name); }
                 window.MyHub.toast(`Datos de "${app.titulo}" eliminados`);
               }
-            };
+            });
 
             menu.appendChild(btnDelete);
             menu.appendChild(btnClear);
