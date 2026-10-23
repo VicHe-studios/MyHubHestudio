@@ -56,17 +56,22 @@ html[data-modo="oscuro"] {
 
 /* ================= Reset / Base ================= */
 * { box-sizing: border-box; }
+
 html, body {
-  margin: 0; height: 100%; overflow: hidden;
-  font-family: var(--font); color: var(--text);
+  margin: 0; 
+  height: 100%; 
+  width: 100%; 
+  overflow: hidden;
+  font-family: var(--font); 
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* NUEVO: Fuerza un tamaño mínimo para que la interfaz no se rompa */
+/* El body ahora se adapta dinámicamente con el zoom de ExtraFunc.js */
 body {
-  min-width: 900px;
-  min-height: 600px;
+  display: flex; 
+  flex-direction: column;
 }
 
 .hidden { display: none !important; }
