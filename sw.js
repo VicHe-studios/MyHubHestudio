@@ -1,5 +1,5 @@
 // Subí este número cada vez que deployes cambios importantes
-const CACHE_VERSION = 'myhubhestudio-v1';
+const CACHE_VERSION = 'myhubhestudio-v2';
 
 const SHELL = [
   './',
