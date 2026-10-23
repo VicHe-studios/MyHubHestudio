@@ -258,31 +258,54 @@ body.con-fondo #desktop::before { opacity: 0; }
   cursor: pointer; padding: 0; background: transparent; color: var(--text);
   display: flex; align-items: center; justify-content: center;
   transition: transform .18s var(--ease-spring), background .2s, color .2s;
+  flex-shrink: 0;
 }
 .inicio:hover { background: var(--accent-soft); color: var(--accent); }
 .inicio:active { transform: scale(.92); }
 .inicio svg { width: 24px; height: 24px; }
 
-#tasks { display: flex; gap: 8px; flex: 1; min-width: 0; overflow: hidden; }
+#tasks { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 
+/* --- TASK ICON-ONLY --- */
 .task {
-  position: relative; max-width: 180px;
-  display: flex; align-items: center; gap: 8px;
-  padding: 8px 16px; border-radius: 10px; cursor: pointer;
+  position: relative;
+  width: 42px; height: 42px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 10px; cursor: pointer;
   background: transparent; color: var(--text);
   border: 1.5px solid transparent;
-  font-size: 13px; font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 0;
   animation: fadeIn .2s var(--ease-out);
-  transition: background .18s, color .18s, border-color .18s;
+  transition: background .18s, color .18s, border-color .18s,
+              opacity .18s, transform .15s var(--ease-spring);
 }
-.task svg { width: 14px; height: 14px; }
-.task:hover { background: var(--accent-soft); border-color: var(--accent-line); }
+.task svg { width: 20px; height: 20px; pointer-events: none; }
+.task:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  transform: translateY(-1px);
+}
+.task:active { transform: scale(.93); }
 .task.active {
   background: var(--accent); color: #fff;
   border-color: var(--accent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 .task.active svg { color: #fff; }
+
+/* Minimizada: se ve más apagada pero sigue siendo un cuadrado */
+.task.minimized {
+  opacity: 0.5;
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.task.minimized:hover {
+  opacity: 1;
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.task.minimized:hover svg { color: #fff; }
 
 #clock {
   margin-left: auto; font-size: 13px; font-weight: 600;
