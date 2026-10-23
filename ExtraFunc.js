@@ -34,7 +34,6 @@
   };
 
   // ================= theme-color dinámico =================
-  // Envolvemos aplicarAjustes (definida en JsLobby.js) sin editar ese archivo
   const hookThemeColor = () => {
     if (typeof window.aplicarAjustes !== 'function' || window.aplicarAjustes._pwaHook) return;
 
@@ -115,6 +114,31 @@
     observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
+  // ================= Tamaño Mínimo de Ventana (PWA) =================
+  const setupMinWindowSize = () => {
+    if (!window.matchMedia('(display-mode: standalone)').matches) return;
+
+    const MIN_WIDTH = 900;
+    const MIN_HEIGHT = 600;
+    let resizeTimeout;
+
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (window.outerWidth < MIN_WIDTH || window.outerHeight < MIN_HEIGHT) {
+          try {
+            window.resizeTo(
+              Math.max(window.outerWidth, MIN_WIDTH),
+              Math.max(window.outerHeight, MIN_HEIGHT)
+            );
+          } catch (e) {
+            // Si el navegador lo bloquea, el CSS min-width/min-height del LobbyStyle.css lo contiene.
+          }
+        }
+      }, 150);
+    });
+  };
+
   // ================= Init =================
   const init = () => {
     if (!window.MyHub) { setTimeout(init, 100); return; }
@@ -123,8 +147,9 @@
     hookThemeColor();
     inyectarEstilosStorage();
     setupStoragePanel();
+    setupMinWindowSize();
 
-    console.log('%c[ExtraFunc] PWA + Storage cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] PWA + Storage + Tamaño cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
