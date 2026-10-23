@@ -23,6 +23,31 @@ const aDataURL = blob => new Promise(r => {
   fr.readAsDataURL(blob);
 });
 
+// FIX: Modal de confirmación reutilizable (lo usa el "Eliminar App" del context-menu)
+function showConfirm(titulo, mensaje) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;';
+    const box = document.createElement('div');
+    box.style.cssText = 'background:var(--card,#fff);color:var(--text,#000);border:2px solid var(--accent,#2563eb);border-radius:16px;padding:24px;max-width:340px;width:90vw;box-shadow:0 20px 40px rgba(0,0,0,0.4);';
+    box.innerHTML = `
+      <h3 style="margin:0 0 10px;font-size:18px;font-weight:700;">${esc(titulo)}</h3>
+      <p style="margin:0 0 20px;font-size:13px;color:var(--muted,#666);line-height:1.4;">${esc(mensaje)}</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button id="confirm-cancel" style="padding:8px 16px;border-radius:8px;border:1px solid var(--line,#ccc);background:var(--field,#f0f0f0);color:var(--text,#000);cursor:pointer;font:inherit;font-weight:600;font-size:13px;">Cancelar</button>
+        <button id="confirm-ok" style="padding:8px 16px;border-radius:8px;border:none;background:var(--danger,#ef4444);color:#fff;cursor:pointer;font:inherit;font-weight:600;font-size:13px;">Aceptar</button>
+      </div>
+    `;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const close = (r) => { overlay.remove(); resolve(r); };
+    box.querySelector('#confirm-cancel').onclick = () => close(false);
+    box.querySelector('#confirm-ok').onclick = () => close(true);
+    overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    box.querySelector('#confirm-ok').focus();
+  });
+}
+
 // ================= Almacenamiento: IndexedDB =================
 const dbP = new Promise((resolve, reject) => {
   const req = indexedDB.open('myhub-lobby', 1);
@@ -49,9 +74,12 @@ async function kvSet(k, v) {
 }
 
 // ================= Datos base =================
+// FIX: rosado y cafe añadidos a COLORES (morado ya estaba). Así aparecen
+// automáticamente en Configuración y aplicarAjustes() los respeta al cambiar de modo.
 const COLORES = {
   azul: '#2563eb', celeste: '#0ea5e9', rojo: '#dc2626',
-  verde: '#16a34a', morado: '#7c3aed', amarillo: '#ca8a04'
+  verde: '#16a34a', morado: '#7c3aed', amarillo: '#ca8a04',
+  rosado: '#ec4899', cafe: '#8b4513'
 };
 const LIMITE_FONDO = 1024 * 1024;
 const AJUSTES_BASE = { color: 'azul', modo: 'claro', fondo: null };
@@ -63,6 +91,13 @@ const MARGEN_ICONOS = 16;
 const GRID_X = 100;
 const GRID_Y = 110;
 
+// FIX: Tamaños de widgets centralizados (antes duplicados en 3 sitios)
+const WIDGET_SIZES = {
+  '1x1': { w: 90,  h: 100, cols: 1, rows: 1 },
+  '2x1': { w: 190, h: 100, cols: 2, rows: 1 },
+  '2x2': { w: 190, h: 210, cols: 2, rows: 2 }
+};
+
 // ================= Estado global =================
 let ajustes = { ...AJUSTES_BASE };
 let cuentaActual = null;
@@ -71,7 +106,7 @@ let posicionesIconos = {};
 let carpetas = {};
 let pinnedApps = [];
 let ctxMenu = null;
-window.widgetsActivos = []; 
+window.widgetsActivos = [];
 
 async function guardarAjustes() { await kvSet('ajustes', ajustes); }
 const guardarCarpetas = () => kvSet('carpetas', carpetas);
@@ -79,7 +114,8 @@ const guardarPinned = () => kvSet('pinned_apps', pinnedApps);
 
 function aplicarAjustes() {
   const root = document.documentElement;
-  root.style.setProperty('--accent', COLORES[ajustes.color] || COLORES.azul);
+  const accentColor = COLORES[ajustes.color] || COLORES.azul;
+  root.style.setProperty('--accent', accentColor);
   root.dataset.modo = ajustes.modo === 'oscuro' ? 'oscuro' : 'claro';
 
   const fondoEl = $('fondo-imagen');
@@ -89,6 +125,13 @@ function aplicarAjustes() {
     fondoEl.style.background = '';
   }
   document.body.classList.toggle('con-fondo', !!ajustes.fondo);
+
+  // FIX: notificar a los widgets abiertos del cambio de tema
+  document.querySelectorAll('.widget-container iframe').forEach(f => {
+    try {
+      f.contentWindow.postMessage({ type: 'myhub:tema:res', color: accentColor, modo: ajustes.modo }, '*');
+    } catch (e) {}
+  });
 }
 
 // ================= Cuenta =================
@@ -377,7 +420,7 @@ async function eliminarApp(id) {
     console.error('[eliminarApp] Error al borrar de IndexedDB:', err);
   }
 
-  // NATURALIZADO: Eliminar widgets asociados a esta app
+  // Eliminar widgets asociados a esta app
   if (window.widgetsActivos && window.widgetsActivos.length > 0) {
     const originalLen = window.widgetsActivos.length;
     window.widgetsActivos = window.widgetsActivos.filter(w => w.id !== id);
@@ -434,17 +477,17 @@ function injectStyles() {
 
     .status-pill {
       display: flex; align-items: center; gap: 12px;
-      background: var(--accent-soft); 
+      background: var(--accent-soft);
       border: 1px solid var(--accent-line);
       border-radius: 12px; padding: 6px 14px;
-      font-size: 13px; font-weight: 600; 
+      font-size: 13px; font-weight: 600;
       color: var(--accent);
       margin-left: auto; font-variant-numeric: tabular-nums;
     }
     .status-item { display: flex; align-items: center; gap: 6px; }
     .status-item svg { width: 16px; height: 16px; color: currentColor; }
     .status-item.low { color: #ef4444; }
-    
+
     #clock {
       margin: 0 !important; padding: 0 !important;
       background: transparent !important; color: inherit !important;
@@ -657,17 +700,16 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
           }
         }
 
-        // NATURALIZADO: Colisión con Widgets
+        // Colisión con Widgets (usa WIDGET_SIZES centralizado)
         if (!invalid && window.widgetsActivos) {
           const wW = el.offsetWidth, wH = el.offsetHeight;
           const snapRect = { left: snapX, top: snapY, right: snapX + wW, bottom: snapY + wH };
-          
+
           for (const w of window.widgetsActivos) {
             if (!w.pos) continue;
             const wx = parseFloat(w.pos.left), wy = parseFloat(w.pos.top);
-            const wsize = w.size === '2x2' ? {w: 190, h: 210} : w.size === '2x1' ? {w: 190, h: 100} : {w: 90, h: 100};
-            const wRect = { left: wx, top: wy, right: wx + wsize.w, bottom: wy + wsize.h };
-
+            const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+            const wRect = { left: wx, top: wy, right: wx + ws.w, bottom: wy + ws.h };
             if (!(snapRect.right <= wRect.left || snapRect.left >= wRect.right || snapRect.bottom <= wRect.top || snapRect.top >= wRect.bottom)) {
               invalid = true;
               toast('No puedes colocar iconos sobre un widget');
@@ -740,17 +782,16 @@ function hacerArrastrableCarpeta(el, folderId, maxRows, maxY) {
           if (parseFloat(iconEl.style.left) === sx && parseFloat(iconEl.style.top) === sy) invalid = true;
         });
 
-        // NATURALIZADO: Colisión con Widgets
+        // Colisión con Widgets
         if (!invalid && window.widgetsActivos) {
           const wW = el.offsetWidth, wH = el.offsetHeight;
           const snapRect = { left: sx, top: sy, right: sx + wW, bottom: sy + wH };
-          
+
           for (const w of window.widgetsActivos) {
             if (!w.pos) continue;
             const wx = parseFloat(w.pos.left), wy = parseFloat(w.pos.top);
-            const wsize = w.size === '2x2' ? {w: 190, h: 210} : w.size === '2x1' ? {w: 190, h: 100} : {w: 90, h: 100};
-            const wRect = { left: wx, top: wy, right: wx + wsize.w, bottom: wy + wsize.h };
-
+            const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+            const wRect = { left: wx, top: wy, right: wx + ws.w, bottom: wy + ws.h };
             if (!(snapRect.right <= wRect.left || snapRect.left >= wRect.right || snapRect.bottom <= wRect.top || snapRect.top >= wRect.bottom)) {
               invalid = true;
               toast('No puedes colocar carpetas sobre un widget');
@@ -1058,11 +1099,11 @@ function setupStatusPill() {
 }
 
 // ================= Menús contextuales =================
+// FIX: soporte para `danger` (rojo) y `locked` (deshabilitado)
 function mostrarContexto(x, y, items) {
   cerrarContexto();
   const backdrop = document.createElement('div');
   backdrop.style.cssText = 'position:fixed;inset:0;z-index:499;';
-  // NATURALIZADO: Cierra el menú con cualquier clic (izquierdo o derecho)
   backdrop.addEventListener('pointerdown', () => cerrarContexto());
 
   ctxMenu = document.createElement('div');
@@ -1094,13 +1135,21 @@ function mostrarContexto(x, y, items) {
     b.style.cssText = `
       display: flex; align-items: center; gap: 10px;
       width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
-      background: transparent; color: inherit;
+      background: transparent; color: ${item.danger ? 'var(--danger, #ef4444)' : 'inherit'};
       font: inherit; font-size: 13px; font-weight: 500;
-      cursor: pointer; text-align: left;
+      cursor: ${item.locked ? 'not-allowed' : 'pointer'}; text-align: left;
       transition: background 0.15s, color 0.15s;
+      ${item.locked ? 'opacity: 0.6;' : ''}
     `;
-    b.onmouseover = () => { b.style.background = 'var(--accent, #2563eb)'; b.style.color = '#fff'; };
-    b.onmouseout = () => { b.style.background = 'transparent'; b.style.color = 'inherit'; };
+    b.onmouseover = () => {
+      if (item.locked) return;
+      b.style.background = item.danger ? 'var(--danger, #ef4444)' : 'var(--accent, #2563eb)';
+      b.style.color = '#fff';
+    };
+    b.onmouseout = () => {
+      b.style.background = 'transparent';
+      b.style.color = item.danger ? 'var(--danger, #ef4444)' : 'inherit';
+    };
 
     b.innerHTML = `<i data-lucide="${item.icon || 'circle'}"></i><span>${esc(item.text)}</span>`;
     b.onclick = () => { cerrarContexto(); item.fn(); };
@@ -1121,11 +1170,13 @@ function cerrarContexto() {
   }
 }
 
+// FIX: Restaurado "Eliminar App" (con modal de confirmación) + "App de Sistema" bloqueada
 function contextoApp(e, appId) {
   e.preventDefault();
   const app = registro.get(appId);
   if (!app) return;
   const pinned = pinnedApps.includes(appId);
+  const esSistema = ['papelera', 'forge', 'storhe', 'cmdhe'].includes(appId) || !!app.url;
 
   const items = [
     { icon: 'play', text: 'Abrir', fn: () => abrir(appId) },
@@ -1143,14 +1194,36 @@ function contextoApp(e, appId) {
       items.push({ icon: 'folder', text: `Mover a: ${f.nombre}`, fn: () => moverAppACarpeta(appId, f.id) });
     });
   }
+
+  items.push({ separator: true });
+  if (esSistema) {
+    items.push({
+      icon: 'lock',
+      text: 'App de Sistema',
+      locked: true,
+      fn: () => toast('Las apps base no se pueden borrar desde aquí. Usa CMD-HE.')
+    });
+  } else {
+    items.push({
+      icon: 'trash-2',
+      text: 'Eliminar App',
+      danger: true,
+      fn: async () => {
+        const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
+        if (ok) {
+          await eliminarApp(appId);
+          toast('App eliminada');
+        }
+      }
+    });
+  }
+
   mostrarContexto(e.clientX, e.clientY, items);
 }
 
 function contextoDesktop(e) {
-  if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu') || e.target.closest('#taskbar')) return;
+  if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
   e.preventDefault();
-  
-  // NATURALIZADO: Inyección directa del botón de widgets
   mostrarContexto(e.clientX, e.clientY, [
     { icon: 'folder-plus', text: 'Nueva carpeta', fn: () => {
       promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
@@ -1158,6 +1231,7 @@ function contextoDesktop(e) {
     { separator: true },
     { icon: 'layout-grid', text: 'Gestión de Widgets', fn: () => {
       if (window.abrirPanelWidgets) window.abrirPanelWidgets();
+      else toast('Los widgets aún se están cargando...');
     }}
   ]);
 }
@@ -1186,10 +1260,9 @@ function contextoCarpeta(e, folderId) {
       renderIconos();
       window.MyHub.toast('Carpeta vaciada');
     }},
-    { icon: 'trash-2', text: 'Eliminar carpeta', fn: () => {
-      if (confirm('¿Eliminar esta carpeta? Las apps volverán al escritorio.')) {
-        eliminarCarpeta(folderId, false);
-      }
+    { icon: 'trash-2', text: 'Eliminar carpeta', danger: true, fn: async () => {
+      const ok = await showConfirm('Eliminar carpeta', '¿Eliminar esta carpeta? Las apps volverán al escritorio.');
+      if (ok) eliminarCarpeta(folderId, false);
     }}
   ]);
 }
@@ -1210,8 +1283,8 @@ function setupMenuOption() {
     btn.innerHTML = `<i data-lucide="folder-plus"></i><span>Nueva carpeta</span>`;
     btn.onclick = (e) => {
       e.stopPropagation();
-      const menu = $('menu');
-      if (menu) menu.classList.add('hidden');
+      const menuEl = $('menu');
+      if (menuEl) menuEl.classList.add('hidden');
       promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
     };
     menuOps.insertBefore(btn, docBtn.nextSibling);
@@ -2384,16 +2457,23 @@ reloj(); setInterval(reloj, 15000);
 })();
 
 // ============================================================================
-// ExtraFunc.js - Extensiones y Widgets integrados - (23-10-2026) - A3
+// ExtraFunc.js - Extensiones y Widgets integrados - (23-10-2026) - A4
+// Fixes sobre v4:
+//   - Hotkeys no se disparan dentro de inputs
+//   - Widgets-layer prepend (no z-index) -> widgets siempre detrás de ventanas
+//   - Widget theme dinámico (postMessage myhub:tema:res)
+//   - findClosestFreeSpot excluye el widget que se está arrastrando
+//   - Transición de widget se resetea tras el drag
+//   - Backup incluye pinned_apps
+//   - Sin eval() para colores (COLORES ya está arriba)
 // ============================================================================
 
 (function() {
   'use strict';
 
-  // ================= CONFIGURACIÓN Y SONIDOS =================
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  const escLocal = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
-  
+
   let sonidosActivos = localStorage.getItem('myhub_sounds') !== 'false';
   let hotkeys = JSON.parse(localStorage.getItem('myhub_hotkeys') || '{}');
   const defaultHotkeys = {
@@ -2428,13 +2508,13 @@ reloj(); setInterval(reloj, 15000);
     } catch(e) {}
   };
 
-  // ================= INYECCIÓN DE ESTILOS (Atajos, Config, Widgets) =================
+  // ================= INYECCIÓN DE ESTILOS =================
   const inyectarEstilos = () => {
     if (document.getElementById('extrafunc-style')) return;
     const style = document.createElement('style');
     style.id = 'extrafunc-style';
     style.textContent = `
-      /* Estilos de Miniaturas Taskbar */
+      /* Miniaturas Taskbar */
       #task-preview { position: fixed; z-index: 1000; width: 200px; background: var(--glass, #fff); border: 1.5px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 12px; display: none; flex-direction: column; gap: 10px; color: var(--text); opacity: 0; transform: translateY(10px); transition: opacity 0.15s, transform 0.15s; pointer-events: auto; backdrop-filter: blur(20px); }
       #task-preview.active { display: flex; opacity: 1; transform: translateY(0); }
       .preview-header { display: flex; align-items: center; gap: 10px; }
@@ -2446,7 +2526,7 @@ reloj(); setInterval(reloj, 15000);
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
-      /* Estilos Config */
+      /* Config */
       .cfg-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .cfg-toggle span { font-size: 13px; font-weight: 500; }
       .cfg-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
@@ -2457,7 +2537,7 @@ reloj(); setInterval(reloj, 15000);
       .hotkey-key { width: 100%; text-align: center; background: var(--field); border: 1px solid var(--line); padding: 6px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; transition: 0.2s; outline: none; color: var(--text); }
       .hotkey-key:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-      /* Estilos Widgets */
+      /* Widgets */
       @keyframes dropInFixed { 0% { opacity: 0; transform: translate(-50%, -10px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
       .toast { animation: dropInFixed .3s var(--ease-out) !important; }
       .widget-container { user-select: none; -webkit-user-select: none; }
@@ -2485,6 +2565,10 @@ reloj(); setInterval(reloj, 15000);
   // ================= ATAJOS DE TECLADO =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
+      // FIX: no disparar hotkeys si el usuario está escribiendo en un input
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+
       if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const code = e.code;
         const winObj = window.win;
@@ -2498,7 +2582,7 @@ reloj(); setInterval(reloj, 15000);
           case 'cmdhe': e.preventDefault(); window.MyHub.abrir('cmdhe'); break;
           case 'minimize': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
           case 'close': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
-          case 'theme': 
+          case 'theme':
             e.preventDefault();
             if (typeof ajustes !== 'undefined' && typeof guardarAjustes !== 'undefined' && typeof aplicarAjustes !== 'undefined') {
               ajustes.modo = ajustes.modo === 'oscuro' ? 'claro' : 'oscuro';
@@ -2543,102 +2627,50 @@ reloj(); setInterval(reloj, 15000);
         const title = taskEl.getAttribute('title');
         let realId = null;
         if (registro) registro.forEach((app, id) => { if (app.titulo === title) realId = id; });
-        
+
         if (realId) {
           currentTaskId = realId;
           const app = registro.get(realId);
           document.getElementById('preview-title').textContent = app.titulo;
           document.getElementById('preview-icon').innerHTML = `<i data-lucide="${app.icono || 'app-window'}"></i>`;
-          
+
           const rect = taskEl.getBoundingClientRect();
           preview.style.left = `${Math.max(10, rect.left + (rect.width / 2) - 100)}px`;
           preview.style.top = `${rect.top - 90}px`;
-          
+
           preview.classList.add('active');
           refrescarIconos();
         }
       }
     });
 
-    document.addEventListener('mouseout', (e) => { 
-      if (e.target.closest('.task')) hideTimeout = setTimeout(() => preview.classList.remove('active'), 200); 
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.task')) hideTimeout = setTimeout(() => preview.classList.remove('active'), 200);
     });
     preview.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
     preview.addEventListener('mouseleave', () => hideTimeout = setTimeout(() => preview.classList.remove('active'), 200));
-    
-    document.getElementById('preview-close').addEventListener('click', (e) => { 
-      e.stopPropagation(); 
-      if (currentTaskId) { 
-        window.MyHub.cerrar(currentTaskId); 
-        preview.classList.remove('active'); 
-      } 
+
+    document.getElementById('preview-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (currentTaskId) {
+        window.MyHub.cerrar(currentTaskId);
+        preview.classList.remove('active');
+      }
     });
   };
 
-  // ================= CONFIGURACIÓN INYECCIÓN =================
+  // ================= CONFIG INJECTION =================
   const setupConfigInjection = () => {
-    const modal = document.getElementById('modal');
+    const modalEl = document.getElementById('modal');
     const mTitulo = document.getElementById('mTitulo');
     const mBody = document.getElementById('mBody');
-    if (!modal || !mBody) return;
+    if (!modalEl || !mBody) return;
 
     const observer = new MutationObserver(() => {
       if (mTitulo.textContent === 'Configuración' && !document.getElementById('extrafunc-config-injected')) {
         const container = document.createElement('div');
         container.id = 'extrafunc-config-injected';
         container.style.marginTop = '20px';
-
-        const swatches = mBody.querySelector('.swatches');
-        if (swatches) {
-          const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
-          try { for (const [nombre, hex] of Object.entries(nuevosColores)) { eval(`COLORES['${nombre}'] = '${hex}';`); } } catch(e) {}
-
-          for (const [nombre, hex] of Object.entries(nuevosColores)) {
-            if (!Array.from(swatches.children).some(c => c.title === nombre)) {
-              const b = document.createElement('div');
-              b.className = 'swatch';
-              b.style.background = hex;
-              b.title = nombre;
-              if (typeof ajustes !== 'undefined' && ajustes.color === nombre) b.classList.add('on');
-              
-              b.onclick = async () => {
-                try {
-                  const db = await new Promise(res => { const req = indexedDB.open('myhub-lobby', 1); req.onsuccess = () => res(req.result); });
-                  const tx = db.transaction('kv', 'readwrite');
-                  const store = tx.objectStore('kv');
-                  const getReq = store.get('ajustes');
-                  getReq.onsuccess = () => {
-                    const a = getReq.result || {};
-                    a.color = nombre;
-                    store.put(a, 'ajustes');
-                  };
-                  tx.oncomplete = () => {
-                    document.documentElement.style.setProperty('--accent', hex);
-                    swatches.querySelectorAll('.swatch').forEach(s => s.classList.remove('on'));
-                    b.classList.add('on');
-                    if (window.MyHub) window.MyHub.toast('Color actualizado');
-                  };
-                } catch(e) { if (window.MyHub) window.MyHub.toast('Error al guardar color'); }
-              };
-              swatches.appendChild(b);
-            }
-          }
-        }
-
-        container.innerHTML += `
-          <div class="sec" style="margin-top: 20px;">Efectos de Sonido</div>
-          <div class="cfg-toggle">
-            <span>Sonidos del sistema</span>
-            <input type="checkbox" id="cfg-toggle-sound" ${sonidosActivos ? 'checked' : ''}>
-          </div>
-          <div class="sec" style="margin-top: 20px;">Copia de Seguridad</div>
-          <div class="fila-btns">
-            <button class="btn" id="cfg-btn-export"><i data-lucide="download"></i>Exportar Datos</button>
-            <button class="btn gray" id="cfg-btn-import"><i data-lucide="upload"></i>Importar Datos</button>
-            <input type="file" id="cfg-input-import" accept=".json" hidden>
-          </div>
-          <p class="nota">Descarga un archivo con todas tus apps, carpetas y ajustes.</p>
-        `;
 
         const labels = {
           'papelera': 'Abrir Papelera', 'forge': 'Abrir Forge', 'storhe': 'Abrir Stor-He', 'cmdhe': 'Abrir CMD-HE',
@@ -2657,7 +2689,19 @@ reloj(); setInterval(reloj, 15000);
           `;
         }).join('');
 
-        container.innerHTML += `
+        container.innerHTML = `
+          <div class="sec" style="margin-top: 20px;">Efectos de Sonido</div>
+          <div class="cfg-toggle">
+            <span>Sonidos del sistema</span>
+            <input type="checkbox" id="cfg-toggle-sound" ${sonidosActivos ? 'checked' : ''}>
+          </div>
+          <div class="sec" style="margin-top: 20px;">Copia de Seguridad</div>
+          <div class="fila-btns">
+            <button class="btn" id="cfg-btn-export"><i data-lucide="download"></i>Exportar Datos</button>
+            <button class="btn gray" id="cfg-btn-import"><i data-lucide="upload"></i>Importar Datos</button>
+            <input type="file" id="cfg-input-import" accept=".json" hidden>
+          </div>
+          <p class="nota">Descarga un archivo con todas tus apps, carpetas, ajustes, widgets y favoritos.</p>
           <div class="sec" style="margin-top: 20px;">Atajos de Teclado</div>
           <p class="nota" style="margin-bottom: 10px;">Haz clic en un atajo y presiona la nueva combinación (Shift + Tecla).</p>
           <div class="hotkey-list">${hotkeysHTML}</div>
@@ -2672,6 +2716,7 @@ reloj(); setInterval(reloj, 15000);
           if (sonidosActivos) playSound('click');
         };
 
+        // FIX: backup incluye pinned_apps y widgets_activos
         document.getElementById('cfg-btn-export').onclick = async () => {
           const data = {
             apps_instaladas: await window.kvGet('apps_instaladas') || {},
@@ -2679,7 +2724,8 @@ reloj(); setInterval(reloj, 15000);
             ajustes: await window.kvGet('ajustes') || {},
             cuenta: await window.kvGet('cuenta') || null,
             posiciones_iconos: await window.kvGet('posiciones_iconos') || {},
-            widgets_activos: window.widgetsActivos || []
+            widgets_activos: window.widgetsActivos || [],
+            pinned_apps: await window.kvGet('pinned_apps') || []
           };
           const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
@@ -2704,6 +2750,7 @@ reloj(); setInterval(reloj, 15000);
               if (data.cuenta) await window.kvSet('cuenta', data.cuenta);
               if (data.posiciones_iconos) await window.kvSet('posiciones_iconos', data.posiciones_iconos);
               if (data.widgets_activos) await window.kvSet('widgets_activos', data.widgets_activos);
+              if (data.pinned_apps) await window.kvSet('pinned_apps', data.pinned_apps);
               window.MyHub.toast('Datos importados. Recargando...');
               setTimeout(() => location.reload(), 1500);
             } catch (err) { window.MyHub.toast('Error al importar: Archivo inválido'); }
@@ -2715,15 +2762,15 @@ reloj(); setInterval(reloj, 15000);
           input.addEventListener('keydown', (e) => {
             e.preventDefault();
             if (e.key === 'Escape') { input.blur(); return; }
-            
+
             if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.code !== 'ShiftLeft' && e.code !== 'ShiftRight') {
               const newCode = e.code;
               const action = input.dataset.action;
-              
+
               for (let k in hotkeys) { if (hotkeys[k] === action) delete hotkeys[k]; }
               hotkeys[newCode] = action;
               localStorage.setItem('myhub_hotkeys', JSON.stringify(hotkeys));
-              
+
               const displayKey = newCode.replace('Digit', '').replace('Key', '');
               input.value = `Shift + ${displayKey}`;
               input.blur();
@@ -2737,7 +2784,7 @@ reloj(); setInterval(reloj, 15000);
         refrescarIconos();
       }
     });
-    observer.observe(modal, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
   // ================= MOTOR DE WIDGETS =================
@@ -2747,17 +2794,11 @@ reloj(); setInterval(reloj, 15000);
     await kvSet('widgets_activos', window.widgetsActivos);
   };
 
-  const getWidgetCells = (size) => {
-    if (size === '2x2') return { cols: 2, rows: 2 };
-    if (size === '2x1') return { cols: 2, rows: 1 };
-    return { cols: 1, rows: 1 };
-  };
-
-  const findClosestFreeSpot = (size, targetLeft, targetTop) => {
-    const { cols, rows } = getWidgetCells(size);
-    const desk = document.getElementById('desktop');
-    const maxRows = Math.max(1, Math.floor((desk.clientHeight - MARGEN) / GY));
-    const maxCols = Math.max(1, Math.floor((desk.clientWidth - MARGEN) / GX));
+  const findClosestFreeSpot = (size, targetLeft, targetTop, excludeWidget) => {
+    const ws = WIDGET_SIZES[size] || WIDGET_SIZES['1x1'];
+    const deskEl = document.getElementById('desktop');
+    const maxRows = Math.max(1, Math.floor((deskEl.clientHeight - MARGEN) / GY));
+    const maxCols = Math.max(1, Math.floor((deskEl.clientWidth - MARGEN) / GX));
 
     const ocupadas = new Set();
     if (typeof posicionesIconos !== 'undefined') {
@@ -2769,10 +2810,11 @@ reloj(); setInterval(reloj, 15000);
     }
 
     window.widgetsActivos.forEach(w => {
+      if (w === excludeWidget) return; // FIX: excluir el que se está reubicando
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
       const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
-      const wsize = getWidgetCells(w.size);
+      const wsize = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
       for (let i = 0; i < wsize.cols; i++) {
         for (let j = 0; j < wsize.rows; j++) {
           ocupadas.add(`${wc + i}-${wr + j}`);
@@ -2789,10 +2831,11 @@ reloj(); setInterval(reloj, 15000);
     for (let r = 0; r < maxRows; r++) {
       for (let c = 0; c < maxCols; c++) {
         let libre = true;
-        for (let i = 0; i < cols; i++) {
-          for (let j = 0; j < rows; j++) {
-            if (ocupadas.has(`${c + i}-${r + j}`)) libre = false;
+        for (let i = 0; i < ws.cols; i++) {
+          for (let j = 0; j < ws.rows; j++) {
+            if (ocupadas.has(`${c + i}-${r + j}`)) { libre = false; break; }
           }
+          if (!libre) break;
         }
         if (libre) {
           const dist = Math.abs(c - targetCol) + Math.abs(r - targetRow);
@@ -2815,21 +2858,22 @@ reloj(); setInterval(reloj, 15000);
     if (!layer) {
       layer = document.createElement('div');
       layer.id = 'widgets-layer';
-      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:2;';
-      document.getElementById('desktop').appendChild(layer);
+      // FIX: prepend + sin z-index → los widgets se pintan por debajo de iconos y ventanas.
+      //       Durante el drag, el widget sube a z-index:999 directamente contra el root.
+      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none;';
+      document.getElementById('desktop').prepend(layer);
     }
     layer.innerHTML = '';
 
     window.widgetsActivos.forEach(w => {
       const el = document.createElement('div');
       el.className = 'widget-container';
-      
-      const wSize = w.size === '2x2' ? '190px' : (w.size === '2x1' ? '190px' : '90px');
-      const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
-      
+
+      const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+
       el.style.cssText = `
         position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '16px'};
-        width: ${wSize}; height: ${hSize}; pointer-events: auto;
+        width: ${ws.w}px; height: ${ws.h}px; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
         overflow: hidden; transition: transform .2s, box-shadow .2s;
@@ -2841,7 +2885,7 @@ reloj(); setInterval(reloj, 15000);
         e.stopPropagation();
         if (typeof mostrarContexto === 'function') {
           mostrarContexto(e.clientX, e.clientY, [
-            { icon: 'trash-2', text: 'Eliminar Widget', fn: () => {
+            { icon: 'trash-2', text: 'Eliminar Widget', danger: true, fn: () => {
               window.widgetsActivos = window.widgetsActivos.filter(item => item !== w);
               guardarWidgets();
               window.renderWidgets();
@@ -2850,46 +2894,68 @@ reloj(); setInterval(reloj, 15000);
           ]);
         }
       });
-      
+
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
-      
+
       const app = registro.get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
         const blob = app.archivos[w.file];
         const reader = new FileReader();
         reader.onload = (e) => {
           let html = e.target.result;
-          
+
+          // FIX: theme injection ahora tiene listener para actualizaciones dinámicas
           const themeInjection = `
             <script src="https://unpkg.com/lucide@latest"><\/script>
             <script>
-              document.documentElement.dataset.modo = '${document.documentElement.dataset.modo}';
-              document.documentElement.style.setProperty('--accent', '${getComputedStyle(document.documentElement).getPropertyValue('--accent')}');
-              const hex = '${getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '')}';
-              if (hex.length === 6) {
-                const r = parseInt(hex.substring(0, 2), 16);
-                const g = parseInt(hex.substring(2, 4), 16);
-                const b = parseInt(hex.substring(4, 6), 16);
-                document.documentElement.style.setProperty('--accent-soft', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.15)');
-              }
+              (function() {
+                function applyTheme(color, modo) {
+                  document.documentElement.dataset.modo = modo || 'claro';
+                  document.documentElement.style.setProperty('--accent', color || '#2563eb');
+                  const hex = (color || '#2563eb').replace('#', '');
+                  if (hex.length === 6) {
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
+                    document.documentElement.style.setProperty('--accent-soft', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.15)');
+                  }
+                }
+                applyTheme(
+                  '${(typeof COLORES !== 'undefined' && COLORES[ajustes.color]) || '#2563eb'}',
+                  '${ajustes.modo || 'claro'}'
+                );
+                window.addEventListener('message', function(ev) {
+                  if (ev.data && ev.data.type === 'myhub:tema:res') {
+                    applyTheme(ev.data.color, ev.data.modo);
+                  }
+                });
+              })();
             <\/script>
           `;
-          
+
           if (w.file.endsWith('.js')) {
-             html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style>${themeInjection}</head><body><script>${html}<\/script></body></html>`;
+            html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style>${themeInjection}</head><body><script>${html}<\/script></body></html>`;
           } else {
-             html = html.replace('</head>', `${themeInjection}</head>`);
+            html = html.replace('</head>', `${themeInjection}</head>`);
           }
           iframe.srcdoc = html;
         };
         reader.readAsText(blob);
       } else {
-        iframe.srcdoc = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444; font-size:12px; text-align:center; padding:10px; box-sizing:border-box;">
-          <b>Error: Widget no encontrado</b><br>
-          <small style="opacity:0.7">${w.file}</small>
-        </div>`;
+        iframe.srcdoc = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444; font-size:12px; text-align:center; padding:10px; box-sizing:border-box;"><b>Error: Widget no encontrado</b><br><small style="opacity:0.7">${w.file}</small></div>`;
       }
+
+      // Enviar tema inicial al iframe en cuanto cargue
+      iframe.addEventListener('load', () => {
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'myhub:tema:res',
+            color: (typeof COLORES !== 'undefined' && COLORES[ajustes.color]) || '#2563eb',
+            modo: ajustes.modo || 'claro'
+          }, '*');
+        } catch(e) {}
+      });
 
       el.appendChild(iframe);
       hacerArrastrableWidget(el, w);
@@ -2899,49 +2965,46 @@ reloj(); setInterval(reloj, 15000);
 
   const hacerArrastrableWidget = (el, widgetData) => {
     let isDragging = false, startX, startY, startLeft, startTop;
-    
+
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
-      e.preventDefault(); 
-      
+      e.preventDefault();
+
       isDragging = false;
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
       startLeft = parseFloat(el.style.left); startTop = parseFloat(el.style.top);
-      
+
       el.style.transition = 'none';
-      el.style.zIndex = '999'; 
+      el.style.zIndex = '999';
       el.style.transform = 'scale(1.02)';
       el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)';
-      
+
       const mover = (ev) => {
         if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3) isDragging = true;
         if (!isDragging) return;
         el.style.left = (startLeft + ev.clientX - startX) + 'px';
         el.style.top = (startTop + ev.clientY - startY) + 'px';
       };
-      
+
       const soltar = () => {
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
-        
-        el.style.zIndex = '';
-        el.style.transform = '';
-        el.style.boxShadow = '';
-        
+
         if (isDragging) {
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
           let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
 
-          const deskW = document.getElementById('desktop').clientWidth;
-          const deskH = document.getElementById('desktop').clientHeight;
+          const deskEl = document.getElementById('desktop');
+          const deskW = deskEl.clientWidth;
+          const deskH = deskEl.clientHeight;
           const wW = el.offsetWidth;
           const wH = el.offsetHeight;
-          
+
           snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
           snapY = Math.max(MARGEN, Math.min(snapY, deskH - wH - MARGEN));
 
-          el.style.transition = 'none';
+          // Posición tentativa (instantánea) para medir colisión
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
 
@@ -2959,10 +3022,10 @@ reloj(); setInterval(reloj, 15000);
             });
           }
 
-          el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
-
           if (colision) {
-            const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY);
+            const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY, widgetData);
+            // Transición spring solo para el snap de reubicación
+            el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
             el.style.left = safeSpot.left;
             el.style.top = safeSpot.top;
             widgetData.pos = safeSpot;
@@ -2972,10 +3035,19 @@ reloj(); setInterval(reloj, 15000);
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
-        } else {
-          el.style.transition = 'left .2s, top .2s, transform .2s, box-shadow .2s';
         }
+
+        // Restaurar visuals
+        el.style.zIndex = '';
+        el.style.transform = '';
+        el.style.boxShadow = '';
+
+        // FIX: resetear transition tras la animación de asentamiento (antes quedaba sticky)
+        setTimeout(() => {
+          if (el.isConnected) el.style.transition = '';
+        }, 350);
       };
+
       window.addEventListener('pointermove', mover);
       window.addEventListener('pointerup', soltar);
     });
@@ -2998,11 +3070,11 @@ reloj(); setInterval(reloj, 15000);
 
     const overlay = document.createElement('div');
     overlay.className = 'extrafunc-modal-overlay';
-    const modal = document.createElement('div');
-    modal.className = 'extrafunc-modal';
-    modal.style.width = '400px';
-    
-    modal.innerHTML = `
+    const m = document.createElement('div');
+    m.className = 'extrafunc-modal';
+    m.style.width = '400px';
+
+    m.innerHTML = `
       <h3>Añadir Widget</h3>
       <p>Elige un widget para colocarlo en tu escritorio.</p>
       <div style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding: 8px; margin: -8px; box-sizing: border-box;">
@@ -3010,7 +3082,7 @@ reloj(); setInterval(reloj, 15000);
           <button class="widget-list-item" data-index="${i}">
             <i data-lucide="layout-grid"></i>
             <div class="widget-list-info">
-                <span class="widget-list-title">${w.titulo}</span>
+                <span class="widget-list-title">${escLocal(w.titulo)}</span>
                 <span class="widget-list-size">Tamaño: ${w.size}</span>
             </div>
           </button>
@@ -3021,9 +3093,9 @@ reloj(); setInterval(reloj, 15000);
       </div>
     `;
 
-    overlay.appendChild(modal);
+    overlay.appendChild(m);
     document.body.appendChild(overlay);
-    void overlay.offsetWidth; 
+    void overlay.offsetWidth;
     overlay.classList.add('active');
     refrescarIconos();
 
@@ -3032,12 +3104,12 @@ reloj(); setInterval(reloj, 15000);
       setTimeout(() => overlay.remove(), 200);
     };
 
-    modal.querySelector('.cancel').onclick = cerrarPanel;
-    
-    modal.querySelectorAll('.widget-list-item').forEach(btn => {
+    m.querySelector('.cancel').onclick = cerrarPanel;
+
+    m.querySelectorAll('.widget-list-item').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        const pos = findClosestFreeSpot(w.size, 116, 16);
+        const pos = findClosestFreeSpot(w.size, 116, 16, null);
         window.widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
         window.renderWidgets();
@@ -3058,15 +3130,15 @@ reloj(); setInterval(reloj, 15000);
     setupAtajosTeclado();
     setupMiniaturas();
     setupConfigInjection();
-    
-    // Cargar widgets activos desde la base de datos
+
+    // Cargar widgets activos desde IndexedDB
     kvGet('widgets_activos').then(data => {
-        window.widgetsActivos = data || [];
-        window.renderWidgets();
+      window.widgetsActivos = data || [];
+      window.renderWidgets();
     });
 
-    const desk = document.getElementById('desktop');
-    if (desk) {
+    const deskEl = document.getElementById('desktop');
+    if (deskEl) {
       const observerDesk = new MutationObserver((mutations) => {
         mutations.forEach(m => {
           if (m.addedNodes.length) {
@@ -3076,7 +3148,7 @@ reloj(); setInterval(reloj, 15000);
           }
         });
       });
-      observerDesk.observe(desk, { childList: true });
+      observerDesk.observe(deskEl, { childList: true });
     }
 
     document.addEventListener('pointerdown', (e) => {
@@ -3086,11 +3158,11 @@ reloj(); setInterval(reloj, 15000);
       else if (e.target.closest('.titlebar') && !e.target.closest('.close')) playSound('move');
     }, true);
 
-    // Cierre con botón derecho natural
+    // Cierre del context menu con botón derecho
     document.addEventListener('pointerdown', (e) => {
-        if (e.button === 2 && typeof cerrarContexto === 'function') {
-            cerrarContexto();
-        }
+      if (e.button === 2 && typeof cerrarContexto === 'function') {
+        cerrarContexto();
+      }
     }, true);
 
     console.log('%c[ExtraFunc] Extensiones y Widgets cargados correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
