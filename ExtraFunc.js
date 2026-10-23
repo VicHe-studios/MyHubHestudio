@@ -88,32 +88,30 @@
 
   // ================= Zoom Dinámico (El Escritorio como una foto) =================
   const setupDynamicZoom = () => {
-    // Tamaño "ideal" base para el que está diseñado MyHub
-    const BASE_WIDTH = 1200;
-    const BASE_HEIGHT = 800;
+    // Tamaño "ideal" base para el que está diseñado MyHub.
+    // ¡Jugá con estos números! Si querés que todo se vea MÁS GRANDE, bajalos (ej. 900x600).
+    // Si querés que se vea más chico y haya más espacio, subilos (ej. 1400x900).
+    const BASE_WIDTH = 1000; 
+    const BASE_HEIGHT = 650;
 
     const applyZoom = () => {
-      // Si estamos en PWA, calculamos el tamaño de la ventana. Si no, usamos el viewport.
       const w = window.innerWidth;
       const h = window.innerHeight;
       
-      // Calculamos cuánto tiene que escalar (achicar o agrandar) para encajar
       const scaleX = w / BASE_WIDTH;
       const scaleY = h / BASE_HEIGHT;
       
-      // Usamos el menor para que nada se corte (siempre entra todo)
+      // Usamos el menor para que nada se corte
       const scale = Math.min(scaleX, scaleY);
 
-      // Aplicamos el zoom al body (afecta a todo el OS: iconos, ventanas, barra)
+      // Aplicamos el zoom
       document.body.style.zoom = scale;
       
-      // Ajuste extra: forzamos al body a ocupar el 100% del espacio virtual escalado
-      // para que el fondo no quede con bordes blancos.
+      // Ajuste para que el fondo no quede con bordes blancos
       document.body.style.width = (100 / scale) + '%';
       document.body.style.height = (100 / scale) + '%';
     };
 
-    // Aplicar al iniciar y al redimensionar
     applyZoom();
     window.addEventListener('resize', applyZoom);
   };
