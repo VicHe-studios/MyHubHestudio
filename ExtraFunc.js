@@ -98,11 +98,12 @@
       const scaleX = w / BASE_WIDTH;
       const scaleY = h / BASE_HEIGHT;
       
-      const scale = Math.min(scaleX, scaleY);
+      // Piso del zoom (0.75) para que no se vuelva microscópico
+      const scale = Math.max(0.75, Math.min(scaleX, scaleY));
 
       document.body.style.zoom = scale;
       
-      // Calcula el espacio virtual para evitar los espacios en blanco (letterboxing)
+      // Evita los espacios en blanco (letterboxing) estirando el lienzo virtual
       const virtualW = Math.max(BASE_WIDTH, w / scale);
       const virtualH = Math.max(BASE_HEIGHT, h / scale);
 
@@ -114,15 +115,37 @@
     window.addEventListener('resize', applyZoom);
   };
 
-  // ================= Iniciar al abrir =================
+  // ================= Iniciar al abrir + Límite físico =================
   const setupWindowBehavior = () => {
     if (!window.matchMedia('(display-mode: standalone)').matches) return;
+
+    // Maximizar al abrir
     setTimeout(() => {
       try {
         window.moveTo(0, 0);
         window.resizeTo(screen.availWidth, screen.availHeight);
       } catch (e) {}
     }, 200);
+
+    // Evitar que se achique más allá de este límite
+    const MIN_WIDTH = 900;
+    const MIN_HEIGHT = 600;
+    let resizeTimeout;
+
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      // Esperamos 100ms para que no pelee mientras el usuario sigue arrastrando
+      resizeTimeout = setTimeout(() => {
+        if (window.outerWidth < MIN_WIDTH || window.outerHeight < MIN_HEIGHT) {
+          try {
+            window.resizeTo(
+              Math.max(window.outerWidth, MIN_WIDTH),
+              Math.max(window.outerHeight, MIN_HEIGHT)
+            );
+          } catch(e) {}
+        }
+      }, 100);
+    });
   };
 
   // ================= Nuevos Botones de Ventana (Recargar y Agrandar) =================
@@ -146,7 +169,6 @@
         if (typeof window._origAcomodar === 'function') window._origAcomodar();
         
         for (const id in window.expandedWins) {
-          // Evaluamos si las variables globales de JsLobby existen para evitar errores
           const _win = typeof win !== 'undefined' ? win : window.win;
           const _minimized = typeof minimized !== 'undefined' ? minimized : window.minimized;
           
