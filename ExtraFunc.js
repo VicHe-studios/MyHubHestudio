@@ -8,6 +8,29 @@
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
+  // Inyectar estilos base para el modal de widgets (por si no están en el CSS global)
+  const inyectarEstilosWidgets = () => {
+    if (document.getElementById('widgets-style')) return;
+    const style = document.createElement('style');
+    style.id = 'widgets-style';
+    style.textContent = `
+      .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+      .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
+      .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
+      .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
+      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: var(--text, #000); }
+      .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted, #666); line-height: 1.4; }
+      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+      .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
+      .extrafunc-modal-btn:active { transform: scale(0.95); }
+      .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
+      .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
+      .extrafunc-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text, #000); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s; }
+      .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
+    `;
+    document.head.appendChild(style);
+  };
+
   let widgetsActivos = []; // Guarda { id, file, size, pos: {left, top} }
   
   // 1. Cargar posiciones guardadas
@@ -123,7 +146,7 @@
     });
   };
 
-  // 4. Panel para elegir qué widgets añadir
+  // 4. Panel para elegir qué widgets añadir (CON FIX DEL REFLOW)
   const abrirPanelWidgets = () => {
     // Buscar todas las apps que tengan widgets en su manifest
     const appsConWidgets = [];
@@ -140,9 +163,9 @@
       return;
     }
 
-    // Crear modal
+    // Crear modal (SIN la clase active de entrada)
     const overlay = document.createElement('div');
-    overlay.className = 'extrafunc-modal-overlay active';
+    overlay.className = 'extrafunc-modal-overlay';
     const modal = document.createElement('div');
     modal.className = 'extrafunc-modal';
     modal.style.width = '400px';
@@ -165,16 +188,29 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
+    
+    // EL TRUCO: Forzar un reflow para que el navegador pinte el estado inicial (opacidad 0, scale 0.95)
+    void overlay.offsetWidth; 
+    
+    // Ahora sí, activamos la animación
+    overlay.classList.add('active');
     refrescarIconos();
 
-    modal.querySelector('.cancel').onclick = () => overlay.remove();
+    // Función unificada para cerrar con animación de salida
+    const cerrarPanel = () => {
+      overlay.classList.remove('active');
+      setTimeout(() => overlay.remove(), 200);
+    };
+
+    modal.querySelector('.cancel').onclick = cerrarPanel;
+    
     modal.querySelectorAll('.extrafunc-btn').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
         widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos: { left: '20px', top: '20px' } });
         guardarWidgets();
         renderWidgets();
-        overlay.remove();
+        cerrarPanel();
         window.MyHub.toast('Widget añadido al escritorio');
       };
     });
@@ -213,6 +249,7 @@
       setTimeout(init, 100);
       return;
     }
+    inyectarEstilosWidgets();
     cargarWidgets();
     console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
   };
