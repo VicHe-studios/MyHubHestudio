@@ -421,7 +421,7 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     observer.observe(menuOps, { childList: true });
   };
 
-  // ================= INTERCEPTOR DE APPS (NO TOCAR KERNEL) =================
+  // ================= INTERCEPTOR DE APPS =================
   let dragStartIcon = null;
   let dragStartPos = null;
 
@@ -441,7 +441,6 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     dragStartIcon = null;
     dragStartPos = null;
 
-    // Esperar a que el kernel haga su magia primero
     setTimeout(() => {
       if (!icon.parentElement) return; 
       const rect = icon.getBoundingClientRect();
@@ -455,11 +454,8 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
       });
 
       if (collision) {
-        // Revertir el icono a su posición original
         icon.style.left = startPos.left;
         icon.style.top = startPos.top;
-
-        // Actualizar en la base de datos
         if (icon.dataset.appId) {
           const id = icon.dataset.appId;
           if (typeof posicionesIconos !== 'undefined') {
@@ -477,7 +473,29 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
       }
     }, 50);
   }, true);
-  // =========================================================================
+
+  // ================= ELIMINACIÓN AUTOMÁTICA DE WIDGETS =================
+  const hookEliminarApp = () => {
+    if (!window.MyHub || !window.MyHub.eliminarApp || window.MyHub._eliminarAppHook) return;
+    
+    const origEliminar = window.MyHub.eliminarApp;
+    window.MyHub.eliminarApp = function(appId) {
+      // 1. Filtrar widgets activos que pertenezcan a esta app
+      const widgetsRestantes = widgetsActivos.filter(w => w.id !== appId);
+      
+      if (widgetsRestantes.length !== widgetsActivos.length) {
+        widgetsActivos = widgetsRestantes;
+        guardarWidgets();
+        renderWidgets();
+        if (window.MyHub.toast) window.MyHub.toast('Widgets asociados eliminados');
+      }
+
+      // 2. Llamar a la función original (que borra el icono y limpia carpetas)
+      return origEliminar.call(this, appId);
+    };
+    
+    window.MyHub._eliminarAppHook = true;
+  };
 
   const init = () => {
     if (!window.MyHub || !getReg()) {
@@ -487,6 +505,7 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     inyectarEstilosWidgets();
     cargarWidgets();
     setupMenuWidgetsDocs();
+    hookEliminarApp(); // <--- Envuelve la función de borrar app
     console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
   };
 
