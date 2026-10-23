@@ -86,11 +86,8 @@
     observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
-  // ================= Zoom Dinámico (El Escritorio como una foto) =================
+  // ================= Zoom Dinámico =================
   const setupDynamicZoom = () => {
-    // Tamaño "ideal" base para el que está diseñado MyHub.
-    // ¡Jugá con estos números! Si querés que todo se vea MÁS GRANDE, bajalos (ej. 900x600).
-    // Si querés que se vea más chico y haya más espacio, subilos (ej. 1400x900).
     const BASE_WIDTH = 1000; 
     const BASE_HEIGHT = 650;
 
@@ -101,32 +98,174 @@
       const scaleX = w / BASE_WIDTH;
       const scaleY = h / BASE_HEIGHT;
       
-      // Usamos el menor para que nada se corte
       const scale = Math.min(scaleX, scaleY);
 
-      // Aplicamos el zoom
       document.body.style.zoom = scale;
       
-      // Ajuste para que el fondo no quede con bordes blancos
-      document.body.style.width = (100 / scale) + '%';
-      document.body.style.height = (100 / scale) + '%';
+      // Calcula el espacio virtual para evitar los espacios en blanco (letterboxing)
+      const virtualW = Math.max(BASE_WIDTH, w / scale);
+      const virtualH = Math.max(BASE_HEIGHT, h / scale);
+
+      document.body.style.width = virtualW + 'px';
+      document.body.style.height = virtualH + 'px';
     };
 
     applyZoom();
     window.addEventListener('resize', applyZoom);
   };
 
-  // ================= Iniciar al abrir (Pantalla Completa sin romper) =================
+  // ================= Iniciar al abrir =================
   const setupWindowBehavior = () => {
     if (!window.matchMedia('(display-mode: standalone)').matches) return;
-
-    // Al abrir, maximizamos la ventana nativa
     setTimeout(() => {
       try {
         window.moveTo(0, 0);
         window.resizeTo(screen.availWidth, screen.availHeight);
       } catch (e) {}
     }, 200);
+  };
+
+  // ================= Nuevos Botones de Ventana (Recargar y Agrandar) =================
+  const setupWindowControls = () => {
+    if (!document.getElementById('win-controls-style')) {
+      const style = document.createElement('style');
+      style.id = 'win-controls-style';
+      style.textContent = `
+        .close.reload-btn:hover { background: var(--accent); color: #fff; transform: scale(1.05); }
+        .close.expand-btn:hover { background: #16a34a; color: #fff; transform: scale(1.05); }
+      `;
+      document.head.appendChild(style);
+    }
+
+    window.expandedWins = window.expandedWins || {};
+
+    // Hookear la función acomodar de JsLobby
+    if (!window._origAcomodar) {
+      window._origAcomodar = window.acomodar;
+      window.acomodar = function() {
+        if (typeof window._origAcomodar === 'function') window._origAcomodar();
+        
+        for (const id in window.expandedWins) {
+          // Evaluamos si las variables globales de JsLobby existen para evitar errores
+          const _win = typeof win !== 'undefined' ? win : window.win;
+          const _minimized = typeof minimized !== 'undefined' ? minimized : window.minimized;
+          
+          if (!_win || !_win[id] || (_minimized && _minimized.has(id))) continue;
+          
+          const appWin = _win[id];
+          const slot = window.expandedWins[id];
+          
+          const G = 18, W = desk.clientWidth, H = desk.clientHeight;
+          const w = (W - G * 4) / 3;
+          
+          if (slot === 'left') {
+            Object.assign(appWin.el.style, { left: G + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
+          } else if (slot === 'center') {
+            Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
+          } else if (slot === 'right') {
+            Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
+          }
+        }
+      };
+    }
+
+    const deskEl = document.getElementById('desktop');
+    if (!deskEl) return;
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node.nodeType === 1 && node.classList.contains('win')) {
+            const titlebar = node.querySelector('.titlebar');
+            if (!titlebar || titlebar.dataset.controlsAdded) return;
+            titlebar.dataset.controlsAdded = 'true';
+
+            const titleSpan = titlebar.querySelector('span');
+            let appId = null;
+            const _registro = typeof registro !== 'undefined' ? registro : window.registro;
+            
+            if (_registro && titleSpan) {
+              const title = titleSpan.textContent;
+              _registro.forEach((app, id) => { if (app.titulo === title) appId = id; });
+            }
+            if (!appId) return;
+
+            // Botón Recargar
+            const reloadBtn = document.createElement('button');
+            reloadBtn.className = 'close reload-btn';
+            reloadBtn.title = 'Recargar ventana';
+            reloadBtn.innerHTML = '<i data-lucide="refresh-cw"></i>';
+            reloadBtn.onclick = (e) => {
+              e.stopPropagation();
+              const body = node.querySelector('.body');
+              const iframe = body.querySelector('iframe');
+              if (iframe) {
+                if (iframe.srcdoc) {
+                  iframe.srcdoc = iframe.srcdoc;
+                } else {
+                  try { iframe.contentWindow.location.reload(); } catch(err) { iframe.src = iframe.src; }
+                }
+              } else {
+                window.MyHub.cerrar(appId);
+                setTimeout(() => window.MyHub.abrir(appId), 50);
+              }
+              window.MyHub.toast('Ventana recargada');
+            };
+
+            // Botón Agrandar
+            const expandBtn = document.createElement('button');
+            expandBtn.className = 'close expand-btn';
+            expandBtn.title = 'Agrandar (2 espacios)';
+            expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
+            expandBtn.onclick = (e) => {
+              e.stopPropagation();
+              
+              const _win = typeof win !== 'undefined' ? win : window.win;
+              const _slots = typeof slots !== 'undefined' ? slots : window.slots;
+              
+              if (!_win || !_win[appId]) return;
+              const appWin = _win[appId];
+              
+              if (window.expandedWins[appId]) {
+                delete window.expandedWins[appId];
+                window.acomodar();
+                expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
+                expandBtn.title = 'Agrandar (2 espacios)';
+              } else {
+                window.expandedWins[appId] = appWin.slot;
+                
+                if (_slots) {
+                  if (appWin.slot === 'left' && _slots.center) window.MyHub.minimizar(_slots.center);
+                  if (appWin.slot === 'center' && _slots.right) window.MyHub.minimizar(_slots.right);
+                  if (appWin.slot === 'right' && _slots.center) window.MyHub.minimizar(_slots.center);
+                  if (appWin.slot === 'center' && !_slots.right && _slots.left) window.MyHub.minimizar(_slots.left);
+                }
+
+                window.acomodar();
+                expandBtn.innerHTML = '<i data-lucide="minimize-2"></i>';
+                expandBtn.title = 'Restaurar tamaño';
+              }
+              if (window.lucide) window.lucide.createIcons();
+            };
+
+            const minimizeBtn = titlebar.querySelector('.minimize');
+            titlebar.insertBefore(expandBtn, minimizeBtn);
+            titlebar.insertBefore(reloadBtn, expandBtn);
+
+            if (window.lucide) window.lucide.createIcons();
+          }
+        });
+        
+        const _win = typeof win !== 'undefined' ? win : window.win;
+        if (_win) {
+          for (const id in window.expandedWins) {
+            if (!_win[id]) delete window.expandedWins[id];
+          }
+        }
+      });
+    });
+
+    observer.observe(deskEl, { childList: true });
   };
 
   // ================= Init =================
@@ -138,9 +277,10 @@
     inyectarEstilosStorage();
     setupStoragePanel();
     setupWindowBehavior();
-    setupDynamicZoom(); // <--- LA SOLUCIÓN
+    setupDynamicZoom();
+    setupWindowControls();
 
-    console.log('%c[ExtraFunc] Zoom Dinámico + PWA cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] Sistema cargado al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
