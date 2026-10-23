@@ -205,33 +205,52 @@
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
         if (isDragging) {
+          // 1. Calcular el Snap al grid
+          let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
+          let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
+
+          // Limitar a los bordes de la pantalla
+          const deskW = document.getElementById('desktop').clientWidth;
+          const deskH = document.getElementById('desktop').clientHeight;
+          const wW = parseFloat(el.style.width);
+          const wH = parseFloat(el.style.height);
+          snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
+          snapY = Math.max(MARGEN, Math.min(snapY, deskH - hSize - MARGEN));
+
+          // 2. Mover visualmente al lugar del snap para calcular colisiones exactas
+          const oldLeft = el.style.left;
+          const oldTop = el.style.top;
+          el.style.left = snapX + 'px';
+          el.style.top = snapY + 'px';
+
+          const snapRect = el.getBoundingClientRect();
           let colision = false;
-          const rectW = el.getBoundingClientRect();
 
-          // Comprobar colisión con iconos
+          // 3. Revisar colisión con iconos (usando geometría real, no matemáticas de grid)
           document.querySelectorAll('.icon').forEach(icon => {
-            const rectI = icon.getBoundingClientRect();
-            // Lógica de intersección de rectángulos
-            if (!(rectW.right <= rectI.left || rectW.left >= rectI.right || rectW.bottom <= rectI.top || rectW.top >= rectI.bottom)) {
+            const iconRect = icon.getBoundingClientRect();
+            if (!(snapRect.right <= iconRect.left || snapRect.left >= iconRect.right || snapRect.bottom <= iconRect.top || snapRect.top >= iconRect.bottom)) {
               colision = true;
             }
           });
 
-          // Comprobar colisión con otros widgets
-          document.querySelectorAll('.widget-container').forEach(other => {
-            if (other === el) return;
-            const rectO = other.getBoundingClientRect();
-            if (!(rectW.right <= rectO.left || rectW.left >= rectO.right || rectW.bottom <= rectO.top || rectW.top >= rectO.bottom)) {
-              colision = true;
-            }
-          });
+          // 4. Revisar colisión con otros widgets
+          if (!colision) {
+            document.querySelectorAll('.widget-container').forEach(other => {
+              if (other === el) return;
+              const otherRect = other.getBoundingClientRect();
+              if (!(snapRect.right <= otherRect.left || snapRect.left >= otherRect.right || snapRect.bottom <= otherRect.top || snapRect.top >= otherRect.bottom)) {
+                colision = true;
+              }
+            });
+          }
 
+          // 5. Resolver
           if (colision) {
-            el.style.left = startLeft + 'px';
-            el.style.top = startTop + 'px';
+            el.style.left = oldLeft;
+            el.style.top = oldTop;
             window.MyHub.toast('Espacio ocupado por otra app o widget');
           } else {
-            // Guardar posición exacta (sin snap)
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
