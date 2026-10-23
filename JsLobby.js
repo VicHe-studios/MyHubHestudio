@@ -549,6 +549,21 @@ function injectStyles() {
 }
 
 // ================= Iconos (folder-aware) =================
+// Celdas de la cuadrícula ocupadas por widgets (los iconos no deben colocarse sobre ellas)
+function celdasDeWidgets() {
+  const ocupadas = new Set();
+  (window.widgetsActivos || []).forEach(w => {
+    if (!w.pos) return;
+    const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+    const c0 = Math.round((parseFloat(w.pos.left) - MARGEN_ICONOS) / GRID_X);
+    const r0 = Math.round((parseFloat(w.pos.top) - MARGEN_ICONOS) / GRID_Y);
+    for (let i = 0; i < ws.cols; i++) {
+      for (let j = 0; j < ws.rows; j++) ocupadas.add(`${c0 + i}-${r0 + j}`);
+    }
+  });
+  return ocupadas;
+}
+
 function renderIconos() {
   const iconsEl = $('icons');
   if (!iconsEl) return;
@@ -572,6 +587,8 @@ function renderIconos() {
 
   const used = new Set();
   const posUpdates = {};
+  const celdasWidget = celdasDeWidgets();
+  const celdaDe = (x, y) => `${Math.round((x - MARGEN) / GX)}-${Math.round((y - MARGEN) / GY)}`;
 
   items.forEach((item) => {
     let savedPos = item.kind === 'app' ? posicionesIconos[item.id] : item.folder.pos;
@@ -580,7 +597,7 @@ function renderIconos() {
     if (savedPos) {
       const sx = parseFloat(savedPos.left), sy = parseFloat(savedPos.top);
       const key = `${sx}-${sy}`;
-      if (!used.has(key) && sy <= maxY && !isNaN(sx) && !isNaN(sy)) {
+      if (!used.has(key) && sy <= maxY && !isNaN(sx) && !isNaN(sy) && !celdasWidget.has(celdaDe(sx, sy))) {
         tx = sx; ty = sy; used.add(key);
       }
     }
@@ -589,7 +606,7 @@ function renderIconos() {
       while (!found) {
         const x = MARGEN + col * GX, y = MARGEN + row * GY;
         const key = `${x}-${y}`;
-        if (!used.has(key)) { tx = x; ty = y; used.add(key); found = true; }
+        if (!used.has(key) && !celdasWidget.has(celdaDe(x, y))) { tx = x; ty = y; used.add(key); found = true; }
         else { row++; if (row >= maxRows) { row = 0; col++; } }
       }
     }
@@ -3212,6 +3229,7 @@ reloj(); setInterval(reloj, 15000);
     kvGet('widgets_activos').then(data => {
       window.widgetsActivos = data || [];
       window.renderWidgets();
+      renderIconos(); // Reubicar iconos que quedaron sobre widgets
     });
 
     const deskEl = document.getElementById('desktop');
