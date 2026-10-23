@@ -9,6 +9,7 @@
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const MARGEN = 16, GX = 100, GY = 110;
+  const OFFSET_Y = 5; // Ajuste para centrar el widget en la celda de 110px
 
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
@@ -56,7 +57,7 @@
     return { cols: 1, rows: 1 };
   };
 
-  // Busca un hueco libre empezando por la columna 1 (para no tapar los primeros iconos)
+  // Busca un hueco libre aplicando el OFFSET_Y
   const findFreeSpot = (size) => {
     const { cols, rows } = getWidgetCells(size);
     const desk = document.getElementById('desktop');
@@ -77,7 +78,7 @@
     widgetsActivos.forEach(w => {
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
-      const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+      const wr = Math.round((parseFloat(w.pos.top) - MARGEN - OFFSET_Y) / GY);
       const wsize = getWidgetCells(w.size);
       for (let i = 0; i < wsize.cols; i++) {
         for (let j = 0; j < wsize.rows; j++) {
@@ -87,7 +88,6 @@
     });
 
     for (let r = 0; r < maxRows; r++) {
-      // Empezamos en columna 1 para no chocar con la barra de iconos principal
       for (let c = 1; c < maxCols; c++) {
         let libre = true;
         for (let i = 0; i < cols; i++) {
@@ -96,15 +96,13 @@
           }
         }
         if (libre) {
-          return { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN}px` };
+          return { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN + OFFSET_Y}px` };
         }
       }
     }
-    // Si no hay hueco, ponlo abajo del todo
     return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN}px` };
   };
 
-  // Comprueba si dos rectángulos chocan
   const checkCollision = (rect1, rect2) => {
     return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
   };
@@ -114,7 +112,6 @@
     if (!layer) {
       layer = document.createElement('div');
       layer.id = 'widgets-layer';
-      // Z-index 2 para estar por encima de los iconos
       layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:2;';
       document.getElementById('desktop').appendChild(layer);
     }
@@ -128,7 +125,7 @@
       const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
       
       el.style.cssText = `
-        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '16px'};
+        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '21px'};
         width: ${wSize}; height: ${hSize}; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
@@ -185,7 +182,6 @@
         };
         reader.readAsText(blob);
       } else {
-        // Si falla, muestra el error en el widget para que sepamos por qué
         iframe.srcdoc = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444; font-size:12px; text-align:center; padding:10px; box-sizing:border-box;">
           <b>Error: Widget no encontrado</b><br>
           <small style="opacity:0.7">${w.file}</small>
@@ -208,7 +204,6 @@
       startX = e.clientX; startY = e.clientY;
       startLeft = parseFloat(el.style.left); startTop = parseFloat(el.style.top);
       
-      // Efecto visual al arrastrar
       el.style.transition = 'none';
       el.style.zIndex = '999'; 
       el.style.transform = 'scale(1.02)';
@@ -225,17 +220,15 @@
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
         
-        // Quitar efecto visual
         el.style.zIndex = '';
         el.style.transform = '';
         el.style.boxShadow = '';
         
         if (isDragging) {
-          // Snap al grid
+          // Snap al grid sumando el OFFSET_Y
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
-          let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
+          let snapY = Math.round((parseFloat(el.style.top) - MARGEN - OFFSET_Y) / GY) * GY + MARGEN + OFFSET_Y;
 
-          // Limites de pantalla (usando offset para evitar errores)
           const deskW = document.getElementById('desktop').clientWidth;
           const deskH = document.getElementById('desktop').clientHeight;
           const wW = el.offsetWidth;
@@ -244,7 +237,6 @@
           snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
           snapY = Math.max(MARGEN, Math.min(snapY, deskH - wH - MARGEN));
 
-          // Colocar temporalmente para medir colisiones
           el.style.transition = 'none';
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
@@ -252,12 +244,10 @@
           const snapRect = el.getBoundingClientRect();
           let colision = false;
 
-          // Chocar con iconos
           document.querySelectorAll('.icon').forEach(icon => {
             if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
           });
 
-          // Chocar con otros widgets
           if (!colision) {
             document.querySelectorAll('.widget-container').forEach(other => {
               if (other === el) return;
@@ -268,7 +258,6 @@
           el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
 
           if (colision) {
-            // Si choca, buscar un lugar seguro
             const safeSpot = findFreeSpot(widgetData.size);
             el.style.left = safeSpot.left;
             el.style.top = safeSpot.top;
@@ -276,7 +265,6 @@
             guardarWidgets();
             window.MyHub.toast('Espacio ocupado. Reubicando...');
           } else {
-            // Si está libre, guardar
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
