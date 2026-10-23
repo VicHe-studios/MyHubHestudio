@@ -56,11 +56,13 @@
     return { cols: 1, rows: 1 };
   };
 
+  // Busca un hueco 100% libre en toda la pantalla
   const findFreeSpot = (size) => {
     const { cols, rows } = getWidgetCells(size);
-    const deskH = document.getElementById('desktop').clientHeight || window.innerHeight - 90;
+    const desk = document.getElementById('desktop');
+    const deskH = desk.clientHeight || window.innerHeight - 90;
     const maxRows = Math.max(1, Math.floor((deskH - MARGEN) / GY));
-    const maxCols = Math.max(1, Math.floor((document.getElementById('desktop').clientWidth - MARGEN) / GX));
+    const maxCols = Math.max(1, Math.floor((desk.clientWidth - MARGEN) / GX));
 
     const ocupadas = new Set();
     
@@ -97,7 +99,12 @@
         }
       }
     }
-    return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN}px` };
+    return { left: `${MARGEN}px`, top: `${MARGEN}px` };
+  };
+
+  // Comprueba colisiones reales en pantalla
+  const checkCollision = (rect1, rect2) => {
+    return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
   };
 
   const renderWidgets = () => {
@@ -105,7 +112,8 @@
     if (!layer) {
       layer = document.createElement('div');
       layer.id = 'widgets-layer';
-      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:0;';
+      // Z-INDEX 2 PARA QUE ESTÉ POR ENCIMA DE LOS ICONOS
+      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:2;';
       document.getElementById('desktop').appendChild(layer);
     }
     layer.innerHTML = '';
@@ -122,7 +130,7 @@
         width: ${wSize}; height: ${hSize}; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
-        overflow: hidden; transition: transform .2s, box-shadow .2s;
+        overflow: hidden; transition: transform .2s, box-shadow .2s, left .2s, top .2s;
         cursor: grab;
       `;
 
@@ -193,6 +201,10 @@
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
       startLeft = parseFloat(el.style.left); startTop = parseFloat(el.style.top);
+      el.style.transition = 'none';
+      el.style.zIndex = '999'; // Lo trae al frente mientras se arrastra
+      el.style.transform = 'scale(1.02)';
+      el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)';
       
       const mover = (ev) => {
         if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3) isDragging = true;
@@ -204,56 +216,63 @@
       const soltar = () => {
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
+        
+        el.style.zIndex = '';
+        el.style.transform = '';
+        el.style.boxShadow = '';
+        
         if (isDragging) {
-          // 1. Calcular el Snap al grid
+          // Snap al grid
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
           let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
 
-          // Limitar a los bordes de la pantalla
+          // Límites de pantalla
           const deskW = document.getElementById('desktop').clientWidth;
           const deskH = document.getElementById('desktop').clientHeight;
           const wW = parseFloat(el.style.width);
           const wH = parseFloat(el.style.height);
           snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
-          snapY = Math.max(MARGEN, Math.min(snapY, deskH - hSize - MARGEN));
+          snapY = Math.max(MARGEN, Math.min(snapY, deskH - wH - MARGEN));
 
-          // 2. Mover visualmente al lugar del snap para calcular colisiones exactas
-          const oldLeft = el.style.left;
-          const oldTop = el.style.top;
+          // Colocar temporalmente en el snap para medir
+          el.style.transition = 'none';
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
 
           const snapRect = el.getBoundingClientRect();
           let colision = false;
 
-          // 3. Revisar colisión con iconos (usando geometría real, no matemáticas de grid)
+          // Revisar colisión con iconos
           document.querySelectorAll('.icon').forEach(icon => {
-            const iconRect = icon.getBoundingClientRect();
-            if (!(snapRect.right <= iconRect.left || snapRect.left >= iconRect.right || snapRect.bottom <= iconRect.top || snapRect.top >= iconRect.bottom)) {
-              colision = true;
-            }
+            if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
           });
 
-          // 4. Revisar colisión con otros widgets
+          // Revisar colisión con otros widgets
           if (!colision) {
             document.querySelectorAll('.widget-container').forEach(other => {
               if (other === el) return;
-              const otherRect = other.getBoundingClientRect();
-              if (!(snapRect.right <= otherRect.left || snapRect.left >= otherRect.right || snapRect.bottom <= otherRect.top || snapRect.top >= otherRect.bottom)) {
-                colision = true;
-              }
+              if (checkCollision(snapRect, other.getBoundingClientRect())) colision = true;
             });
           }
 
-          // 5. Resolver
+          el.style.transition = 'left .2s, top .2s, transform .2s, box-shadow .2s';
+
           if (colision) {
-            el.style.left = oldLeft;
-            el.style.top = oldTop;
-            window.MyHub.toast('Espacio ocupado por otra app o widget');
+            // Si choca, buscamos un hueco libre de forma segura (arregla el estado corrupto)
+            const safeSpot = findFreeSpot(widgetData.size);
+            el.style.left = safeSpot.left;
+            el.style.top = safeSpot.top;
+            widgetData.pos = safeSpot;
+            guardarWidgets();
+            window.MyHub.toast('Espacio ocupado. Reubicando widget...');
           } else {
+            // Si está libre, se guarda
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
+        } else {
+          // Si no se movió, devolvemos los estilos
+          el.style.transition = 'left .2s, top .2s, transform .2s, box-shadow .2s';
         }
       };
       window.addEventListener('pointermove', mover);
