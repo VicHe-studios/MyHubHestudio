@@ -549,6 +549,16 @@ function injectStyles() {
 }
 
 // ================= Iconos (folder-aware) =================
+// Límites de la cuadrícula: misma norma para iconos y widgets
+function limitesCuadricula() {
+  const deskEl = document.getElementById('desktop');
+  const deskH = (deskEl && deskEl.clientHeight) || window.innerHeight - 90;
+  const deskW = (deskEl && deskEl.clientWidth) || window.innerWidth;
+  const maxRows = Math.max(1, Math.floor((deskH - MARGEN_ICONOS) / GRID_Y));
+  const maxCols = Math.max(1, Math.floor((deskW - MARGEN_ICONOS) / GRID_X));
+  return { maxRows, maxCols, maxY: MARGEN_ICONOS + (maxRows - 1) * GRID_Y };
+}
+
 // Celdas de la cuadrícula ocupadas por widgets (los iconos no deben colocarse sobre ellas)
 function celdasDeWidgets() {
   const ocupadas = new Set();
@@ -570,9 +580,7 @@ function renderIconos() {
   iconsEl.innerHTML = '';
 
   const MARGEN = MARGEN_ICONOS, GX = GRID_X, GY = GRID_Y;
-  const deskH = desk.clientHeight || window.innerHeight - 90;
-  const maxRows = Math.max(1, Math.floor((deskH - MARGEN) / GY));
-  const maxY = MARGEN + (maxRows - 1) * GY;
+  const { maxRows, maxY } = limitesCuadricula();
   const inFolder = appsEnCarpetas();
 
   inFolder.forEach(id => { delete posicionesIconos[id]; });
@@ -2890,9 +2898,7 @@ reloj(); setInterval(reloj, 15000);
 
   const findClosestFreeSpot = (size, targetLeft, targetTop, excludeWidget) => {
     const ws = WIDGET_SIZES[size] || WIDGET_SIZES['1x1'];
-    const deskEl = document.getElementById('desktop');
-    const maxRows = Math.max(1, Math.floor((deskEl.clientHeight - MARGEN) / GY));
-    const maxCols = Math.max(1, Math.floor((deskEl.clientWidth - MARGEN) / GX));
+    const { maxRows, maxCols } = limitesCuadricula();
 
     const ocupadas = new Set();
     if (typeof posicionesIconos !== 'undefined') {
@@ -2922,8 +2928,8 @@ reloj(); setInterval(reloj, 15000);
     let bestSpot = null;
     let minDist = Infinity;
 
-    for (let r = 0; r < maxRows; r++) {
-      for (let c = 0; c < maxCols; c++) {
+    for (let r = 0; r + ws.rows <= maxRows; r++) {
+      for (let c = 0; c + ws.cols <= maxCols; c++) {
         let libre = true;
         for (let i = 0; i < ws.cols; i++) {
           for (let j = 0; j < ws.rows; j++) {
@@ -2965,8 +2971,11 @@ reloj(); setInterval(reloj, 15000);
 
       const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
 
+      const topeW = MARGEN_ICONOS + (limitesCuadricula().maxRows - ws.rows) * GRID_Y;
+      const topRaw = parseFloat(w.pos?.top);
+      const topFinal = Math.max(MARGEN_ICONOS, Math.min(isNaN(topRaw) ? 16 : topRaw, topeW));
       el.style.cssText = `
-        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '16px'};
+        position: absolute; left: ${w.pos?.left || '116px'}; top: ${topFinal}px;
         width: ${ws.w}px; height: ${ws.h}px; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
@@ -3096,7 +3105,9 @@ reloj(); setInterval(reloj, 15000);
           const wH = el.offsetHeight;
 
           snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
-          snapY = Math.max(MARGEN, Math.min(snapY, deskH - wH - MARGEN));
+          const wsDrop = WIDGET_SIZES[widgetData.size] || WIDGET_SIZES['1x1'];
+          const topeFila = MARGEN + (limitesCuadricula().maxRows - wsDrop.rows) * GY;
+          snapY = Math.max(MARGEN, Math.min(snapY, topeFila));
 
           // Posición tentativa (instantánea) para medir colisión
           el.style.left = snapX + 'px';
