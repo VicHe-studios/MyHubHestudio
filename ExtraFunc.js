@@ -42,7 +42,7 @@
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
-      /* --- BOTONES DEL MENÚ CONTEXTUAL (CSS Puro) --- */
+      /* --- BOTONES DEL MENÚ CONTEXTUAL --- */
       .extrafunc-btn {
         display: flex; align-items: center; gap: 10px;
         width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
@@ -51,19 +51,11 @@
         cursor: pointer; text-align: left;
         transition: background 0.15s, color 0.15s;
       }
-      .extrafunc-btn:hover {
-        background: var(--accent, #2563eb); 
-        color: #fff;
-      }
-      .extrafunc-btn.danger {
-        color: #ef4444;
-      }
-      .extrafunc-btn.danger:hover {
-        background: #ef4444; 
-        color: #fff;
-      }
+      .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
+      .extrafunc-btn.danger { color: #ef4444; }
+      .extrafunc-btn.danger:hover { background: #ef4444; color: #fff; }
 
-      /* --- MODAL PERSONALIZADO (Confirmaciones) --- */
+      /* --- MODAL PERSONALIZADO --- */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text); }
@@ -81,12 +73,11 @@
     document.head.appendChild(style);
   };
 
-  // ================= 1. MODAL PERSONALIZADO =================
+  // ================= MODAL PERSONALIZADO =================
   const showConfirm = (title, message) => {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'extrafunc-modal-overlay';
-      
       const modal = document.createElement('div');
       modal.className = 'extrafunc-modal';
       modal.innerHTML = `
@@ -97,11 +88,10 @@
           <button class="extrafunc-modal-btn confirm">Aceptar</button>
         </div>
       `;
-      
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
       
-      void overlay.offsetWidth; // Trigger animation
+      void overlay.offsetWidth; 
       overlay.classList.add('active');
 
       const close = (result) => {
@@ -116,20 +106,22 @@
     });
   };
 
-  // ================= 2. ATAJOS DE TECLADO (Ctrl + Shift) =================
+  // ================= 1. ATAJOS DE TECLADO (Shift + Tecla) =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
-        const key = e.key.toUpperCase();
+      // Solo Shift (sin Ctrl, Alt, ni Meta/Windows)
+      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Usamos e.code para detectar la tecla física (evita el problema de Shift+1 que da '!')
+        const code = e.code;
         const winObj = getWin();
 
-        switch (key) {
-          case '1': e.preventDefault(); window.MyHub.abrir('papelera'); break;
-          case '2': e.preventDefault(); window.MyHub.abrir('forge'); break;
-          case '3': e.preventDefault(); window.MyHub.abrir('storhe'); break;
-          case 'M': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
-          case 'C': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
-          case 'D': 
+        switch (code) {
+          case 'Digit1': e.preventDefault(); window.MyHub.abrir('papelera'); break;
+          case 'Digit2': e.preventDefault(); window.MyHub.abrir('forge'); break;
+          case 'Digit3': e.preventDefault(); window.MyHub.abrir('storhe'); break;
+          case 'KeyM': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
+          case 'KeyC': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
+          case 'KeyD': 
             e.preventDefault();
             if (typeof ajustes !== 'undefined' && typeof guardarAjustes !== 'undefined' && typeof aplicarAjustes !== 'undefined') {
               ajustes.modo = ajustes.modo === 'oscuro' ? 'claro' : 'oscuro';
@@ -137,13 +129,13 @@
               window.MyHub.toast(`Modo ${ajustes.modo} activado`);
             }
             break;
-          case 'R': e.preventDefault(); location.reload(); break;
-          case 'N': 
+          case 'KeyR': e.preventDefault(); location.reload(); break;
+          case 'KeyN': 
             e.preventDefault(); 
             const btnCarpeta = document.getElementById('menu-nueva-carpeta');
             if (btnCarpeta) btnCarpeta.click();
             break;
-          case 'S':
+          case 'KeyS':
             e.preventDefault();
             document.getElementById('inicio').click();
             setTimeout(() => {
@@ -151,17 +143,17 @@
               for (let op of ops) { if (op.textContent.includes('Configuración')) op.click(); }
             }, 50);
             break;
-          case 'F':
+          case 'KeyF':
             e.preventDefault();
             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
             else document.exitFullscreen();
             break;
         }
       }
-    });
+    }, true); // Usamos 'true' para que se ejecute antes de que algún iframe lo bloquee
   };
 
-  // ================= 3. MINIATURAS EN LA TASKBAR =================
+  // ================= 2. MINIATURAS EN LA TASKBAR =================
   const setupMiniaturas = () => {
     if (document.getElementById('task-preview')) return;
     const reg = getReg();
@@ -212,7 +204,7 @@
     });
   };
 
-  // ================= 4. MENÚ CONTEXTUAL EXTENDIDO =================
+  // ================= 3. MENÚ CONTEXTUAL EXTENDIDO =================
   const setupContextMenuExtendido = () => {
     let targetAppId = null;
 
@@ -240,12 +232,10 @@
             const app = getReg().get(targetAppId);
             if (!app) return;
 
-            // Separador
             const hr = document.createElement('hr');
             hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
             menu.appendChild(hr);
 
-            // Función auxiliar para crear los botones sin errores de hover
             const createBtn = (icon, text, isDanger, action) => {
               const btn = document.createElement('button');
               btn.className = `extrafunc-btn ${isDanger ? 'danger' : ''}`;
@@ -258,7 +248,6 @@
               return btn;
             };
 
-            // Botón Eliminar
             const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
               const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
               if (ok) {
@@ -267,7 +256,6 @@
               }
             });
 
-            // Botón Limpiar Datos
             const btnClear = createBtn('database', 'Limpiar Datos', true, async () => {
               const ok = await showConfirm('Limpiar Datos', `¿Borrar TODA la caché, notas y configuraciones de "${app.titulo}"?`);
               if (ok) {
