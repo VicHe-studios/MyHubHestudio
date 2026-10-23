@@ -2555,7 +2555,7 @@ reloj(); setInterval(reloj, 15000);
     sndInstance = new Snd();
     sndInstance.load(Snd.KITS.SND01).then(() => {
       sndReady = true;
-      console.log('[ExtraFunc] Kit de sonidos snd-lib cargado.');
+      console.log('[ExtraFunc] Kit de sonidos snd-lib cargado. Sonidos disponibles:', Object.keys(Snd.SOUNDS || {}));
     }).catch(e => console.error('[ExtraFunc] Error cargando snd-lib, usando respaldo:', e));
   } else {
     console.warn('[ExtraFunc] snd-lib no está cargada: usando sonidos de respaldo (Web Audio).');
@@ -2565,15 +2565,18 @@ reloj(); setInterval(reloj, 15000);
     if (!sonidosActivos) return;
     try {
       if (sndInstance && sndReady) {
-        let soundToPlay = Snd.SOUNDS.TAP;
-        switch (type) {
-          case 'open': soundToPlay = Snd.SOUNDS.SWITCH; break;
-          case 'close': soundToPlay = Snd.SOUNDS.SWOOSH; break;
-          case 'minimize': soundToPlay = Snd.SOUNDS.HOVER; break;
-          case 'start': soundToPlay = Snd.SOUNDS.SUCCESS; break;
-          case 'move': soundToPlay = Snd.SOUNDS.CLICK; break;
+        // Solo se usan nombres que realmente existen en el kit; si no, respaldo Web Audio
+        const nombres = {
+          open: ['SWITCH'], close: ['SWOOSH'], minimize: ['HOVER'],
+          start: ['SUCCESS'], move: ['CLICK'], click: ['TAP', 'CLICK']
+        };
+        const candidatos = nombres[type] || nombres.click;
+        const clave = candidatos.find(n => Snd.SOUNDS && Snd.SOUNDS[n] !== undefined);
+        if (clave) {
+          sndInstance.play(Snd.SOUNDS[clave]);
+        } else {
+          tocarTono(type);
         }
-        sndInstance.play(soundToPlay);
       } else {
         tocarTono(type);
       }
