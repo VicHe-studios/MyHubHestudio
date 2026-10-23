@@ -47,7 +47,6 @@
     };
     window.aplicarAjustes._pwaHook = true;
 
-    // Valor inicial al cargar
     const color = (typeof COLORES !== 'undefined' && typeof ajustes !== 'undefined' && COLORES[ajustes.color])
       || '#2563eb';
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -114,14 +113,28 @@
     observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
-  // ================= Tamaño Mínimo de Ventana (PWA) =================
-  const setupMinWindowSize = () => {
+  // ================= Comportamiento de Ventana (Maximizar + Tamaño Mínimo) =================
+  const setupWindowBehavior = () => {
+    // Solo aplicamos esto si está corriendo como PWA instalada
     if (!window.matchMedia('(display-mode: standalone)').matches) return;
 
     const MIN_WIDTH = 900;
     const MIN_HEIGHT = 600;
     let resizeTimeout;
 
+    // 1. Maximizar al abrir (respetando la barra de tareas)
+    // Usamos un pequeño delay para darle tiempo a Windows a crear el marco
+    setTimeout(() => {
+      try {
+        window.moveTo(0, 0);
+        // availWidth y availHeight excluyen la barra de tareas del SO
+        window.resizeTo(screen.availWidth, screen.availHeight);
+      } catch (e) {
+        console.warn('El navegador bloqueó el maximizado automático.');
+      }
+    }, 150);
+
+    // 2. Evitar que se achique más del límite (con rebote suave)
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
@@ -131,11 +144,9 @@
               Math.max(window.outerWidth, MIN_WIDTH),
               Math.max(window.outerHeight, MIN_HEIGHT)
             );
-          } catch (e) {
-            // Si el navegador lo bloquea, el CSS min-width/min-height del LobbyStyle.css lo contiene.
-          }
+          } catch (e) {}
         }
-      }, 150);
+      }, 500); // 500ms para que no pelee mientras arrastrás el mouse
     });
   };
 
@@ -147,9 +158,9 @@
     hookThemeColor();
     inyectarEstilosStorage();
     setupStoragePanel();
-    setupMinWindowSize();
+    setupWindowBehavior(); // <--- Función actualizada
 
-    console.log('%c[ExtraFunc] PWA + Storage + Tamaño cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] PWA + Storage + Ventana cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
