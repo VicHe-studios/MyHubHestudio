@@ -29,34 +29,26 @@
   };
 
   // ================= SISTEMA DE SONIDO (snd-lib) =================
-  // Instancia global de sonido
   let sndInstance = null;
 
-  // Inicializamos la instancia de Snd si la clase existe
   if (typeof Snd !== 'undefined') {
     sndInstance = new Snd();
-    // Cargamos el kit de sonidos. Es una promesa.
-    sndInstance.load(Snd.KITS.SND01).then(() => {
-        console.log('[ExtraFunc] Kit de sonidos cargado correctamente.');
-    }).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
-  } else {
-    console.warn('[ExtraFunc] La librería Snd no está disponible.');
+    sndInstance.load(Snd.KITS.SND01).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
   }
 
   const playSound = (type) => {
-    if (!sonidosActivos) return;
-    if (!sndInstance) return; // Si no se inicializó, no hacer nada.
+    if (!sonidosActivos || !sndInstance) return;
 
     try {
-      // Mapeo de acciones a sonidos de la librería Snd
-      switch (type) {
-        case 'open':    sndInstance.play(Snd.SOUNDS.OPEN); break;
-        case 'close':   sndInstance.play(Snd.SOUNDS.CAUTION); break;
-        case 'minimize':sndInstance.play(Snd.SOUNDS.TAP); break;
-        case 'start':   sndInstance.play(Snd.SOUNDS.CELEBRATION); break;
-        case 'move':    sndInstance.play(Snd.SOUNDS.TAP); break;
-        case 'click':   sndInstance.play(Snd.SOUNDS.TAP); break;
-      }
+      let soundToPlay = Snd.SOUNDS.TAP; // Fallback por defecto
+
+      // Asignación segura verificando si el sonido existe en la librería
+      if (type === 'open' && Snd.SOUNDS.OPEN) soundToPlay = Snd.SOUNDS.OPEN;
+      else if (type === 'close' && Snd.SOUNDS.CLOSE) soundToPlay = Snd.SOUNDS.CLOSE;
+      else if (type === 'minimize' && Snd.SOUNDS.MINIMIZE) soundToPlay = Snd.SOUNDS.MINIMIZE;
+      else if (type === 'start' && Snd.SOUNDS.SUCCESS) soundToPlay = Snd.SOUNDS.SUCCESS;
+      
+      sndInstance.play(soundToPlay);
     } catch(e) {
       console.error('Error al reproducir sonido:', e);
     }
@@ -516,32 +508,34 @@
     setupContextMenuExtendido();
     setupConfigInjection();
 
-    // Enganchar sonidos
-    const origAbrir = window.MyHub.abrir;
-    window.MyHub.abrir = function(id) {
-      playSound('open');
-      return origAbrir.apply(this, arguments);
-    };
-
-    const origCerrar = window.MyHub.cerrar;
-    window.MyHub.cerrar = function(id) {
-      playSound('close');
-      return origCerrar.apply(this, arguments);
-    };
-
-    const origMinimizar = window.MyHub.minimizar;
-    window.MyHub.minimizar = function(id) {
-      playSound('minimize');
-      return origMinimizar.apply(this, arguments);
-    };
-
-    const btnInicio = document.getElementById('inicio');
-    if (btnInicio) {
-      btnInicio.addEventListener('pointerdown', () => playSound('start'));
+    // --- NUEVO SISTEMA DE SONIDOS BASADO EN EL DOM ---
+    
+    // 1. Sonido al abrir app (detecta cuando se inyecta un .win en el DOM)
+    const desk = document.getElementById('desktop');
+    if (desk) {
+      const observerDesk = new MutationObserver((mutations) => {
+        mutations.forEach(m => {
+          if (m.addedNodes.length) {
+            m.addedNodes.forEach(node => {
+              if (node.classList && node.classList.contains('win')) {
+                playSound('open');
+              }
+            });
+          }
+        });
+      });
+      observerDesk.observe(desk, { childList: true });
     }
 
+    // 2. Sonidos de interacción en el DOM
     document.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.titlebar') && !e.target.closest('.close')) {
+      if (e.target.closest('.close.minimize')) {
+        playSound('minimize');
+      } else if (e.target.closest('.close:not(.minimize)')) {
+        playSound('close');
+      } else if (e.target.closest('#inicio')) {
+        playSound('start');
+      } else if (e.target.closest('.titlebar') && !e.target.closest('.close')) {
         playSound('move');
       }
     }, true);
