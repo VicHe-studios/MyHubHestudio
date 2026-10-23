@@ -376,21 +376,24 @@ function injectStyles() {
       border-right: 1px solid var(--line); align-items: center;
     }
     #quicklaunch:empty { display: none; }
+
+    /* QUICK LAUNCH (Cerrada / Fijada) */
     .quick-btn {
-      width: 38px; height: 38px; border: none; border-radius: 10px;
-      background: transparent; color: var(--text); cursor: pointer; padding: 0;
+      width: 42px; height: 42px; border: none; border-radius: 10px;
+      background: transparent; color: var(--muted); cursor: pointer; padding: 0;
       display: flex; align-items: center; justify-content: center;
-      transition: background .15s, color .15s, transform .15s var(--ease-spring);
+      transition: background .15s, color .15s, transform .15s;
     }
-    .quick-btn:hover { background: var(--accent-soft); color: var(--accent); }
+    .quick-btn:hover { background: var(--field); color: var(--text); }
     .quick-btn:active { transform: scale(.9); }
     .quick-btn svg { width: 20px; height: 20px; }
 
+    /* STATUS PILL (Plano) */
     .status-pill {
       display: flex; align-items: center; gap: 12px;
-      background: var(--accent-soft); border: 1px solid var(--accent-line);
+      background: var(--field); border: 1.5px solid var(--line);
       border-radius: 12px; padding: 6px 14px;
-      font-size: 13px; font-weight: 600; color: var(--accent);
+      font-size: 13px; font-weight: 600; color: var(--text);
       margin-left: auto; font-variant-numeric: tabular-nums;
     }
     .status-item { display: flex; align-items: center; gap: 6px; }
@@ -406,6 +409,27 @@ function injectStyles() {
 
     .close.minimize:hover { background: #f59e0b; color: #fff; }
 
+    /* MINIMIZADA (Punteado para denotar que está oculta) */
+    .task.minimized {
+      opacity: 0.7;
+      padding: 0 !important;
+      width: 42px !important;
+      min-width: 42px;
+      height: 42px;
+      justify-content: center;
+      border-radius: 10px;
+      background: transparent;
+      border: 1.5px dashed var(--muted);
+      color: var(--muted);
+    }
+    .task.minimized:hover {
+      opacity: 1;
+      background: var(--field);
+      border: 1.5px solid var(--line);
+      color: var(--text);
+    }
+
+    /* Folder styles */
     .icon.folder-icon .ico { position: relative; overflow: hidden; padding: 6px; }
     .folder-previews {
       display: grid;
