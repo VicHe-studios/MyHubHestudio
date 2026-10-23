@@ -21,13 +21,6 @@
       }
       .toast { animation: dropInFixed .3s var(--ease-out) !important; }
 
-      /* SELECCIÓN MÚLTIPLE */
-      .icon.selected {
-        background: rgba(255, 255, 255, 0.15) !important;
-        outline: 2px solid var(--accent) !important;
-        border-radius: 12px;
-      }
-
       .widget-container {
         user-select: none;
         -webkit-user-select: none;
@@ -368,13 +361,16 @@
     });
   };
 
-  // ================= GESTIÓN DE MENÚ CONTEXTUAL Y DOBLE CLIC =================
+  // ================= GESTIÓN DE MENÚ CONTEXTUAL =================
   document.addEventListener('contextmenu', (e) => {
-    // 1. Evitar el menú nativo de Chrome en todo el escritorio
+    // 1. EVITAR QUE SE INYECTE SI ESTAMOS EN UNA CARPETA (MODAL)
+    if (e.target.closest('#modal')) return;
+
+    // 2. Evitar el menú nativo de Chrome en el escritorio
     e.preventDefault(); 
     
-    // 2. No mostrar el menú de widgets si estamos en un icono, ventana, taskbar, widget o MODAL (carpeta)
-    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container') || e.target.closest('#modal')) return;
+    // 3. No mostrar el menú de widgets si estamos en un icono, ventana o taskbar
+    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
     
     setTimeout(() => {
       const menus = document.querySelectorAll('div[style*="z-index: 500"]');
@@ -396,81 +392,6 @@
         refrescarIconos();
       }
     }, 20);
-  }, true);
-
-  // ================= MULTI-SELECCIÓN Y ARRASTRE GRUPAL =================
-  let selectedIcons = [];
-  let groupDragStart = { x: 0, y: 0 };
-  let groupDragData = {};
-
-  document.addEventListener('pointerdown', (e) => {
-    const icon = e.target.closest('.icon');
-    if (icon) {
-      if (e.ctrlKey || e.metaKey) {
-        icon.classList.toggle('selected');
-      } else if (!icon.classList.contains('selected')) {
-        document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
-        icon.classList.add('selected');
-      }
-      
-      selectedIcons = Array.from(document.querySelectorAll('.icon.selected'));
-      
-      // Preparar datos para arrastre grupal
-      groupDragStart = { x: e.clientX, y: e.clientY };
-      groupDragData = {};
-      selectedIcons.forEach(i => {
-        const id = i.dataset.appId || i.dataset.folderId;
-        groupDragData[id] = { el: i, left: parseFloat(i.style.left), top: parseFloat(i.style.top) };
-      });
-      
-    } else if (!e.target.closest('.win') && !e.target.closest('.menu') && !e.target.closest('#taskbar') && !e.target.closest('#modal')) {
-      // Si se hace clic en el escritorio vacío, deseleccionar todo
-      document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
-      selectedIcons = [];
-    }
-  }, true);
-
-  // Interceptar el movimiento para mover el grupo
-  document.addEventListener('pointermove', (e) => {
-    if (!groupDragStart.x || selectedIcons.length < 2) return;
-    const dx = e.clientX - groupDragStart.x;
-    const dy = e.clientY - groupDragStart.y;
-    
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-      selectedIcons.forEach(i => {
-        if (i === e.target.closest('.icon')) return; // El icono principal ya lo mueve JsLobby
-        const id = i.dataset.appId || i.dataset.folderId;
-        const data = groupDragData[id];
-        if (data) {
-          data.el.style.left = (data.left + dx) + 'px';
-          data.el.style.top = (data.top + dy) + 'px';
-        }
-      });
-    }
-  }, true);
-
-  // Al soltar, guardar las posiciones de los demás iconos
-  document.addEventListener('pointerup', (e) => {
-    if (groupDragStart.x && selectedIcons.length > 1) {
-      const dx = e.clientX - groupDragStart.x;
-      const dy = e.clientY - groupDragStart.y;
-      
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        selectedIcons.forEach(i => {
-          if (i === e.target.closest('.icon')) return; // El principal lo guarda el kernel
-          const id = i.dataset.appId;
-          if (id && typeof posicionesIconos !== 'undefined') {
-            posicionesIconos[id] = { left: i.style.left, top: i.style.top };
-          }
-        });
-        if (typeof kvSet === 'function') kvSet('posiciones_iconos', posicionesIconos);
-        
-        // Opcional: deseleccionar después de mover
-        document.querySelectorAll('.icon').forEach(i => i.classList.remove('selected'));
-        selectedIcons = [];
-      }
-    }
-    groupDragStart = { x: 0, y: 0 };
   }, true);
 
   // ================= INTERCEPTOR DE COLISIONES (APPS SOBRE WIDGETS) =================
