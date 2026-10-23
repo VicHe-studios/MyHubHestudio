@@ -1,5 +1,5 @@
 // ============================================================================
-// ExtraFunc.js - Extensiones del Sistema (Atajos + Menú + Miniaturas)
+// ExtraFunc.js - Extensiones del Sistema (Atajos, Miniaturas y Menús)
 // ============================================================================
 
 (function() {
@@ -8,7 +8,6 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
   
-  // Accesores seguros a las variables internas de JsLobby
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const getWin = () => window.win || (typeof win !== 'undefined' ? win : null);
 
@@ -23,7 +22,7 @@
     setupMiniaturas();
     setupContextMenuExtendido();
     
-    console.log('%c[ExtraFunc] Extensiones cargadas', 'color: #16a34a; font-weight: bold;');
+    console.log('%c[ExtraFunc] Extensiones cargadas correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   const inyectarEstilos = () => {
@@ -32,7 +31,7 @@
     style.id = 'extrafunc-style';
     style.textContent = `
       /* --- MINIATURAS EN TASKBAR --- */
-      #task-preview { position: fixed; z-index: 1000; width: 200px; background: var(--glass, #fff); border: 1.5px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 12px; display: none; flex-direction: column; gap: 10px; color: var(--text); opacity: 0; transform: translateY(10px); transition: opacity 0.15s, transform 0.15s; pointer-events: auto; }
+      #task-preview { position: fixed; z-index: 1000; width: 200px; background: var(--glass, #fff); border: 1.5px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 12px; display: none; flex-direction: column; gap: 10px; color: var(--text); opacity: 0; transform: translateY(10px); transition: opacity 0.15s, transform 0.15s; pointer-events: auto; backdrop-filter: blur(20px); }
       #task-preview.active { display: flex; opacity: 1; transform: translateY(0); }
       .preview-header { display: flex; align-items: center; gap: 10px; }
       .preview-icon { width: 32px; height: 32px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; }
@@ -42,51 +41,91 @@
       .preview-close:hover { background: #ef4444; color: #fff; }
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
+
+      /* --- MODAL PERSONALIZADO (Confirmaciones) --- */
+      .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+      .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
+      .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text); }
+      .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
+      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: var(--text); }
+      .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+      .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
+      .extrafunc-modal-btn:active { transform: scale(0.95); }
+      .extrafunc-modal-btn.cancel { background: var(--field); color: var(--text); border: 1px solid var(--line); }
+      .extrafunc-modal-btn.cancel:hover { background: var(--card); }
+      .extrafunc-modal-btn.confirm { background: #ef4444; color: #fff; }
+      .extrafunc-modal-btn.confirm:hover { filter: brightness(1.1); }
     `;
     document.head.appendChild(style);
   };
 
-  // ================= 1. ATAJOS DE TECLADO =================
+  // ================= 1. MODAL PERSONALIZADO =================
+  const showConfirm = (title, message) => {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'extrafunc-modal-overlay';
+      
+      const modal = document.createElement('div');
+      modal.className = 'extrafunc-modal';
+      modal.innerHTML = `
+        <h3>${esc(title)}</h3>
+        <p>${esc(message)}</p>
+        <div class="extrafunc-modal-actions">
+          <button class="extrafunc-modal-btn cancel">Cancelar</button>
+          <button class="extrafunc-modal-btn confirm">Aceptar</button>
+        </div>
+      `;
+      
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      
+      // Forzar reflow para la animación
+      void overlay.offsetWidth;
+      overlay.classList.add('active');
+
+      const close = (result) => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+        resolve(result);
+      };
+
+      modal.querySelector('.cancel').onclick = () => close(false);
+      modal.querySelector('.confirm').onclick = () => close(true);
+      overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    });
+  };
+
+  // ================= 2. ATAJOS DE TECLADO (Ctrl + Shift) =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
-      // Solo si se presiona Alt y no hay otros modificadores
-      if (e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
-        const key = e.key.toLowerCase();
+      // Usamos Ctrl + Shift para no chocar con los atajos del navegador
+      if (e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+        const key = e.key.toUpperCase();
         const reg = getReg();
         const winObj = getWin();
 
         switch (key) {
-          case '1':
-            e.preventDefault(); window.MyHub.abrir('papelera'); break;
-          case '2':
-            e.preventDefault(); window.MyHub.abrir('forge'); break;
-          case '3':
-            e.preventDefault(); window.MyHub.abrir('storhe'); break;
-          case 'm': // Minimize all
-            e.preventDefault(); 
-            if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); 
-            break;
-          case 'c': // Close all
-            e.preventDefault(); 
-            if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); 
-            break;
-          case 'd': // Dark mode
+          case '1': e.preventDefault(); window.MyHub.abrir('papelera'); break;
+          case '2': e.preventDefault(); window.MyHub.abrir('forge'); break;
+          case '3': e.preventDefault(); window.MyHub.abrir('storhe'); break;
+          case 'M': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
+          case 'C': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
+          case 'D': 
             e.preventDefault();
             if (typeof ajustes !== 'undefined' && typeof guardarAjustes !== 'undefined' && typeof aplicarAjustes !== 'undefined') {
               ajustes.modo = ajustes.modo === 'oscuro' ? 'claro' : 'oscuro';
-              guardarAjustes();
-              aplicarAjustes();
+              guardarAjustes(); aplicarAjustes();
               window.MyHub.toast(`Modo ${ajustes.modo} activado`);
             }
             break;
-          case 'r': // Reload
-            e.preventDefault(); location.reload(); break;
-          case 'n': // New Folder
+          case 'R': e.preventDefault(); location.reload(); break;
+          case 'N': 
             e.preventDefault(); 
             const btnCarpeta = document.getElementById('menu-nueva-carpeta');
             if (btnCarpeta) btnCarpeta.click();
             break;
-          case 's': // Settings
+          case 'S':
             e.preventDefault();
             document.getElementById('inicio').click();
             setTimeout(() => {
@@ -94,20 +133,17 @@
               for (let op of ops) { if (op.textContent.includes('Configuración')) op.click(); }
             }, 50);
             break;
-          case 'f': // Fullscreen
+          case 'F':
             e.preventDefault();
-            if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen().catch(err => console.log(err));
-            } else {
-              if (document.exitFullscreen) document.exitFullscreen();
-            }
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+            else document.exitFullscreen();
             break;
         }
       }
     });
   };
 
-  // ================= 2. MINIATURAS EN LA TASKBAR =================
+  // ================= 3. MINIATURAS EN LA TASKBAR =================
   const setupMiniaturas = () => {
     if (document.getElementById('task-preview')) return;
     const reg = getReg();
@@ -158,85 +194,88 @@
     });
   };
 
-  // ================= 3. MENÚ CONTEXTUAL EXTENDIDO =================
+  // ================= 4. MENÚ CONTEXTUAL EXTENDIDO =================
   const setupContextMenuExtendido = () => {
-    const reg = getReg();
+    let targetAppId = null;
 
-    // Usamos captura (true) para interceptar el clic antes que JsLobby
+    // Capturamos el clic derecho antes de que JsLobby lo procese
     document.addEventListener('contextmenu', (e) => {
-      const icon = e.target.closest('.icon[data-app-id]');
-      if (!icon) return; // Si no es una app, ignoramos
-
-      const appId = icon.dataset.appId;
-      const app = reg ? reg.get(appId) : null;
-      if (!app) return;
-
-      // NO hacemos preventDefault ni stopPropagation.
-      // Dejamos que JsLobby cree su menú original.
+      targetAppId = null;
       
-      // Esperamos un instante a que JsLobby termine de dibujar su menú en el DOM
-      setTimeout(() => {
-        // Buscamos el menú que acaba de crear JsLobby (tiene z-index 500)
-        const menus = document.querySelectorAll('div[style*="z-index: 500"]');
-        const menu = menus[menus.length - 1];
-        
-        // Si lo encontramos y no le hemos añadido nuestras cosas, lo hacemos
-        if (menu && !menu.querySelector('.extrafunc-btn')) {
-          
-          // Añadir un separador visual
-          const hr = document.createElement('hr');
-          hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
-          menu.appendChild(hr);
-
-          // Función para crear los botones idénticos a los de JsLobby
-          const addBtn = (iconName, text, isDanger, action) => {
-            const b = document.createElement('button');
-            b.className = 'extrafunc-btn';
-            b.style.cssText = `
-              display: flex; align-items: center; gap: 10px;
-              width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
-              background: transparent; color: ${isDanger ? '#ef4444' : 'inherit'};
-              font: inherit; font-size: 13px; font-weight: 500;
-              cursor: pointer; text-align: left;
-              transition: background 0.15s, color 0.15s;
-            `;
-            b.onmouseover = () => { b.style.background = isDanger ? '#ef4444' : 'var(--accent, #2563eb)'; b.style.color = '#fff'; };
-            b.onmouseout = () => { b.style.background = 'transparent'; b.style.color = isDanger ? '#ef4444' : 'inherit'; };
-            b.innerHTML = `<i data-lucide="${iconName}"></i><span>${esc(text)}</span>`;
-            
-            b.onclick = async () => {
-              // Cerramos el menú
-              if (typeof cerrarContexto === 'function') cerrarContexto();
-              else {
-                const backdrop = document.querySelector('div[style*="z-index: 499"]');
-                if (backdrop) backdrop.remove();
-                menu.remove();
-              }
-              await action();
-            };
-            menu.appendChild(b);
-          };
-
-          // Agregamos nuestras dos opciones destructivas
-          addBtn('trash-2', 'Eliminar App', true, async () => {
-            if (confirm(`¿Eliminar "${app.titulo}" del sistema?`)) {
-              await window.MyHub.eliminarApp(appId);
-              window.MyHub.toast('App eliminada');
-            }
-          });
-
-          addBtn('database', 'Limpiar Datos de App', true, async () => {
-            if (confirm(`¿Borrar TODOS los datos guardados de "${app.titulo}"?`)) {
-              Object.keys(localStorage).forEach(k => { if (k.includes(appId)) localStorage.removeItem(k); });
-              const dbs = await indexedDB.databases();
-              for (let db of dbs) { if (db.name && db.name.includes(appId)) indexedDB.deleteDatabase(db.name); }
-              window.MyHub.toast(`Datos de "${app.titulo}" eliminados`);
-            }
-          });
-
-          refrescarIconos();
+      // Caso 1: Icono en el escritorio
+      const deskIcon = e.target.closest('.icon[data-app-id]');
+      if (deskIcon) {
+        targetAppId = deskIcon.dataset.appId;
+      } 
+      // Caso 2: App dentro de una carpeta (el modal)
+      else {
+        const folderItem = e.target.closest('.folder-item');
+        if (folderItem) {
+          const title = folderItem.querySelector('span').textContent;
+          const reg = getReg();
+          if (reg) reg.forEach((app, id) => { if (app.titulo === title) targetAppId = id; });
         }
-      }, 10); // Un pequeño delay para asegurar que JsLobby ya lo creó
+      }
+
+      // Si encontramos una app válida, esperamos a que JsLobby dibuje su menú
+      if (targetAppId) {
+        setTimeout(() => {
+          const menus = document.querySelectorAll('div[style*="z-index: 500"]');
+          const menu = menus[menus.length - 1]; // El último menú creado
+          
+          if (menu && !menu.querySelector('.extrafunc-btn')) {
+            const app = getReg().get(targetAppId);
+            if (!app) return;
+
+            // Separador
+            const hr = document.createElement('hr');
+            hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
+            menu.appendChild(hr);
+
+            // Botón: Eliminar App
+            const btnDelete = document.createElement('button');
+            btnDelete.className = 'extrafunc-btn';
+            btnDelete.style.cssText = `display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: #ef4444; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: 0.15s;`;
+            btnDelete.onmouseover = () => { btnDelete.style.background = '#ef4444'; btnDelete.style.color = '#fff'; };
+            btnDelete.onmouseout = () => { btnDelete.style.background = 'transparent'; btnDelete.style.color = '#ef4444'; };
+            btnDelete.innerHTML = `<i data-lucide="trash-2"></i><span>Eliminar App</span>`;
+            btnDelete.onclick = async () => {
+              if (typeof cerrarContexto === 'function') cerrarContexto();
+              else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
+              
+              const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
+              if (ok) {
+                await window.MyHub.eliminarApp(targetAppId);
+                window.MyHub.toast('App eliminada');
+              }
+            };
+
+            // Botón: Limpiar Datos
+            const btnClear = document.createElement('button');
+            btnClear.className = 'extrafunc-btn';
+            btnClear.style.cssText = btnDelete.style.cssText;
+            btnClear.onmouseover = btnDelete.onmouseover;
+            btnClear.onmouseout = btnDelete.onmouseout;
+            btnClear.innerHTML = `<i data-lucide="database"></i><span>Limpiar Datos</span>`;
+            btnClear.onclick = async () => {
+              if (typeof cerrarContexto === 'function') cerrarContexto();
+              else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
+              
+              const ok = await showConfirm('Limpiar Datos', `¿Borrar TODA la caché, notas y configuraciones de "${app.titulo}"?`);
+              if (ok) {
+                Object.keys(localStorage).forEach(k => { if (k.includes(targetAppId)) localStorage.removeItem(k); });
+                const dbs = await indexedDB.databases();
+                for (let db of dbs) { if (db.name && db.name.includes(targetAppId)) indexedDB.deleteDatabase(db.name); }
+                window.MyHub.toast(`Datos de "${app.titulo}" eliminados`);
+              }
+            };
+
+            menu.appendChild(btnDelete);
+            menu.appendChild(btnClear);
+            refrescarIconos();
+          }
+        }, 20);
+      }
     }, true);
   };
 
