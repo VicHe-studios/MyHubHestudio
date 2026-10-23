@@ -62,6 +62,13 @@ html, body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+
+/* NUEVO: Fuerza un tamaño mínimo para que la interfaz no se rompa */
+body {
+  min-width: 900px;
+  min-height: 600px;
+}
+
 .hidden { display: none !important; }
 
 /* ================= Keyframes Esenciales ================= */
@@ -249,8 +256,8 @@ body.con-fondo #desktop::before { opacity: 0; }
   padding: 0 14px; border-radius: var(--radius-xl);
   background: var(--bar);
   border: 1.5px solid var(--line);
-  box-shadow: var(--shadow-xl); /* Barra con sombra exterior */
-  backdrop-filter: blur(24px) saturate(1.6); /* Efecto cristal */
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(24px) saturate(1.6);
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
 }
 
@@ -267,7 +274,6 @@ body.con-fondo #desktop::before { opacity: 0; }
 
 #tasks { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 
-/* 1. APP ABIERTA (No enfocada) - Fondo sólido plano */
 .task {
   position: relative;
   width: 42px; height: 42px;
@@ -289,16 +295,13 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 .task:active { transform: scale(.93); }
 
-/* 2. APP ACTIVA (Enfocada) - Color acento sólido SIN SOMBRAS */
 .task.active {
   background: var(--accent); 
   color: #fff;
   border-color: var(--accent);
-  /* Eliminado cualquier box-shadow aquí */
 }
 .task.active svg { color: #fff; }
 
-/* 3. APP MINIMIZADA - Borde punteado indicando que está oculta */
 .task.minimized {
   background: transparent;
   border: 1.5px dashed var(--muted);
@@ -312,7 +315,6 @@ body.con-fondo #desktop::before { opacity: 0; }
   opacity: 1;
 }
 
-/* Reloj - COLOR ACENTO DEVUELTO */
 #clock {
   margin-left: auto; font-size: 13px; font-weight: 600;
   padding: 8px 14px; border-radius: 12px;
@@ -334,7 +336,6 @@ body.con-fondo #desktop::before { opacity: 0; }
   animation: slideUp .22s var(--ease-out);
 }
 
-/* NUEVO ENCABEZADO DEL MENÚ CON LOGO */
 .menu-cab {
   padding: 10px 14px 12px;
   display: flex;
@@ -401,7 +402,6 @@ body.con-fondo #desktop::before { opacity: 0; }
 .cab { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
 .cab h3 { margin: 0; flex: 1; font-size: 18px; font-weight: 700; letter-spacing: -.015em; }
 
-/* Estilos exclusivos para la vista de créditos */
 .creditos { display: flex; flex-direction: column; gap: 18px; }
 .credito-item h4 { margin: 0 0 4px; font-size: 13px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.05em; }
 .credito-item p { margin: 2px 0; font-size: 14px; color: var(--text); }
