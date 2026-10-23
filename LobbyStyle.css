@@ -5,6 +5,13 @@
 /* ================= Tokens ================= */
 :root {
   --accent: #2563eb;
+
+  /* Cuadrícula fija: 14 columnas x 5 filas (sincronizado con GRID_* en JsLobby) */
+  --grid-cols: 14;
+  --grid-rows: 5;
+  --cell-w: 92px;
+  --cell-h: 108px;
+  --grid-margin: 16px;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 40%, transparent);
 
@@ -142,7 +149,7 @@ body.con-fondo #desktop::before { opacity: 0; }
 .icon {
   position: absolute;
   pointer-events: auto;
-  width: 90px;
+  width: calc(var(--cell-w) - 2px);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
   padding: 8px 4px; border-radius: var(--radius-md);
   cursor: grab; user-select: none; color: #fff; text-align: center;
