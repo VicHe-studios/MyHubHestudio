@@ -33,6 +33,41 @@
     });
   };
 
+  // ================= MODAL DE CONFIRMACIÓN =================
+  const showConfirm = (title, message) => {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-confirm-overlay';
+      
+      const box = document.createElement('div');
+      box.className = 'modal-confirm-box';
+      box.innerHTML = `
+        <h3>${title}</h3>
+        <p>${message}</p>
+        <div class="modal-confirm-actions">
+          <button class="modal-confirm-btn cancel">Cancelar</button>
+          <button class="modal-confirm-btn confirm">Aceptar</button>
+        </div>
+      `;
+      
+      overlay.appendChild(box);
+      document.body.appendChild(overlay);
+      
+      void overlay.offsetWidth; 
+      overlay.classList.add('active');
+
+      const close = (result) => {
+        overlay.classList.remove('active');
+        setTimeout(() => overlay.remove(), 200);
+        resolve(result);
+      };
+
+      box.querySelector('.cancel').onclick = () => close(false);
+      box.querySelector('.confirm').onclick = () => close(true);
+      overlay.onclick = (e) => { if (e.target === overlay) close(false); };
+    });
+  };
+
   let appsObj = {};
   let carpetasObj = {};
   let searchQuery = '';
@@ -137,7 +172,9 @@
   window.toggleSelect = toggleSelect;
 
   window.eliminarIndividual = async (type, id) => {
-    if (!confirm('¿Eliminar permanentemente?')) return;
+    const ok = await showConfirm('Eliminar elemento', '¿Estás seguro que deseas eliminarlo permanentemente?');
+    if (!ok) return;
+
     selectedItems.delete(`${type}:${id}`);
     
     if (type === 'app') {
@@ -157,7 +194,9 @@
   // Borrar Seleccionados
   btnBorrarSeleccion.onclick = async () => {
     if (selectedItems.size === 0) return;
-    if (!confirm(`¿Eliminar los ${selectedItems.size} elementos seleccionados permanentemente?`)) return;
+    
+    const ok = await showConfirm('Eliminar seleccionados', `¿Eliminar los ${selectedItems.size} elementos seleccionados permanentemente?`);
+    if (!ok) return;
 
     for (const item of selectedItems) {
       const [type, id] = item.split(':');
@@ -180,18 +219,19 @@
   };
 
   btnVaciar.onclick = async () => {
-    if (confirm('¿Seguro que quieres eliminar TODAS las apps y carpetas permanentemente?')) {
-      if (window.parent && window.parent.MyHub) {
-        Object.keys(carpetasObj).forEach(id => { if (window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id); });
-        Object.keys(appsObj).forEach(id => window.parent.MyHub.eliminarApp(id));
-      }
-      appsObj = {}; carpetasObj = {}; selectedItems.clear();
-      await kvSet('apps_instaladas', appsObj);
-      await kvSet('carpetas', carpetasObj);
-      updateSelectionUI();
-      await cargarDatos();
-      if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Papelera vaciada');
+    const ok = await showConfirm('Vaciar Papelera', '¿Seguro que quieres eliminar TODAS las apps y carpetas permanentemente?');
+    if (!ok) return;
+
+    if (window.parent && window.parent.MyHub) {
+      Object.keys(carpetasObj).forEach(id => { if (window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id); });
+      Object.keys(appsObj).forEach(id => window.parent.MyHub.eliminarApp(id));
     }
+    appsObj = {}; carpetasObj = {}; selectedItems.clear();
+    await kvSet('apps_instaladas', appsObj);
+    await kvSet('carpetas', carpetasObj);
+    updateSelectionUI();
+    await cargarDatos();
+    if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Papelera vaciada');
   };
 
   searchInput.addEventListener('input', (e) => {
