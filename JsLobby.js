@@ -3061,6 +3061,14 @@ reloj(); setInterval(reloj, 15000);
     return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
   };
 
+  // Un archivo de widget puede llegar como Blob, ArrayBuffer o texto; si se perdió (p. ej. backup en JSON), devuelve null
+  const toBlobSeguro = (v) => {
+    if (v instanceof Blob) return v;
+    if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return new Blob([v], { type: 'text/html' });
+    if (typeof v === 'string') return new Blob([v], { type: 'text/html' });
+    return null;
+  };
+
   window.renderWidgets = () => {
     let layer = document.getElementById('widgets-layer');
     if (!layer) {
@@ -3074,6 +3082,7 @@ reloj(); setInterval(reloj, 15000);
     layer.innerHTML = '';
 
     window.widgetsActivos.forEach(w => {
+     try {
       const el = document.createElement('div');
       el.className = 'widget-container';
 
@@ -3110,8 +3119,9 @@ reloj(); setInterval(reloj, 15000);
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
 
       const app = registro.get(w.id);
-      if (app && app.archivos && app.archivos[w.file]) {
-        const blob = app.archivos[w.file];
+      const blobWidget = app && app.archivos ? toBlobSeguro(app.archivos[w.file]) : null;
+      if (blobWidget) {
+        const blob = blobWidget;
         const reader = new FileReader();
         reader.onload = (e) => {
           let html = e.target.result;
@@ -3171,6 +3181,9 @@ reloj(); setInterval(reloj, 15000);
       el.appendChild(iframe);
       hacerArrastrableWidget(el, w);
       layer.appendChild(el);
+     } catch (err) {
+      console.error('[Widget] no se pudo dibujar', w.id, w.file, err);
+     }
     });
   };
 
