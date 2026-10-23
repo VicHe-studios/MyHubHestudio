@@ -42,15 +42,16 @@
   };
 
   // Valida que los widgets declarados existan físicamente en el ZIP.
+  // Soporta los tres formatos: string (id), { file, size } (oficial del Lobby), { id, archivo }.
   const validarWidgets = (manifest, zip) => {
     const issues = [];
     const widgets = getWidgets(manifest);
     if (widgets.length === 0) return issues;
 
-    // ¿Existe carpeta widgets/ con al menos un archivo?
+    // Acepta "widgets/" y "Widgets/" (case-insensitive)
     let tieneCarpeta = false;
     zip.forEach((path, entry) => {
-      if (!entry.dir && path.startsWith('widgets/')) tieneCarpeta = true;
+      if (!entry.dir && /^widgets\//i.test(path)) tieneCarpeta = true;
     });
     if (!tieneCarpeta) {
       issues.push('El manifest declara "widgets" pero el ZIP no contiene la carpeta "widgets/".');
@@ -58,34 +59,41 @@
     }
 
     for (const w of widgets) {
-      let id = null;
-      const paths = [];
+      let label = '';
+      let encontrado = false;
 
       if (typeof w === 'string') {
-        id = w;
-        paths.push(
-          `widgets/${w}/index.html`,
-          `widgets/${w}.html`,
-          `widgets/${w}/manifest.json`
+        label = w;
+        encontrado = !!(
+          zip.file(`widgets/${w}/index.html`) ||
+          zip.file(`widgets/${w}.html`) ||
+          zip.file(`widgets/${w}/manifest.json`)
         );
       } else if (w && typeof w === 'object') {
-        id = w.id || w.nombre || null;
-        if (w.archivo) paths.push(`widgets/${w.archivo}`, w.archivo);
-        if (id) paths.push(
-          `widgets/${id}/index.html`,
-          `widgets/${id}.html`,
-          `widgets/${id}/manifest.json`
-        );
+        // Formato oficial del Lobby: { file, size }
+        if (w.file) {
+          label = w.file;
+          encontrado = !!zip.file(w.file);
+        } else if (w.archivo) {
+          label = w.archivo;
+          encontrado = !!(zip.file(w.archivo) || zip.file(`widgets/${w.archivo}`));
+        } else if (w.id || w.nombre) {
+          const id = w.id || w.nombre;
+          label = id;
+          encontrado = !!(
+            zip.file(`widgets/${id}/index.html`) ||
+            zip.file(`widgets/${id}.html`) ||
+            zip.file(`widgets/${id}/manifest.json`)
+          );
+        }
       }
 
-      if (!id) {
-        issues.push(`Widget sin "id" declarado en el manifest: ${JSON.stringify(w)}`);
+      if (!label) {
+        issues.push(`Widget inválido en el manifest: ${JSON.stringify(w)}`);
         continue;
       }
-
-      const encontrado = paths.some(p => zip.file(p));
       if (!encontrado) {
-        issues.push(`Widget "${id}" declarado pero no se encontraron sus archivos en "widgets/".`);
+        issues.push(`Widget "${label}" declarado pero no se encontró su archivo en el ZIP.`);
       }
     }
     return issues;
