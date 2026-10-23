@@ -6,10 +6,10 @@
 :root {
   --accent: #2563eb;
 
-  /* Cuadrícula fija: 14 columnas x 5 filas (sincronizado con GRID_* en JsLobby) */
-  --grid-cols: 14;
+  /* Cuadrícula fija: 16 columnas x 5 filas (sincronizado con GRID_* en JsLobby) */
+  --grid-cols: 16;
   --grid-rows: 5;
-  --cell-w: 92px;
+  --cell-w: 82px;
   --cell-h: 108px;
   --grid-margin: 16px;
   --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
