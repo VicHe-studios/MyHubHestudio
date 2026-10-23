@@ -37,7 +37,7 @@
     document.head.appendChild(style);
   };
 
-  let widgetsActivos = []; // Guarda { id, file, size, pos: {left, top} }
+  let widgetsActivos = []; 
   
   // 2. Motor de Widgets
   const cargarWidgets = async () => {
@@ -67,16 +67,32 @@
       const hSize = w.size === '2x2' ? '220px' : (w.size === '2x1' ? '110px' : '110px');
       
       el.style.cssText = `
-        position: absolute; left: ${w.pos?.left || '20px'}; top: ${w.pos?.top || '20px'};
+        position: absolute; left: ${w.pos?.left || '300px'}; top: ${w.pos?.top || '16px'};
         width: ${wSize}; height: ${hSize}; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
         overflow: hidden; transition: transform .2s, box-shadow .2s;
         cursor: grab;
       `;
+
+      // CONTEXTO PARA BORRAR WIDGET
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof mostrarContexto === 'function') {
+          mostrarContexto(e.clientX, e.clientY, [
+            { icon: 'trash-2', text: 'Eliminar Widget', fn: () => {
+              widgetsActivos = widgetsActivos.filter(item => item !== w);
+              guardarWidgets();
+              renderWidgets();
+              window.MyHub.toast('Widget eliminado');
+            }}
+          ]);
+        }
+      });
       
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent;';
+      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none;';
       
       const app = getReg().get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
@@ -84,14 +100,25 @@
         const reader = new FileReader();
         reader.onload = (e) => {
           let html = e.target.result;
+          
+          // INYECCIÓN: Lucide por CDN + Tema + Accent-Soft
           const themeInjection = `
+            <script src="https://unpkg.com/lucide@latest"><\/script>
             <script>
               document.documentElement.dataset.modo = '${document.documentElement.dataset.modo}';
               document.documentElement.style.setProperty('--accent', '${getComputedStyle(document.documentElement).getPropertyValue('--accent')}');
-            </script>
+              const hex = '${getComputedStyle(document.documentElement).getPropertyValue('--accent').trim().replace('#', '')}';
+              if (hex.length === 6) {
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                document.documentElement.style.setProperty('--accent-soft', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.15)');
+              }
+            <\/script>
           `;
+          
           if (w.file.endsWith('.js')) {
-             html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style></head><body><script>${html}<\/script></body></html>`;
+             html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style>${themeInjection}</head><body><script>${html}<\/script></body></html>`;
           } else {
              html = html.replace('</head>', `${themeInjection}</head>`);
           }
@@ -99,7 +126,7 @@
         };
         reader.readAsText(blob);
       } else {
-        iframe.srcdoc = `<div style="padding:10px; color:red; font-size:12px;">Error: Widget no encontrado</div>`;
+        iframe.srcdoc = `<div style="padding:10px; color:red; font-size:12px; text-align:center;">Error: Widget no encontrado</div>`;
       }
 
       el.appendChild(iframe);
@@ -111,7 +138,7 @@
   const hacerArrastrableWidget = (el, widgetData) => {
     let isDragging = false, startX, startY, startLeft, startTop;
     el.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('iframe')) { /* Permitir clics en el iframe */ }
+      if (e.button !== 0) return;
       isDragging = false;
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
@@ -181,7 +208,7 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
-    void overlay.offsetWidth; // FIX del reflow
+    void overlay.offsetWidth; 
     overlay.classList.add('active');
     refrescarIconos();
 
@@ -195,7 +222,8 @@
     modal.querySelectorAll('.extrafunc-btn').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos: { left: '20px', top: '20px' } });
+        // Posición por defecto lejos de los iconos iniciales
+        widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos: { left: '300px', top: '16px' } });
         guardarWidgets();
         renderWidgets();
         cerrarPanel();
@@ -204,9 +232,8 @@
     });
   };
 
-  // 3. Inyectar menú contextual en el escritorio
   document.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar')) return;
+    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
     
     setTimeout(() => {
       const menus = document.querySelectorAll('div[style*="z-index: 500"]');
@@ -230,7 +257,6 @@
     }, 20);
   }, true);
 
-  // 4. DocWidgets (Generador de archivo TXT)
   const descargarDocWidgets = () => {
     const doc = `
 ==================================================
@@ -259,10 +285,11 @@ Tamaños permitidos: "1x1", "2x1", "2x2".
 
 3. CREANDO EL WIDGET (HTML)
 Puedes usar HTML, CSS y JS. El sistema inyectará automáticamente las variables
-CSS (--accent, --text, etc.) y el modo oscuro.
+CSS (--accent, --text, etc.), el modo oscuro y la librería Lucide.
 
 Ejemplo de Widget/Clim-He.html:
 <div style="padding:20px; text-align:center;">
+  <i data-lucide="cloud-sun" style="width:32px; height:32px;"></i>
   <h2 id="temp">--°C</h2>
   <p id="desc">Cargando clima...</p>
 </div>
@@ -270,11 +297,7 @@ Ejemplo de Widget/Clim-He.html:
   // Tu lógica aquí
 </script>
 
-4. CREANDO EL WIDGET (JS)
-Si usas un archivo .js, el sistema lo envolverá en un HTML básico.
-Asegúrate de que tu JS inyecte elementos en el DOM (body).
-
-5. CONSEJOS DE DISEÑO
+4. CONSEJOS DE DISEÑO
 - Usa colores transparentes o hereda las variables CSS.
 - No pongas fondos sólidos (el sistema ya añade el efecto cristal).
 - Sé conciso. Un widget no es una app completa.
@@ -319,7 +342,6 @@ Asegúrate de que tu JS inyecte elementos en el DOM (body).
     observer.observe(menuOps, { childList: true });
   };
 
-  // ================= INICIALIZACIÓN =================
   const init = () => {
     if (!window.MyHub || !getReg()) {
       setTimeout(init, 100);
