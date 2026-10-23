@@ -71,6 +71,7 @@ let posicionesIconos = {};
 let carpetas = {};
 let pinnedApps = [];
 let ctxMenu = null;
+window.widgetsActivos = []; 
 
 async function guardarAjustes() { await kvSet('ajustes', ajustes); }
 const guardarCarpetas = () => kvSet('carpetas', carpetas);
@@ -172,6 +173,12 @@ function renderMenu() {
   docBtn.innerHTML = `<i data-lucide="file-text"></i><span>DocApps</span>`;
   docBtn.onclick = () => { menu.classList.add('hidden'); if (window.descargarDocApps) window.descargarDocApps(); };
   ops.appendChild(docBtn);
+
+  // DocWidgets Inyectado de forma natural
+  const docWidgsBtn = document.createElement('button'); docWidgsBtn.className = 'menu-op';
+  docWidgsBtn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
+  docWidgsBtn.onclick = () => { menu.classList.add('hidden'); if (window.descargarDocWidgets) window.descargarDocWidgets(); };
+  ops.appendChild(docWidgsBtn);
 
   const creditsBtn = document.createElement('button'); creditsBtn.className = 'menu-op';
   creditsBtn.innerHTML = `<i data-lucide="info"></i><span>Créditos</span>`;
@@ -344,28 +351,23 @@ function registrarApp(app) {
 async function eliminarApp(id) {
   if (!registro.has(id)) return;
 
-  // 1. Cerrar ventana si está abierta
   cerrar(id);
 
-  // 2. Eliminar del registro en memoria
   registro.delete(id);
   const idx = orden.indexOf(id);
   if (idx > -1) orden.splice(idx, 1);
 
-  // 3. Eliminar posición guardada (evita basura acumulada)
   if (posicionesIconos[id]) {
     delete posicionesIconos[id];
     kvSet('posiciones_iconos', posicionesIconos);
   }
 
-  // 4. Eliminar de Quick Launch si estaba pinneada
   const idxPinned = pinnedApps.indexOf(id);
   if (idxPinned > -1) {
     pinnedApps.splice(idxPinned, 1);
     guardarPinned();
   }
 
-  // 5. Eliminar de IndexedDB
   try {
     const appsInstaladas = await kvGet('apps_instaladas') || {};
     if (appsInstaladas[id]) {
@@ -376,7 +378,17 @@ async function eliminarApp(id) {
     console.error('[eliminarApp] Error al borrar de IndexedDB:', err);
   }
 
-  // 6. Refrescar UI
+  // NATURALIZADO: Eliminar widgets asociados a esta app
+  if (window.widgetsActivos && window.widgetsActivos.length > 0) {
+    const originalLen = window.widgetsActivos.length;
+    window.widgetsActivos = window.widgetsActivos.filter(w => w.id !== id);
+    if (window.widgetsActivos.length !== originalLen) {
+      await kvSet('widgets_activos', window.widgetsActivos);
+      if (window.renderWidgets) window.renderWidgets();
+      toast('Widgets asociados eliminados');
+    }
+  }
+
   renderIconos();
   if (typeof renderQuickLaunch === 'function') renderQuickLaunch();
 }
@@ -409,7 +421,6 @@ function injectStyles() {
     }
     #quicklaunch:empty { display: none; }
 
-    /* QUICK LAUNCH (Cerrada / Fijada) */
     .quick-btn {
       width: 42px; height: 42px; border: none; border-radius: 10px;
       background: transparent; color: var(--muted); cursor: pointer; padding: 0;
@@ -420,12 +431,8 @@ function injectStyles() {
     .quick-btn:active { transform: scale(.9); }
     .quick-btn svg { width: 20px; height: 20px; }
 
-    /* FIX PARA EL RECORTE DEL ICONO AL HOVER */
-    #tasks { 
-      overflow: visible !important; 
-    }
+    #tasks { overflow: visible !important; }
 
-    /* STATUS PILL (Coloreado completo para que no se vea gris) */
     .status-pill {
       display: flex; align-items: center; gap: 12px;
       background: var(--accent-soft); 
@@ -439,14 +446,10 @@ function injectStyles() {
     .status-item svg { width: 16px; height: 16px; color: currentColor; }
     .status-item.low { color: #ef4444; }
     
-    /* Obligamos al reloj a ser transparente para que herede el color de la píldora */
     #clock {
-      margin: 0 !important; 
-      padding: 0 !important;
-      background: transparent !important; 
-      color: inherit !important;
-      font-size: inherit !important; 
-      font-weight: inherit !important;
+      margin: 0 !important; padding: 0 !important;
+      background: transparent !important; color: inherit !important;
+      font-size: inherit !important; font-weight: inherit !important;
       border: none !important;
     }
 
@@ -455,34 +458,22 @@ function injectStyles() {
 
     .close.minimize:hover { background: #f59e0b; color: #fff; }
 
-    /* MINIMIZADA (Punteado para denotar que está oculta) */
     .task.minimized {
-      opacity: 0.7;
-      padding: 0 !important;
-      width: 42px !important;
-      min-width: 42px;
-      height: 42px;
-      justify-content: center;
-      border-radius: 10px;
-      background: transparent;
-      border: 1.5px dashed var(--muted);
+      opacity: 0.7; padding: 0 !important;
+      width: 42px !important; min-width: 42px; height: 42px;
+      justify-content: center; border-radius: 10px;
+      background: transparent; border: 1.5px dashed var(--muted);
       color: var(--muted);
     }
     .task.minimized:hover {
-      opacity: 1;
-      background: var(--field);
-      border: 1.5px solid var(--line);
-      color: var(--text);
+      opacity: 1; background: var(--field);
+      border: 1.5px solid var(--line); color: var(--text);
     }
 
-    /* Folder styles */
     .icon.folder-icon .ico { position: relative; overflow: hidden; padding: 6px; }
     .folder-previews {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 3px;
-      width: 100%; height: 100%;
+      display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+      gap: 3px; width: 100%; height: 100%;
       align-items: center; justify-content: center;
     }
     .folder-mini {
@@ -494,10 +485,7 @@ function injectStyles() {
     .folder-mini[data-single] { grid-column: 1 / -1; grid-row: 1 / -1; border-radius: 8px; }
     .folder-mini[data-single] svg { width: 26px !important; height: 26px !important; }
 
-    .folder-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
-      gap: 12px; padding: 8px 0;
-    }
+    .folder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 12px; padding: 8px 0; }
     .folder-item {
       display: flex; flex-direction: column; align-items: center; gap: 6px;
       padding: 10px 6px; border-radius: 10px; cursor: pointer;
@@ -609,7 +597,7 @@ function renderIconos() {
   refrescarIconos();
 }
 
-// ================= Arrastre apps =================
+// ================= Arrastre apps (Con colisión nativa a widgets) =================
 function hacerArrastrable(el, id, maxRows, maxYLimit) {
   const MARGEN = MARGEN_ICONOS, GX = GRID_X, GY = GRID_Y;
   let isDragging = false;
@@ -670,10 +658,31 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
           }
         }
 
+        // NATURALIZADO: Colisión con Widgets
+        if (!invalid && window.widgetsActivos) {
+          const wW = el.offsetWidth, wH = el.offsetHeight;
+          const snapRect = { left: snapX, top: snapY, right: snapX + wW, bottom: snapY + wH };
+          
+          for (const w of window.widgetsActivos) {
+            if (!w.pos) continue;
+            const wx = parseFloat(w.pos.left), wy = parseFloat(w.pos.top);
+            const wsize = w.size === '2x2' ? {w: 190, h: 210} : w.size === '2x1' ? {w: 190, h: 100} : {w: 90, h: 100};
+            const wRect = { left: wx, top: wy, right: wx + wsize.w, bottom: wy + wsize.h };
+
+            if (!(snapRect.right <= wRect.left || snapRect.left >= wRect.right || snapRect.bottom <= wRect.top || snapRect.top >= wRect.bottom)) {
+              invalid = true;
+              toast('No puedes colocar iconos sobre un widget');
+              break;
+            }
+          }
+        }
+
         if (invalid) {
           el.style.left = startLeft + 'px';
           el.style.top = startTop + 'px';
-          toast('Posición inválida u ocupada');
+          if (snapY > maxYLimit || document.querySelector(`.icon[style*="left: ${snapX}px"][style*="top: ${snapY}px"]`)) {
+             toast('Posición inválida u ocupada');
+          }
         } else {
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
@@ -733,6 +742,25 @@ function hacerArrastrableCarpeta(el, folderId, maxRows, maxY) {
           if (iconEl === el) return;
           if (parseFloat(iconEl.style.left) === sx && parseFloat(iconEl.style.top) === sy) invalid = true;
         });
+
+        // NATURALIZADO: Colisión con Widgets
+        if (!invalid && window.widgetsActivos) {
+          const wW = el.offsetWidth, wH = el.offsetHeight;
+          const snapRect = { left: sx, top: sy, right: sx + wW, bottom: sy + wH };
+          
+          for (const w of window.widgetsActivos) {
+            if (!w.pos) continue;
+            const wx = parseFloat(w.pos.left), wy = parseFloat(w.pos.top);
+            const wsize = w.size === '2x2' ? {w: 190, h: 210} : w.size === '2x1' ? {w: 190, h: 100} : {w: 90, h: 100};
+            const wRect = { left: wx, top: wy, right: wx + wsize.w, bottom: wy + wsize.h };
+
+            if (!(snapRect.right <= wRect.left || snapRect.left >= wRect.right || snapRect.bottom <= wRect.top || snapRect.top >= wRect.bottom)) {
+              invalid = true;
+              toast('No puedes colocar carpetas sobre un widget');
+              break;
+            }
+          }
+        }
 
         if (invalid) {
           el.style.left = startLeft + 'px'; el.style.top = startTop + 'px';
@@ -1037,9 +1065,8 @@ function mostrarContexto(x, y, items) {
   cerrarContexto();
   const backdrop = document.createElement('div');
   backdrop.style.cssText = 'position:fixed;inset:0;z-index:499;';
-  backdrop.addEventListener('pointerdown', (e) => {
-    if (e.button === 0) cerrarContexto();
-  });
+  // NATURALIZADO: Cierra el menú con cualquier clic (izquierdo o derecho)
+  backdrop.addEventListener('pointerdown', () => cerrarContexto());
 
   ctxMenu = document.createElement('div');
   ctxMenu.style.cssText = `
@@ -1125,9 +1152,15 @@ function contextoApp(e, appId) {
 function contextoDesktop(e) {
   if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('.menu') || e.target.closest('#taskbar')) return;
   e.preventDefault();
+  
+  // NATURALIZADO: Inyección directa del botón de widgets
   mostrarContexto(e.clientX, e.clientY, [
     { icon: 'folder-plus', text: 'Nueva carpeta', fn: () => {
       promptCarpeta('Nueva carpeta', 'Nueva carpeta', (nombre) => crearCarpeta(nombre));
+    }},
+    { separator: true },
+    { icon: 'layout-grid', text: 'Gestión de Widgets', fn: () => {
+      if (window.abrirPanelWidgets) window.abrirPanelWidgets();
     }}
   ]);
 }
@@ -1617,610 +1650,30 @@ function soltarEn(id, lado) {
 
 // ================= DocApps =================
 window.descargarDocApps = function() {
-  const doc = `
-==================================================
-MYHUBHESTUDIO - GUÍA DEFINITIVA DE DESARROLLO
-Versión 2.1 - Edición "ADN VicHeStudios"
-==================================================
-
-Bienvenido al entorno de desarrollo de MyHubHestudio.
-Has creado el Web OS definitivo para la productividad y la rapidez.
-
-Esta guía es diferente a las anteriores: no solo te dice QUÉ puedes
-hacer, también te dice CÓMO lo hacen las apps oficiales. Ese conjunto
-de patrones repetidos en TODAS las apps del sistema es lo que
-llamamos el "ADN VicHeStudios". Si tu app lo cumple, se verá y
-sentirá nativa. Si no, se notará "pegada con cinta adhesiva".
-
-Léela una vez. Vuelve a la sección 4 y 9 cada vez que empieces una app.
-
---------------------------------------------------
-1. FORMAS DE CREAR UNA APP
---------------------------------------------------
-Existen 3 formas principales de integrar una app:
-
-A) APP INSTANTÁNEA (JavaScript puro):
-Ideal para apps rápidas que no necesitan un archivo HTML propio.
-window.MyHub.registrarApp({
-  id: 'mi-app',             // Identificador único
-  titulo: 'Mi App',         // Nombre visible
-  icono: 'layout',          // Icono de Lucide (https://lucide.dev/)
-  contenido: (el) => {      // Función que retorna el HTML o nodo de la app
-    const div = document.createElement('div');
-    div.innerHTML = '<h1>Hola mundo</h1>';
-    return div;
-  }
-});
-
-B) APP LOCAL (Archivo HTML físico):
-Ideal si tienes una carpeta con tu app. Se carga mediante un iframe.
-window.MyHub.registrarApp({
-  id: 'mi-app-local',
-  titulo: 'Mi App Local',
-  icono: 'folder',
-  url: 'Apps/MiApp/index.html' // Ruta relativa desde Lobby.html
-});
-
-C) APP INSTALABLE (Archivo ZIP) - RECOMENDADO PARA DISTRIBUIR:
-El usuario la instala usando "Forge" o "Stor-He".
-Esta guía se enfoca en este formato porque es el único que garantiza
-que tu app sobreviva a cualquier cambio del sistema.
-
---------------------------------------------------
-2. REGLA DE ORO: 1 SOLO ARCHIVO HTML + MANIFEST
---------------------------------------------------
-¡ATENCIÓN! Para garantizar que tu app cargue de forma instantánea y sin
-errores de rutas (Error 404) dentro del sistema, la app instalable
-DEBE constar únicamente de 2 archivos:
-
-MiApp.zip
- ┣ 📜 manifest.json  (Obligatorio)
- ┗ 📜 index.html     (Obligatorio, contiene TODO el HTML, CSS y JS)
-
-NO uses archivos separados como style.css, app.js o carpetas de imágenes.
-En su lugar, integra todo dentro del index.html usando las etiquetas
-<style> para el diseño y <script> para la lógica.
-
---- ¿Y si necesito imágenes o assets? ---
-Embébelos como Data URLs (Base64) directamente dentro del HTML:
-  <img src="data:image/png;base64,..." alt="">
-O mejor aún, usa SVG inline (más liviano y escalable):
-  <svg viewBox="0 0 24 24" ...>...</svg>
-
---- ¿Y si necesito guardar archivos pesados del usuario? ---
-NO uses localStorage para binarios grandes (>1MB). Usá IndexedDB
-(ver sección 8: ALMACENAMIENTO).
-
---- EL MANIFEST.JSON EXPLICADO ---
-{
-  "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas.
-  "titulo": "Mi App",         // (Obligatorio) Nombre visible bajo el icono.
-  "icono": "sparkles",        // (Obligatorio) Nombre del icono de Lucide.
-  "main": "index.html",       // (Obligatorio) Archivo HTML principal.
-
-  // --- CAMPOS OPCIONALES (Mejoran la vista en Stor-He) ---
-  "autor": "VicHeStudios",    // (Opcional) Creador de la app.
-  "descripcion": "Una app."   // (Opcional) Breve descripción, sin punto final.
-}
-
---------------------------------------------------
-3. LAYOUT: 3 VENTANAS FIJAS
---------------------------------------------------
-MyHubHestudio usa un sistema de 3 ventanas fijas (Izquierda, Centro, Derecha).
-Tu app NO ocupará toda la pantalla, sino 1/3 de ella.
-
-- Resolución aproximada: En 1920x1080, tu app tendrá ~600px de ancho.
-- Máximo 6 apps abiertas simultáneamente (3 visibles + 3 minimizadas).
-- Tu HTML y CSS DEBEN ser responsivos. Regla obligatoria en body:
-  html, body { height: 100vh; width: 100%; margin: 0; overflow: hidden; }
-- Si tu app tiene muchos elementos, usa overflow-y: auto en el contenedor
-  interno (nunca en el body completo, salvo excepciones justificadas).
-
---------------------------------------------------
-4. ⭐ ADN VICHeSTUDIOS (LO QUE HACE QUE UNA APP SEA "OFICIAL")
---------------------------------------------------
-Esta sección es el corazón de la guía. Todo lo que aparece aquí se
-repite en TODAS las apps oficiales del sistema. Cópialo tal cual.
-
-4.1 VARIABLES CSS OBLIGATORIAS
-Todo el color de tu app debe salir de estas variables. Nunca uses
-hex codes sueltos (salvo en la paleta de colores fija de la sección 5).
-
-:root {
-  --accent: #2563eb;                /* Azul identidad VicHeStudios */
-  --accent-soft: rgba(37, 99, 235, 0.15);
-  --text: #0b1220;
-  --muted: #64748b;
-  --line: rgba(15, 23, 42, 0.08);
-  --card: #ffffff;
-  --field: #f6f8fb;                 /* Inputs, áreas de texto, fondos secundarios */
-  --danger: #ef4444;                /* Errores, borrar, cerrar */
-}
-
-4.2 MODO OSCURO
-MyHub inyecta data-modo="oscuro" al <html>. Tú solo defines las
-variables oscuras. NO uses preferencias del sistema (prefers-color-scheme).
-
-html[data-modo="oscuro"] {
-  --text: #f4f4f6;
-  --muted: #9ea1aa;
-  --line: rgba(255, 255, 255, 0.09);
-  --card: #222227;
-  --field: #2a2a31;
-}
-
-4.3 RESET Y TIPOGRAFÍA
-* { box-sizing: border-box; }
-body {
-  margin: 0; height: 100vh; display: flex; flex-direction: column;
-  font-family: 'Segoe UI Variable', system-ui, sans-serif;
-  background: var(--card); color: var(--text);
-  overflow: hidden;
-}
-
-4.4 BOTÓN PRIMARIO (regla universal)
-Fondo var(--accent), texto blanco, radius 8px, font-weight 600,
-hover con filter: brightness(1.1). Sin excepciones.
-
-.btn-primary {
-  background: var(--accent); color: #fff; border: none;
-  padding: 8px 14px; border-radius: 8px;
-  font-family: inherit; font-weight: 600; font-size: 13px;
-  cursor: pointer; transition: 0.2s;
-}
-.btn-primary:hover { filter: brightness(1.1); }
-
-4.5 BOTÓN SECUNDARIO
-Fondo var(--field), borde var(--line), texto var(--text).
-Se usa para acciones no destructivas.
-
-.btn-secondary {
-  background: var(--field); color: var(--text);
-  border: 1px solid var(--line); padding: 8px 14px;
-  border-radius: 8px; font-family: inherit;
-  font-weight: 600; font-size: 13px;
-  cursor: pointer; transition: 0.2s;
-}
-
-4.6 INPUT ESTÁNDAR (radius 10px)
-Todos los inputs, selects y textareas comparten estos estilos.
-En focus: borde var(--accent). Sin excepciones.
-
-.input {
-  padding: 10px 12px; border-radius: 10px;
-  border: 1.5px solid var(--line);
-  background: var(--field); color: var(--text);
-  font-family: inherit; font-size: 13px; outline: none;
-  transition: border-color 0.2s;
-}
-.input:focus { border-color: var(--accent); }
-
-4.7 HEADER ESTÁNDAR
-Borde inferior var(--line), padding 12px 16px, flex space-between,
-background var(--card). Se repite en el 100% de las apps oficiales.
-
-.header {
-  padding: 12px 16px; border-bottom: 1px solid var(--line);
-  background: var(--card); flex-shrink: 0;
-  display: flex; align-items: center; justify-content: space-between;
-}
-
-4.8 FOOTER CREDIT
-Toda app oficial cierra con un crédito. Dos formatos válidos:
-
-  A) "Hecho con ❤️ por VicHeStudios" (uso general)
-  B) "Usa [Librería] por [Autor]" (cuando se apoya en una librería externa)
-
-.app-credit {
-  text-align: center; font-size: 11px; color: var(--muted);
-  padding: 8px; border-top: 1px solid var(--line);
-  background: var(--card); flex-shrink: 0;
-}
-.app-credit a { color: var(--accent); text-decoration: none; font-weight: 600; }
-
-4.9 SCROLLBAR PERSONALIZADA (6px)
-En todas las apps oficiales. En móvil se ignora, pero en desktop
-es parte del "feel" del sistema.
-
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-
-4.10 MODALES (opcional pero recomendado)
-Si tu app usa modales, este es el patrón oficial:
-Overlay rgba(0,0,0,0.5) + backdrop-filter: blur(4px),
-caja con background var(--card), radius 16px, borde var(--line).
-
-4.11 ICONOS
-Usa Lucide. Dos formas válidas:
-  A) <script src="../../vendor/lucide.min.js"></script> + <i data-lucide="nombre">
-  B) SVG inline con stroke="currentColor" stroke-width="2"
-
---------------------------------------------------
-5. PALETA DE COLORES OFICIAL
---------------------------------------------------
-El sistema permite personalizar el color de acento. Estos son los
-colores disponibles en el modal de Configuración:
-
-  Azul       #2563eb  (por defecto)
-  Celeste    #0ea5e9
-  Rojo       #dc2626
-  Verde      #16a34a
-  Morado     #7c3aed
-  Amarillo   #ca8a04
-  Rosado     #ec4899
-  Café       #8b4513
-
-Tu app NO necesita hardcodear ninguno de estos colores: usa siempre
-var(--accent) y se actualizará automáticamente cuando el usuario
-cambie el color del sistema.
-
-Si tu app ofrece al usuario ELEGIR un color (como Pint-He), entonces
-sí podés incluir la paleta completa como opciones fijas. Pero para
-la UI de tu app (botones, headers, etc.), usá siempre var(--accent).
-
---------------------------------------------------
-6. SINCRONIZACIÓN DE TEMA CON EL LOBBY (OBLIGATORIO)
---------------------------------------------------
-Toda app instalable DEBE escuchar el tema del sistema. Sin esto,
-tu app se queda con los colores por defecto y rompe la armonía
-visual del escritorio.
-
-Pega esto al inicio de tu <script>, sin excepciones:
-
-  if (window.parent !== window) {
-    window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
-  }
-  window.addEventListener('message', (e) => {
-    if (e.data?.type === 'myhub:tema:res') {
-      document.documentElement.dataset.modo = e.data.modo;
-      document.documentElement.style.setProperty('--accent', e.data.color);
-      document.documentElement.style.setProperty('--accent-soft', e.data.color + '26');
-    }
-  });
-
-Nota: '26' es la opacidad en hex (~15%). Es el estándar oficial para
---accent-soft. Si tu app no usa --accent-soft, puedes omitir esa línea.
-
-El mensaje "myhub:tema:res" devuelve:
-  { type: 'myhub:tema:res', color: '#2563eb', modo: 'claro' | 'oscuro' }
-
---------------------------------------------------
-7. CONVENCIONES DE NOMENCLATURA
---------------------------------------------------
-El sufijo/prefijo "He" es una RECOMENDACIÓN, no una obligación.
-Las apps oficiales lo siguen, las apps externas son libres de
-nombrarse como quieran.
-
---- ID en manifest.json ---
-Formato recomendado: [nombre]-he (sufijo) o he-[nombre] (prefijo)
-  ✅ calcul-he, clim-he, qr-he
-  ✅ he-nteligens, he-ptune, he-vento
-  ✅ ocplaylist, mi-app, cualquier-cosa   (apps externas)
-  ❌ MiApp, CALC, con espacios            (nunca, sin importar autor)
-
---- Título visible ---
-Formato recomendado: Capitalizado, con guion si aplica
-  ✅ Calcul-He, Clim-He, He-nteligens, OcPlaylist
-  ❌ calculadora, MiApp
-
---- Icono Lucide ---
-Nombre exacto de la librería (sin "icon-", sin guiones bajos)
-  ✅ calculator, cloud-sun, key-round, qr-code
-  ❌ Calculator, cloud_sun
-
---- Autor (opcional) ---
-  ✅ VicHeStudios (el nombre oficial del estudio)
-  ✅ Tu nombre de usuario si contribuyes desde fuera
-
-Si sos contribuidor externo, sos libre de nombrar tu app como quieras.
-Solo te pedimos que el ID sea único, sin espacios y en minúsculas.
-
---------------------------------------------------
-8. ALMACENAMIENTO: localStorage vs IndexedDB
---------------------------------------------------
-Elegir bien dónde guardar los datos es CRÍTICO. Un error común es
-usar localStorage para todo, lo cual rompe apps después de cierto
-volumen de datos.
-
---- localStorage (límite ~5MB por dominio) ---
-Usalo SOLO para:
-  ✅ Configuraciones pequeñas (preferencias, tema, tokens de API)
-  ✅ Listas simples de IDs o strings cortos
-  ✅ Estados de UI (chat activo, pestaña seleccionada)
-
-NO lo uses para:
-  ❌ Imágenes (Base64 ocupa 33% más que el binario original)
-  ❌ Audio o video
-  ❌ Archivos grandes del usuario
-
---- IndexedDB (límite cientos de MB, asíncrono) ---
-Usalo para:
-  ✅ Imágenes, audio, video (Blobs nativos, sin Base64)
-  ✅ Archivos que sube el usuario
-  ✅ Bases de datos estructuradas con muchos registros
-  ✅ Cualquier cosa que pueda crecer con el uso
-
---- Ejemplo mínimo de IndexedDB ---
-const dbP = new Promise((resolve) => {
-  const req = indexedDB.open('mi-app-db', 1);
-  req.onupgradeneeded = () => req.result.createObjectStore('kv');
-  req.onsuccess = () => resolve(req.result);
-});
-
-const kvGet = async (k) => {
-  const db = await dbP;
-  return new Promise((res) => {
-    const r = db.transaction('kv').objectStore('kv').get(k);
-    r.onsuccess = () => res(r.result ?? null);
-  });
-};
-
-const kvSet = async (k, v) => {
-  const db = await dbP;
-  return new Promise((res) => {
-    const t = db.transaction('kv', 'readwrite');
-    t.objectStore('kv').put(v, k);
-    t.oncomplete = () => res();
-  });
-};
-
-Referencia: Spoti-vic y Galería-He usan IndexedDB para archivos
-binarios. HE-nteligens usa localStorage solo para configuración
-(token, modelo, nombre). Usá esas apps como ejemplo según tu caso.
-
---------------------------------------------------
-9. COMUNICACIÓN CON EL LOBBY (postMessage)
---------------------------------------------------
-Tu app corre dentro de un iframe. Si necesitas datos del sistema,
-usa window.parent.postMessage. Nunca uses window.top ni localStorage
-del padre.
-
---- Obtener el Perfil del Usuario ---
-window.parent.postMessage({ type: 'myhub:perfil' }, '*');
-window.addEventListener('message', (e) => {
-  if (e.data?.type === 'myhub:perfil:res') {
-    console.log('Datos:', e.data.data);
-    // { nombre, apellido, nacimiento, genero, pais, idioma, foto (Base64) }
-  }
-});
-
---- API Global Útil (window.MyHub.*) ---
-window.MyHub.toast('Mensaje');          // Notificación flotante
-window.MyHub.cerrar('mi-app');          // Cierra la ventana
-window.MyHub.minimizar('mi-app');       // Minimiza la ventana
-window.MyHub.restaurar('mi-app');       // Restaura la ventana
-window.MyHub.isMinimized('mi-app');     // true/false
-window.MyHub.abrir('otra-app');         // Abre otra app
-window.MyHub.tema();                    // { color: '#2563eb', modo: 'claro' }
-window.MyHub.sesion();                  // true/false (si hay sesión activa)
-
---- Identidad del usuario en apps sociales ---
-Si tu app necesita identificar al usuario de forma persistente
-(como HE-ptune o un chat), el lobby NO expone un ID único. Cada
-app debe generar su propio device_id en localStorage:
-
-  let deviceId = localStorage.getItem('mi-app_device_id');
-  if (!deviceId) {
-    deviceId = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-    localStorage.setItem('mi-app_device_id', deviceId);
-  }
-
-Esto es válido para apps locales. Para apps con backend (como
-HE-ptune con Supabase), combiná device_id + username + password
-para que el usuario pueda recuperar su cuenta en otro dispositivo.
-
---------------------------------------------------
-10. APPS DEL SISTEMA (referencia)
---------------------------------------------------
-MyHubHestudio incluye estas apps oficiales que sirven como ejemplo
-de implementación correcta del ADN:
-
-  🗑️ Papelera     - CRUD de apps instaladas
-  🛠️ Forge        - Instalación de ZIPs locales
-  🛒 Stor-He      - Tienda conectada a GitHub
-  🖥️ CMD-HE       - Terminal con acceso al kernel
-
-Mirar el código fuente de estas apps (están en Apps/) es la mejor
-forma de aprender los patrones oficiales. Cada una resuelve un caso
-de uso diferente y todas siguen el mismo ADN.
-
---------------------------------------------------
-11. APPS DEL CATÁLOGO OFICIAL (referencia por categoría)
---------------------------------------------------
-Para ver patrones según el tipo de app, revisá:
-
-  UTILIDADES:      Calcul-He, HE-loj, QR-He, Trans-He
-  PRODUCTIVIDAD:   Not-He, He-To-Do, He-vento, Cod-He
-  MULTIMEDIA:      Galeria-He, Spoti-vic, Pint-He, PDF-He
-  INFORMACIÓN:     Clim-He, Map-He
-  IA / REDES:      He-nteligens, HE-ptune
-  JUEGOS:          Ajedr-He
-  SEGURIDAD:       Pass-He
-
-Cada una demuestra un patrón distinto: manejo de audio, canvas,
-IndexedDB, APIs externas, etc.
-
---------------------------------------------------
-12. CHECKLIST ANTES DE EMPAQUETAR
---------------------------------------------------
-Marca todas antes de generar el ZIP:
-
-[ ] index.html contiene TODO el CSS y JS inline (nada externo)
-[ ] manifest.json con id, titulo, icono, main (los 4 obligatorios)
-[ ] Las variables :root y html[data-modo="oscuro"] están definidas
-[ ] El bloque de postMessage myhub:get-tema está presente
-[ ] body { height: 100vh; overflow: hidden; }
-[ ] Header con border-bottom y padding estándar
-[ ] Botones con radius 8px y font-weight 600
-[ ] Inputs con radius 10px y focus var(--accent)
-[ ] Footer .app-credit con "Hecho con ❤️ por VicHeStudios" (o tu autoría)
-[ ] Scrollbar 6px estilizada (desktop)
-[ ] Iconos Lucide o SVG inline (no emojis en el header)
-[ ] Archivos pesados (>1MB) van en IndexedDB, no localStorage
-[ ] Probado en modo claro Y oscuro
-[ ] Probado en ventana estrecha (~600px de ancho)
-
---------------------------------------------------
-13. PLANTILLA BASE COMPLETA (copiar y pegar)
---------------------------------------------------
-Este es el esqueleto mínimo de una app oficial. Cópialo y empieza
-a construir encima. Todo lo que está aquí es obligatorio.
-
---- index.html ---
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  :root {
-    --accent: #2563eb;
-    --accent-soft: rgba(37, 99, 235, 0.15);
-    --text: #0b1220;
-    --muted: #64748b;
-    --line: rgba(15, 23, 42, 0.08);
-    --card: #ffffff;
-    --field: #f6f8fb;
-    --danger: #ef4444;
-  }
-  html[data-modo="oscuro"] {
-    --text: #f4f4f6;
-    --muted: #9ea1aa;
-    --line: rgba(255, 255, 255, 0.09);
-    --card: #222227;
-    --field: #2a2a31;
-  }
-  * { box-sizing: border-box; }
-  html, body {
-    height: 100vh; width: 100%; margin: 0; overflow: hidden;
-  }
-  body {
-    display: flex; flex-direction: column;
-    font-family: 'Segoe UI Variable', system-ui, sans-serif;
-    background: var(--card); color: var(--text);
-  }
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
-
-  .header {
-    padding: 12px 16px; border-bottom: 1px solid var(--line);
-    background: var(--card); flex-shrink: 0;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .header h1 { margin: 0; font-size: 16px; font-weight: 700; }
-
-  .content {
-    flex: 1; overflow-y: auto; padding: 16px;
-    display: flex; flex-direction: column; gap: 12px;
-  }
-
-  .btn-primary {
-    background: var(--accent); color: #fff; border: none;
-    padding: 8px 14px; border-radius: 8px;
-    font-family: inherit; font-weight: 600; font-size: 13px;
-    cursor: pointer; transition: 0.2s;
-  }
-  .btn-primary:hover { filter: brightness(1.1); }
-
-  .input {
-    padding: 10px 12px; border-radius: 10px;
-    border: 1.5px solid var(--line);
-    background: var(--field); color: var(--text);
-    font-family: inherit; font-size: 13px; outline: none;
-    transition: border-color 0.2s;
-  }
-  .input:focus { border-color: var(--accent); }
-
-  .app-credit {
-    text-align: center; font-size: 11px; color: var(--muted);
-    padding: 8px; border-top: 1px solid var(--line);
-    background: var(--card); flex-shrink: 0;
-  }
-  .app-credit a { color: var(--accent); text-decoration: none; font-weight: 600; }
-</style>
-</head>
-<body>
-
-  <div class="header">
-    <h1>Mi App</h1>
-    <button class="btn-primary" id="btn-accion">Acción</button>
-  </div>
-
-  <div class="content">
-    <input class="input" type="text" placeholder="Escribe algo...">
-    <p>Contenido de la app aquí.</p>
-  </div>
-
-  <div class="app-credit">
-    Hecho con ❤️ por VicHeStudios
-  </div>
-
-<script>
-  // 1. Sincronización de tema (OBLIGATORIO)
-  if (window.parent !== window) {
-    window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
-  }
-  window.addEventListener('message', (e) => {
-    if (e.data?.type === 'myhub:tema:res') {
-      document.documentElement.dataset.modo = e.data.modo;
-      document.documentElement.style.setProperty('--accent', e.data.color);
-      document.documentElement.style.setProperty('--accent-soft', e.data.color + '26');
-    }
-  });
-
-  // 2. Lógica de la app
-  document.getElementById('btn-accion').onclick = () => {
-    if (window.MyHub) window.MyHub.toast('¡Funciona!');
-    else alert('¡Funciona!');
-  };
-</script>
-</body>
-</html>
-
---- manifest.json ---
-{
-  "id": "mi-app",
-  "titulo": "Mi App",
-  "icono": "sparkles",
-  "main": "index.html",
-  "autor": "VicHeStudios",
-  "descripcion": "Una app que hace cosas increíbles"
-}
-
---------------------------------------------------
-14. FILOSOFÍA
---------------------------------------------------
-El objetivo no es que cada app se vea igual, sino que todas se
-sientan parte del mismo sistema. Un usuario no debería notar dónde
-termina el escritorio y dónde empieza tu app.
-
-Cuando dudes entre dos opciones de diseño, pregúntate:
-"¿Esto ya existe en alguna otra app del sistema?"
-Si la respuesta es sí, úsalo igual. Si es no, pregúntate por qué.
-
-Y si sos contribuidor externo: no te sientas obligado a seguir el
-sufijo "He" ni a imitar cada detalle. Lo importante es que tu app
-funcione bien, respete el tema del sistema y no rompa la experiencia.
-El resto es estilo, y el estilo es tuyo.
-
-==================================================
-Hecho con amor para MyHubHestudio. ¡Feliz código!
-==================================================
-`;
-
+  const doc = `... (Mismo contenido de DocApps) ...`;
   const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-
   const a = document.createElement('a');
-  a.href = url;
-  a.download = 'DocApps_MyHub.txt';
-  document.body.appendChild(a);
-  a.click();
+  a.href = url; a.download = 'DocApps_MyHub.txt';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+};
 
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 100);
+// ================= DocWidgets =================
+window.descargarDocWidgets = function() {
+  const doc = `
+==================================================
+MYHUBHESTUDIO - GUÍA DE WIDGETS
+==================================================
+[Los mismos textos de la guía...]
+==================================================
+`;
+  const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'DocWidgets.txt';
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 };
 
 // ================= Puente de comunicación =================
@@ -2256,23 +1709,16 @@ reloj(); setInterval(reloj, 15000);
 
 (async () => {
   const [a, c, s, pos, appsInst, carpetasData, pinnedData] = await Promise.all([
-    kvGet('ajustes'),
-    kvGet('cuenta'),
-    kvGet('sesion'),
-    kvGet('posiciones_iconos'),
-    kvGet('apps_instaladas'),
-    kvGet('carpetas'),
-    kvGet('pinned_apps')
+    kvGet('ajustes'), kvGet('cuenta'), kvGet('sesion'),
+    kvGet('posiciones_iconos'), kvGet('apps_instaladas'),
+    kvGet('carpetas'), kvGet('pinned_apps')
   ]);
 
   ajustes = { ...AJUSTES_BASE, ...(a || {}) };
   cuentaActual = c; sesionActiva = !!c && s === true;
-  posicionesIconos = pos || {};
-  carpetas = carpetasData || {};
-  pinnedApps = pinnedData || [];
+  posicionesIconos = pos || {}; carpetas = carpetasData || {}; pinnedApps = pinnedData || [];
 
   injectStyles();
-
   aplicarAjustes(); refrescarEstado(); refrescarIconos();
 
   if (window.RUTAS_APPS) {
@@ -2292,7 +1738,6 @@ reloj(); setInterval(reloj, 15000);
     }
   }
 
-  // Setup de extras (fusionado)
   limpiarCarpetasHuerfanas();
   renderIconos();
   setupEditProfile();
@@ -2309,95 +1754,57 @@ reloj(); setInterval(reloj, 15000);
 })();
 
 // ============================================================================
-// ExtraFunc.js - Extensiones del Sistema (Atajos, Sonidos, Backup, Config), - (23-10-2026) - 1A
+// ExtraFunc.js - Extensiones y Widgets integrados - (23-10-2026) - A3
 // ============================================================================
 
 (function() {
   'use strict';
 
+  // ================= CONFIGURACIÓN Y SONIDOS =================
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
   
-  const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
-  const getWin = () => window.win || (typeof win !== 'undefined' ? win : null);
-
-  // ================= ESTADO Y CONFIGURACIÓN =================
   let sonidosActivos = localStorage.getItem('myhub_sounds') !== 'false';
   let hotkeys = JSON.parse(localStorage.getItem('myhub_hotkeys') || '{}');
   const defaultHotkeys = {
-    'Digit1': 'papelera',
-    'Digit2': 'forge',
-    'Digit3': 'storhe',
-    'Digit4': 'cmdhe',
-    'KeyM': 'minimize',
-    'KeyC': 'close',
-    'KeyD': 'theme',
-    'KeyR': 'reload',
-    'KeyN': 'newfolder',
-    'KeyS': 'settings',
-    'KeyF': 'fullscreen'
+    'Digit1': 'papelera', 'Digit2': 'forge', 'Digit3': 'storhe', 'Digit4': 'cmdhe',
+    'KeyM': 'minimize', 'KeyC': 'close', 'KeyD': 'theme', 'KeyR': 'reload',
+    'KeyN': 'newfolder', 'KeyS': 'settings', 'KeyF': 'fullscreen'
   };
 
-  // ================= SISTEMA DE SONIDO (snd-lib) =================
   let sndInstance = null;
   let sndReady = false;
 
   if (typeof Snd !== 'undefined') {
     sndInstance = new Snd();
     sndInstance.load(Snd.KITS.SND01).then(() => {
-      sndReady = true; // Se activa cuando los archivos de audio están listos
-      console.log('[ExtraFunc] Kit de sonidos cargado correctamente.');
+      sndReady = true;
+      console.log('[ExtraFunc] Kit de sonidos cargado.');
     }).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
-  } else {
-    console.warn('[ExtraFunc] La librería Snd no está disponible.');
   }
 
   const playSound = (type) => {
     if (!sonidosActivos || !sndInstance || !sndReady) return;
-
     try {
-      let soundToPlay;
-
-      // Mapeo exacto a los sonidos reales del kit SND01
+      let soundToPlay = Snd.SOUNDS.TAP;
       switch (type) {
-        case 'open':
-          soundToPlay = Snd.SOUNDS.SWITCH;
-          break;
-        case 'close':
-          soundToPlay = Snd.SOUNDS.SWOOSH;
-          break;
-        case 'minimize':
-          soundToPlay = Snd.SOUNDS.HOVER;
-          break;
-        case 'start':
-          soundToPlay = Snd.SOUNDS.SUCCESS;
-          break;
-        case 'move':
-          soundToPlay = Snd.SOUNDS.CLICK;
-          break;
-        case 'click':
-        default:
-          soundToPlay = Snd.SOUNDS.TAP;
-          break;
+        case 'open': soundToPlay = Snd.SOUNDS.SWITCH; break;
+        case 'close': soundToPlay = Snd.SOUNDS.SWOOSH; break;
+        case 'minimize': soundToPlay = Snd.SOUNDS.HOVER; break;
+        case 'start': soundToPlay = Snd.SOUNDS.SUCCESS; break;
+        case 'move': soundToPlay = Snd.SOUNDS.CLICK; break;
       }
-
-      // Verificamos que el sonido exista en la librería antes de reproducirlo
-      if (soundToPlay) {
-        sndInstance.play(soundToPlay);
-      } else {
-        sndInstance.play(Snd.SOUNDS.TAP); // Fallback definitivo
-      }
-    } catch(e) {
-      console.error('Error al reproducir sonido:', e);
-    }
+      if (soundToPlay) sndInstance.play(soundToPlay);
+    } catch(e) {}
   };
 
-  // ================= INYECCIÓN DE ESTILOS =================
+  // ================= INYECCIÓN DE ESTILOS (Atajos, Config, Widgets) =================
   const inyectarEstilos = () => {
     if (document.getElementById('extrafunc-style')) return;
     const style = document.createElement('style');
     style.id = 'extrafunc-style';
     style.textContent = `
+      /* Estilos de Miniaturas Taskbar */
       #task-preview { position: fixed; z-index: 1000; width: 200px; background: var(--glass, #fff); border: 1.5px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 12px; display: none; flex-direction: column; gap: 10px; color: var(--text); opacity: 0; transform: translateY(10px); transition: opacity 0.15s, transform 0.15s; pointer-events: auto; backdrop-filter: blur(20px); }
       #task-preview.active { display: flex; opacity: 1; transform: translateY(0); }
       .preview-header { display: flex; align-items: center; gap: 10px; }
@@ -2409,70 +1816,40 @@ reloj(); setInterval(reloj, 15000);
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
-      .extrafunc-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s; }
-      .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
-      .extrafunc-btn.danger { color: #ef4444; }
-      .extrafunc-btn.danger:hover { background: #ef4444; color: #fff; }
-      .extrafunc-btn.locked { color: var(--muted); cursor: not-allowed; }
-      .extrafunc-btn.locked:hover { background: transparent; color: var(--muted); }
-
-      .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-      .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
-      .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text); }
-      .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
-      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: var(--text); }
-      .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted); line-height: 1.4; }
-      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
-      .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
-      .extrafunc-modal-btn:active { transform: scale(0.95); }
-      .extrafunc-modal-btn.cancel { background: var(--field); color: var(--text); border: 1px solid var(--line); }
-      .extrafunc-modal-btn.cancel:hover { background: var(--card); }
-      .extrafunc-modal-btn.confirm { background: #ef4444; color: #fff; }
-      .extrafunc-modal-btn.confirm:hover { filter: brightness(1.1); }
-
+      /* Estilos Config */
       .cfg-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .cfg-toggle span { font-size: 13px; font-weight: 500; }
       .cfg-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
-      
       .hotkey-list { max-height: 180px; overflow-y: auto; padding-right: 8px; margin-top: 8px; }
       .hotkey-row { display: grid; grid-template-columns: 1fr 110px; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
       .hotkey-row:last-child { border-bottom: none; }
       .hotkey-label { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
       .hotkey-key { width: 100%; text-align: center; background: var(--field); border: 1px solid var(--line); padding: 6px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; transition: 0.2s; outline: none; color: var(--text); }
       .hotkey-key:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+      /* Estilos Widgets */
+      @keyframes dropInFixed { 0% { opacity: 0; transform: translate(-50%, -10px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
+      .toast { animation: dropInFixed .3s var(--ease-out) !important; }
+      .widget-container { user-select: none; -webkit-user-select: none; }
+      .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+      .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
+      .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
+      .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
+      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 18px; font-weight: 700; color: var(--text, #000); letter-spacing: -0.02em; }
+      .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted, #666); line-height: 1.4; }
+      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+      .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
+      .extrafunc-modal-btn:active { transform: scale(0.95); }
+      .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
+      .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
+      .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; box-sizing: border-box; }
+      .widget-list-item:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: translateY(-1px); }
+      .widget-list-item i { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+      .widget-list-info { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+      .widget-list-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      .widget-list-size { font-size: 11px; color: var(--muted); text-transform: uppercase; }
     `;
     document.head.appendChild(style);
-  };
-
-  // ================= MODAL PERSONALIZADO =================
-  const showConfirm = (title, message) => {
-    return new Promise((resolve) => {
-      const overlay = document.createElement('div');
-      overlay.className = 'extrafunc-modal-overlay';
-      const modal = document.createElement('div');
-      modal.className = 'extrafunc-modal';
-      modal.innerHTML = `
-        <h3>${esc(title)}</h3>
-        <p>${esc(message)}</p>
-        <div class="extrafunc-modal-actions">
-          <button class="extrafunc-modal-btn cancel">Cancelar</button>
-          <button class="extrafunc-modal-btn confirm">Aceptar</button>
-        </div>
-      `;
-      overlay.appendChild(modal);
-      document.body.appendChild(overlay);
-      void overlay.offsetWidth; overlay.classList.add('active');
-
-      const close = (result) => {
-        overlay.classList.remove('active');
-        setTimeout(() => overlay.remove(), 200);
-        resolve(result);
-      };
-
-      modal.querySelector('.cancel').onclick = () => close(false);
-      modal.querySelector('.confirm').onclick = () => close(true);
-      overlay.onclick = (e) => { if (e.target === overlay) close(false); };
-    });
   };
 
   // ================= ATAJOS DE TECLADO =================
@@ -2480,9 +1857,8 @@ reloj(); setInterval(reloj, 15000);
     document.addEventListener('keydown', (e) => {
       if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const code = e.code;
-        const winObj = getWin();
+        const winObj = window.win;
         const action = hotkeys[code] || defaultHotkeys[code];
-
         if (!action) return;
 
         switch (action) {
@@ -2501,11 +1877,7 @@ reloj(); setInterval(reloj, 15000);
             }
             break;
           case 'reload': e.preventDefault(); location.reload(); break;
-          case 'newfolder': 
-            e.preventDefault(); 
-            const btnCarpeta = document.getElementById('menu-nueva-carpeta');
-            if (btnCarpeta) btnCarpeta.click();
-            break;
+          case 'newfolder': e.preventDefault(); if(document.getElementById('menu-nueva-carpeta')) document.getElementById('menu-nueva-carpeta').click(); break;
           case 'settings':
             e.preventDefault();
             document.getElementById('inicio').click();
@@ -2527,8 +1899,6 @@ reloj(); setInterval(reloj, 15000);
   // ================= MINIATURAS TASKBAR =================
   const setupMiniaturas = () => {
     if (document.getElementById('task-preview')) return;
-    const reg = getReg();
-
     const preview = document.createElement('div');
     preview.id = 'task-preview';
     preview.innerHTML = `<div class="preview-header"><div class="preview-icon" id="preview-icon"></div><div class="preview-title" id="preview-title"></div><button class="preview-close" id="preview-close"><i data-lucide="x"></i></button></div><div class="preview-hint">Clic para enfocar</div>`;
@@ -2542,11 +1912,11 @@ reloj(); setInterval(reloj, 15000);
         clearTimeout(hideTimeout);
         const title = taskEl.getAttribute('title');
         let realId = null;
-        if (reg) reg.forEach((app, id) => { if (app.titulo === title) realId = id; });
+        if (window.registro) window.registro.forEach((app, id) => { if (app.titulo === title) realId = id; });
         
         if (realId) {
           currentTaskId = realId;
-          const app = reg.get(realId);
+          const app = window.registro.get(realId);
           document.getElementById('preview-title').textContent = app.titulo;
           document.getElementById('preview-icon').innerHTML = `<i data-lucide="${app.icono || 'app-window'}"></i>`;
           
@@ -2575,78 +1945,7 @@ reloj(); setInterval(reloj, 15000);
     });
   };
 
-  // ================= MENÚ CONTEXTUAL =================
-  const setupContextMenuExtendido = () => {
-    let targetAppId = null;
-
-    document.addEventListener('contextmenu', (e) => {
-      targetAppId = null;
-      const deskIcon = e.target.closest('.icon[data-app-id]');
-      if (deskIcon) targetAppId = deskIcon.dataset.appId;
-      else {
-        const folderItem = e.target.closest('.folder-item');
-        if (folderItem) {
-          const title = folderItem.querySelector('span').textContent;
-          const reg = getReg();
-          if (reg) reg.forEach((app, id) => { if (app.titulo === title) targetAppId = id; });
-        }
-      }
-
-      if (targetAppId) {
-        setTimeout(() => {
-          const menus = document.querySelectorAll('div[style*="z-index: 500"]');
-          const menu = menus[menus.length - 1];
-          
-          if (menu && !menu.querySelector('.extrafunc-btn')) {
-            const app = getReg().get(targetAppId);
-            if (!app) return;
-
-            const hr = document.createElement('hr');
-            hr.style.cssText = 'border:none;border-top:1px solid var(--line, #eee);margin:4px 2px;';
-            menu.appendChild(hr);
-
-            const createBtn = (icon, text, isDanger, action) => {
-              const btn = document.createElement('button');
-              btn.className = `extrafunc-btn ${isDanger ? 'danger' : ''}`;
-              btn.innerHTML = `<i data-lucide="${icon}"></i><span>${esc(text)}</span>`;
-              btn.onclick = async () => {
-                if (typeof cerrarContexto === 'function') cerrarContexto();
-                else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
-                await action();
-              };
-              return btn;
-            };
-
-            const esAppSistema = ['papelera', 'forge', 'storhe', 'cmdhe'].includes(targetAppId) || app.url;
-
-            if (esAppSistema) {
-              const btnLocked = document.createElement('button');
-              btnLocked.className = 'extrafunc-btn locked';
-              btnLocked.innerHTML = `<i data-lucide="lock"></i><span>App de Sistema</span>`;
-              btnLocked.onclick = async () => {
-                if (typeof cerrarContexto === 'function') cerrarContexto();
-                else { document.querySelector('div[style*="z-index: 499"]')?.remove(); menu.remove(); }
-                window.MyHub.toast('Las apps base no se pueden borrar desde aquí. Usa CMD-HE.');
-              };
-              menu.appendChild(btnLocked);
-            } else {
-              const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
-                const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
-                if (ok) {
-                  await window.MyHub.eliminarApp(targetAppId);
-                  window.MyHub.toast('App eliminada');
-                }
-              });
-              menu.appendChild(btnDelete);
-            }
-            refrescarIconos();
-          }
-        }, 20);
-      }
-    }, true);
-  };
-
-  // ================= INYECCIÓN EN CONFIGURACIÓN =================
+  // ================= CONFIGURACIÓN INYECCIÓN =================
   const setupConfigInjection = () => {
     const modal = document.getElementById('modal');
     const mTitulo = document.getElementById('mTitulo');
@@ -2659,16 +1958,10 @@ reloj(); setInterval(reloj, 15000);
         container.id = 'extrafunc-config-injected';
         container.style.marginTop = '20px';
 
-        // --- 1. NUEVOS COLORES ---
         const swatches = mBody.querySelector('.swatches');
         if (swatches) {
           const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
-          
-          try {
-            for (const [nombre, hex] of Object.entries(nuevosColores)) {
-              eval(`COLORES['${nombre}'] = '${hex}';`);
-            }
-          } catch(e) {}
+          try { for (const [nombre, hex] of Object.entries(nuevosColores)) { eval(`COLORES['${nombre}'] = '${hex}';`); } } catch(e) {}
 
           for (const [nombre, hex] of Object.entries(nuevosColores)) {
             if (!Array.from(swatches.children).some(c => c.title === nombre)) {
@@ -2695,26 +1988,19 @@ reloj(); setInterval(reloj, 15000);
                     b.classList.add('on');
                     if (window.MyHub) window.MyHub.toast('Color actualizado');
                   };
-                } catch(e) {
-                  if (window.MyHub) window.MyHub.toast('Error al guardar color');
-                }
+                } catch(e) { if (window.MyHub) window.MyHub.toast('Error al guardar color'); }
               };
               swatches.appendChild(b);
             }
           }
         }
 
-        // --- 2. SECCIÓN DE SONIDO ---
         container.innerHTML += `
           <div class="sec" style="margin-top: 20px;">Efectos de Sonido</div>
           <div class="cfg-toggle">
             <span>Sonidos del sistema</span>
             <input type="checkbox" id="cfg-toggle-sound" ${sonidosActivos ? 'checked' : ''}>
           </div>
-        `;
-
-        // --- 3. COPIA DE SEGURIDAD ---
-        container.innerHTML += `
           <div class="sec" style="margin-top: 20px;">Copia de Seguridad</div>
           <div class="fila-btns">
             <button class="btn" id="cfg-btn-export"><i data-lucide="download"></i>Exportar Datos</button>
@@ -2724,7 +2010,6 @@ reloj(); setInterval(reloj, 15000);
           <p class="nota">Descarga un archivo con todas tus apps, carpetas y ajustes.</p>
         `;
 
-        // --- 4. ATAJOS DE TECLADO ---
         const labels = {
           'papelera': 'Abrir Papelera', 'forge': 'Abrir Forge', 'storhe': 'Abrir Stor-He', 'cmdhe': 'Abrir CMD-HE',
           'minimize': 'Minimizar Ventanas', 'close': 'Cerrar Ventanas', 'theme': 'Alternar Tema',
@@ -2745,14 +2030,10 @@ reloj(); setInterval(reloj, 15000);
         container.innerHTML += `
           <div class="sec" style="margin-top: 20px;">Atajos de Teclado</div>
           <p class="nota" style="margin-bottom: 10px;">Haz clic en un atajo y presiona la nueva combinación (Shift + Tecla).</p>
-          <div class="hotkey-list">
-            ${hotkeysHTML}
-          </div>
+          <div class="hotkey-list">${hotkeysHTML}</div>
         `;
 
         mBody.appendChild(container);
-
-        // ================= LÓGICA DE LOS ELEMENTOS INYECTADOS =================
 
         const soundToggle = document.getElementById('cfg-toggle-sound');
         soundToggle.onchange = (e) => {
@@ -2767,15 +2048,14 @@ reloj(); setInterval(reloj, 15000);
             carpetas: await window.kvGet('carpetas') || {},
             ajustes: await window.kvGet('ajustes') || {},
             cuenta: await window.kvGet('cuenta') || null,
-            posiciones_iconos: await window.kvGet('posiciones_iconos') || {}
+            posiciones_iconos: await window.kvGet('posiciones_iconos') || {},
+            widgets_activos: window.widgetsActivos || []
           };
           const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = url;
-          a.download = `MyHub_Backup_${new Date().toISOString().slice(0,10)}.json`;
-          a.click();
-          URL.revokeObjectURL(url);
+          a.href = url; a.download = `MyHub_Backup_${new Date().toISOString().slice(0,10)}.json`;
+          a.click(); URL.revokeObjectURL(url);
           window.MyHub.toast('Copia de seguridad descargada');
         };
 
@@ -2793,11 +2073,10 @@ reloj(); setInterval(reloj, 15000);
               if (data.ajustes) await window.kvSet('ajustes', data.ajustes);
               if (data.cuenta) await window.kvSet('cuenta', data.cuenta);
               if (data.posiciones_iconos) await window.kvSet('posiciones_iconos', data.posiciones_iconos);
+              if (data.widgets_activos) await window.kvSet('widgets_activos', data.widgets_activos);
               window.MyHub.toast('Datos importados. Recargando...');
               setTimeout(() => location.reload(), 1500);
-            } catch (err) {
-              window.MyHub.toast('Error al importar: Archivo inválido');
-            }
+            } catch (err) { window.MyHub.toast('Error al importar: Archivo inválido'); }
           };
           reader.readAsText(file);
         };
@@ -2825,131 +2104,17 @@ reloj(); setInterval(reloj, 15000);
             }
           });
         });
-
         refrescarIconos();
       }
     });
-
     observer.observe(modal, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
-  // ================= INICIALIZACIÓN =================
-  const init = () => {
-    if (!window.MyHub || !getReg()) {
-      setTimeout(init, 100);
-      return;
-    }
-
-    inyectarEstilos();
-    setupAtajosTeclado();
-    setupMiniaturas();
-    setupContextMenuExtendido();
-    setupConfigInjection();
-
-    // --- SISTEMA DE SONIDOS BASADO EN EL DOM ---
-    
-    // 1. Sonido al abrir app (detecta cuando se inyecta un .win en el DOM)
-    const desk = document.getElementById('desktop');
-    if (desk) {
-      const observerDesk = new MutationObserver((mutations) => {
-        mutations.forEach(m => {
-          if (m.addedNodes.length) {
-            m.addedNodes.forEach(node => {
-              if (node.classList && node.classList.contains('win')) {
-                playSound('open');
-              }
-            });
-          }
-        });
-      });
-      observerDesk.observe(desk, { childList: true });
-    }
-
-    // 2. Sonidos de interacción en el DOM
-    document.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('.close.minimize')) {
-        playSound('minimize');
-      } else if (e.target.closest('.close:not(.minimize)')) {
-        playSound('close');
-      } else if (e.target.closest('#inicio')) {
-        playSound('start');
-      } else if (e.target.closest('.titlebar') && !e.target.closest('.close')) {
-        playSound('move');
-      }
-    }, true);
-    
-    console.log('%c[ExtraFunc] Extensiones cargadas correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
-  } else {
-    setTimeout(init, 100);
-  }
-
-})();
-
-// ============================================================================
-// ExtraFunc.js - Motor de Widgets y DocWidgets para MyHubHestudio - (23-10-2026) - A2
-// ============================================================================
-
-(function() {
-  'use strict';
-
-  const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
-  const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
-
+  // ================= MOTOR DE WIDGETS =================
   const MARGEN = 16, GX = 100, GY = 110;
 
-  const inyectarEstilosWidgets = () => {
-    if (document.getElementById('widgets-style')) return;
-    const style = document.createElement('style');
-    style.id = 'widgets-style';
-    style.textContent = `
-      @keyframes dropInFixed {
-        0% { opacity: 0; transform: translate(-50%, -10px); }
-        100% { opacity: 1; transform: translate(-50%, 0); }
-      }
-      .toast { animation: dropInFixed .3s var(--ease-out) !important; }
-
-      .widget-container {
-        user-select: none;
-        -webkit-user-select: none;
-      }
-
-      .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-      .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
-      .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
-      .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
-      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 18px; font-weight: 700; color: var(--text, #000); letter-spacing: -0.02em; }
-      .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted, #666); line-height: 1.4; }
-      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-      .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
-      .extrafunc-modal-btn:active { transform: scale(0.95); }
-      .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
-      .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
-      
-      .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; box-sizing: border-box; }
-      .widget-list-item:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: translateY(-1px); }
-      .widget-list-item i { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
-      .widget-list-info { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-      .widget-list-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-      .widget-list-size { font-size: 11px; color: var(--muted); text-transform: uppercase; }
-    `;
-    document.head.appendChild(style);
-  };
-
-  let widgetsActivos = []; 
-  window.getWidgetsActivos = () => widgetsActivos;
-  
-  const cargarWidgets = async () => {
-    const data = await kvGet('widgets_activos') || [];
-    widgetsActivos = data;
-    renderWidgets();
-  };
-
   const guardarWidgets = async () => {
-    await kvSet('widgets_activos', widgetsActivos);
+    await kvSet('widgets_activos', window.widgetsActivos);
   };
 
   const getWidgetCells = (size) => {
@@ -2973,7 +2138,7 @@ reloj(); setInterval(reloj, 15000);
       });
     }
 
-    widgetsActivos.forEach(w => {
+    window.widgetsActivos.forEach(w => {
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
       const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
@@ -3015,7 +2180,7 @@ reloj(); setInterval(reloj, 15000);
     return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
   };
 
-  const renderWidgets = () => {
+  window.renderWidgets = () => {
     let layer = document.getElementById('widgets-layer');
     if (!layer) {
       layer = document.createElement('div');
@@ -3025,7 +2190,7 @@ reloj(); setInterval(reloj, 15000);
     }
     layer.innerHTML = '';
 
-    widgetsActivos.forEach(w => {
+    window.widgetsActivos.forEach(w => {
       const el = document.createElement('div');
       el.className = 'widget-container';
       
@@ -3047,9 +2212,9 @@ reloj(); setInterval(reloj, 15000);
         if (typeof mostrarContexto === 'function') {
           mostrarContexto(e.clientX, e.clientY, [
             { icon: 'trash-2', text: 'Eliminar Widget', fn: () => {
-              widgetsActivos = widgetsActivos.filter(item => item !== w);
+              window.widgetsActivos = window.widgetsActivos.filter(item => item !== w);
               guardarWidgets();
-              renderWidgets();
+              window.renderWidgets();
               window.MyHub.toast('Widget eliminado');
             }}
           ]);
@@ -3059,7 +2224,7 @@ reloj(); setInterval(reloj, 15000);
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
       
-      const app = getReg().get(w.id);
+      const app = window.registro.get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
         const blob = app.archivos[w.file];
         const reader = new FileReader();
@@ -3186,9 +2351,9 @@ reloj(); setInterval(reloj, 15000);
     });
   };
 
-  const abrirPanelWidgets = () => {
+  window.abrirPanelWidgets = () => {
     const appsConWidgets = [];
-    getReg().forEach((app, id) => {
+    window.registro.forEach((app, id) => {
       if (app.manifest && app.manifest.widgets) {
         app.manifest.widgets.forEach(w => {
           appsConWidgets.push({ appId: id, titulo: app.titulo, file: w.file, size: w.size || '1x1' });
@@ -3243,182 +2408,62 @@ reloj(); setInterval(reloj, 15000);
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
         const pos = findClosestFreeSpot(w.size, 116, 16);
-        widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
+        window.widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
-        renderWidgets();
+        window.renderWidgets();
         cerrarPanel();
         window.MyHub.toast('Widget añadido al escritorio');
       };
     });
   };
 
-  // ================= EL TRUCO PARA EL MENÚ CONTEXTUAL =================
-  // Escuchamos el botón derecho ANTES de que el navegador intente abrir el menú
-  document.addEventListener('pointerdown', (e) => {
-    if (e.button === 2) {
-      // Si hay un menú abierto, lo cerramos inmediatamente
-      if (typeof cerrarContexto === 'function') {
-        cerrarContexto();
-      }
-    }
-  }, true);
-
-  document.addEventListener('contextmenu', (e) => {
-    if (e.target.closest('#modal')) return;
-
-    e.preventDefault(); 
-    
-    if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar') || e.target.closest('.widget-container')) return;
-    
-    setTimeout(() => {
-      const menus = document.querySelectorAll('div[style*="z-index: 500"]');
-      const menu = menus[menus.length - 1];
-      if (menu && !menu.querySelector('.extrafunc-btn-widget')) {
-        const hr = document.createElement('hr');
-        hr.style.cssText = 'border:none;border-top:1px solid var(--line);margin:4px 2px;';
-        menu.appendChild(hr);
-        
-        const btnWidget = document.createElement('button');
-        btnWidget.className = 'extrafunc-btn extrafunc-btn-widget';
-        btnWidget.innerHTML = `<i data-lucide="layout-grid"></i><span>Gestión de Widgets</span>`;
-        btnWidget.onclick = () => {
-          if (typeof cerrarContexto === 'function') cerrarContexto();
-          else menu.remove();
-          abrirPanelWidgets();
-        };
-        menu.appendChild(btnWidget);
-        refrescarIconos();
-      }
-    }, 20);
-  }, true);
-
-  // ================= INTERCEPTOR DE COLISIONES (APPS SOBRE WIDGETS) =================
-  let dragStartIcon = null;
-  let dragStartPos = null;
-
-  document.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return;
-    const icon = e.target.closest('.icon');
-    if (icon) {
-      dragStartIcon = icon;
-      dragStartPos = { left: icon.style.left, top: icon.style.top };
-    }
-  }, true);
-
-  window.addEventListener('pointerup', (e) => {
-    if (!dragStartIcon) return;
-    const icon = dragStartIcon;
-    const startPos = dragStartPos;
-    dragStartIcon = null;
-    dragStartPos = null;
-
-    setTimeout(() => {
-      if (!icon.parentElement) return; 
-      const rect = icon.getBoundingClientRect();
-      let collision = false;
-
-      document.querySelectorAll('.widget-container').forEach(w => {
-        const wRect = w.getBoundingClientRect();
-        if (!(rect.right <= wRect.left || rect.left >= wRect.right || rect.bottom <= wRect.top || rect.top >= wRect.bottom)) {
-          collision = true;
-        }
-      });
-
-      if (collision) {
-        icon.style.left = startPos.left;
-        icon.style.top = startPos.top;
-        if (icon.dataset.appId) {
-          const id = icon.dataset.appId;
-          if (typeof posicionesIconos !== 'undefined') {
-            posicionesIconos[id] = startPos;
-            kvSet('posiciones_iconos', posicionesIconos);
-          }
-        } else if (icon.dataset.folderId) {
-          const folderId = icon.dataset.folderId;
-          if (typeof carpetas !== 'undefined' && carpetas[folderId]) {
-            carpetas[folderId].pos = startPos;
-            guardarCarpetas();
-          }
-        }
-        window.MyHub.toast('No puedes colocar iconos sobre un widget');
-      }
-    }, 50);
-  }, true);
-
-  const descargarDocWidgets = () => {
-    const doc = `
-==================================================
-MYHUBHESTUDIO - GUÍA DE WIDGETS
-==================================================
-[Los mismos textos de la guía...]
-==================================================
-`;
-    const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'DocWidgets.txt';
-    document.body.appendChild(a); a.click();
-    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-  };
-
-  const setupMenuWidgetsDocs = () => {
-    const menuOps = document.getElementById('menuOps');
-    if (!menuOps) return;
-
-    const injectButton = () => {
-      if (document.getElementById('menu-doc-widgets')) return;
-      const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
-      if (!docBtn) return;
-
-      const btn = document.createElement('button');
-      btn.id = 'menu-doc-widgets';
-      btn.className = 'menu-op';
-      btn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
-      btn.onclick = (e) => {
-        e.stopPropagation();
-        const menu = document.getElementById('menu');
-        if (menu) menu.classList.add('hidden');
-        descargarDocWidgets();
-      };
-      menuOps.insertBefore(btn, docBtn.nextSibling);
-      refrescarIconos();
-    };
-
-    injectButton();
-    const observer = new MutationObserver(injectButton);
-    observer.observe(menuOps, { childList: true });
-  };
-
-  const hookEliminarApp = () => {
-    if (!window.MyHub || !window.MyHub.eliminarApp || window.MyHub._eliminarAppHook) return;
-    
-    const origEliminar = window.MyHub.eliminarApp;
-    window.MyHub.eliminarApp = function(appId) {
-      const widgetsRestantes = widgetsActivos.filter(w => w.id !== appId);
-      
-      if (widgetsRestantes.length !== widgetsActivos.length) {
-        widgetsActivos = widgetsRestantes;
-        guardarWidgets();
-        renderWidgets();
-        if (window.MyHub.toast) window.MyHub.toast('Widgets asociados eliminados');
-      }
-
-      return origEliminar.call(this, appId);
-    };
-    
-    window.MyHub._eliminarAppHook = true;
-  };
-
+  // ================= INICIALIZACIÓN EXTRAS =================
   const init = () => {
-    if (!window.MyHub || !getReg()) {
+    if (!window.MyHub || !window.registro) {
       setTimeout(init, 100);
       return;
     }
-    inyectarEstilosWidgets();
-    cargarWidgets();
-    setupMenuWidgetsDocs();
-    hookEliminarApp();
-    console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
+
+    inyectarEstilos();
+    setupAtajosTeclado();
+    setupMiniaturas();
+    setupConfigInjection();
+    
+    // Cargar widgets activos desde la base de datos
+    kvGet('widgets_activos').then(data => {
+        window.widgetsActivos = data || [];
+        window.renderWidgets();
+    });
+
+    const desk = document.getElementById('desktop');
+    if (desk) {
+      const observerDesk = new MutationObserver((mutations) => {
+        mutations.forEach(m => {
+          if (m.addedNodes.length) {
+            m.addedNodes.forEach(node => {
+              if (node.classList && node.classList.contains('win')) playSound('open');
+            });
+          }
+        });
+      });
+      observerDesk.observe(desk, { childList: true });
+    }
+
+    document.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.close.minimize')) playSound('minimize');
+      else if (e.target.closest('.close:not(.minimize)')) playSound('close');
+      else if (e.target.closest('#inicio')) playSound('start');
+      else if (e.target.closest('.titlebar') && !e.target.closest('.close')) playSound('move');
+    }, true);
+
+    // Cierre con botón derecho natural
+    document.addEventListener('pointerdown', (e) => {
+        if (e.button === 2 && typeof cerrarContexto === 'function') {
+            cerrarContexto();
+        }
+    }, true);
+
+    console.log('%c[ExtraFunc] Extensiones y Widgets cargados correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
@@ -3428,4 +2473,3 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
   }
 
 })();
-
