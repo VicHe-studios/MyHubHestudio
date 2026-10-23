@@ -21,6 +21,12 @@
       }
       .toast { animation: dropInFixed .3s var(--ease-out) !important; }
 
+      /* Estilos para evitar la selección azul */
+      .widget-container {
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
@@ -133,7 +139,6 @@
       const el = document.createElement('div');
       el.className = 'widget-container';
       
-      // TAMAÑOS PERFECTOS ALINEADOS CON LOS ICONOS
       const wSize = w.size === '2x2' ? '190px' : (w.size === '2x1' ? '190px' : '90px');
       const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
       
@@ -143,7 +148,7 @@
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
         overflow: hidden; transition: transform .2s, box-shadow .2s;
-        cursor: grab;
+        cursor: grab; user-select: none; -webkit-user-select: none;
       `;
 
       el.addEventListener('contextmenu', (e) => {
@@ -162,7 +167,8 @@
       });
       
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none;';
+      // BLOQUEO DE ARRASTRE NATIVO EN EL IFRAME
+      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
       
       const app = getReg().get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
@@ -212,6 +218,9 @@
     
     el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
+      // EVITA LA SELECCIÓN AZUL Y EL ARRASTRE FANTASMA
+      e.preventDefault(); 
+      
       isDragging = false;
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
@@ -284,6 +293,7 @@
           el.style.transition = 'left .2s, top .2s, transform .2s, box-shadow .2s';
         }
       };
+      // Escuchar a nivel window por si sueltas el mouse fuera de la ventana
       window.addEventListener('pointermove', mover);
       window.addEventListener('pointerup', soltar);
     });
