@@ -28,54 +28,75 @@
     'KeyF': 'fullscreen'
   };
 
-  // ================= SISTEMA DE SONIDO (Web Audio API) =================
+  // ================= SISTEMA DE SONIDO CORREGIDO =================
+  let audioCtx = null;
+
+  const initAudio = () => {
+    if (!audioCtx) {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) audioCtx = new AudioContext();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+  };
+
+  // Desbloquear el audio al primer clic en cualquier parte del sistema
+  document.addEventListener('pointerdown', initAudio, { once: true });
+
   const playSound = (type) => {
     if (!sonidosActivos) return;
     try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      initAudio();
+      if (!audioCtx) return;
+      
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(audioCtx.destination);
       
-      const now = ctx.currentTime;
-      gain.gain.setValueAtTime(0, now); // Empezar en 0 para evitar clics fuertes
+      const now = audioCtx.currentTime;
+      gain.gain.setValueAtTime(0, now);
 
       if (type === 'open') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(350, now);
         osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
-        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         osc.start(now); osc.stop(now + 0.15);
       } else if (type === 'close') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(600, now);
         osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
-        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
         osc.start(now); osc.stop(now + 0.15);
       } else if (type === 'minimize') {
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(500, now);
         osc.frequency.linearRampToValueAtTime(400, now + 0.1);
-        gain.gain.linearRampToValueAtTime(0.05, now + 0.01);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
         osc.start(now); osc.stop(now + 0.1);
       } else if (type === 'start') {
         osc.type = 'sine';
         osc.frequency.setValueAtTime(250, now);
         osc.frequency.linearRampToValueAtTime(350, now + 0.12);
-        gain.gain.linearRampToValueAtTime(0.1, now + 0.02);
+        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
         osc.start(now); osc.stop(now + 0.12);
       } else if (type === 'move') {
         osc.type = 'square';
-        osc.frequency.setValueAtTime(200, now);
-        gain.gain.linearRampToValueAtTime(0.02, now + 0.01);
+        osc.frequency.setValueAtTime(150, now);
+        gain.gain.linearRampToValueAtTime(0.05, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
+      } else if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
         osc.start(now); osc.stop(now + 0.05);
       }
@@ -88,7 +109,6 @@
     const style = document.createElement('style');
     style.id = 'extrafunc-style';
     style.textContent = `
-      /* --- MINIATURAS EN TASKBAR --- */
       #task-preview { position: fixed; z-index: 1000; width: 200px; background: var(--glass, #fff); border: 1.5px solid var(--accent-line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 12px; display: none; flex-direction: column; gap: 10px; color: var(--text); opacity: 0; transform: translateY(10px); transition: opacity 0.15s, transform 0.15s; pointer-events: auto; backdrop-filter: blur(20px); }
       #task-preview.active { display: flex; opacity: 1; transform: translateY(0); }
       .preview-header { display: flex; align-items: center; gap: 10px; }
@@ -100,7 +120,6 @@
       .preview-close svg { width: 14px; height: 14px; }
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
-      /* --- BOTONES DEL MENÚ CONTEXTUAL --- */
       .extrafunc-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s; }
       .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
       .extrafunc-btn.danger { color: #ef4444; }
@@ -108,7 +127,6 @@
       .extrafunc-btn.locked { color: var(--muted); cursor: not-allowed; }
       .extrafunc-btn.locked:hover { background: transparent; color: var(--muted); }
 
-      /* --- MODAL PERSONALIZADO --- */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text); }
@@ -123,7 +141,6 @@
       .extrafunc-modal-btn.confirm { background: #ef4444; color: #fff; }
       .extrafunc-modal-btn.confirm:hover { filter: brightness(1.1); }
 
-      /* --- CONFIGURACIÓN EXTRA (Hotkeys simétricos) --- */
       .cfg-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .cfg-toggle span { font-size: 13px; font-weight: 500; }
       .cfg-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
@@ -353,12 +370,11 @@
         container.id = 'extrafunc-config-injected';
         container.style.marginTop = '20px';
 
-        // --- 1. NUEVOS COLORES ---
+        // --- 1. NUEVOS COLORES (CORREGIDO) ---
         const swatches = mBody.querySelector('.swatches');
         if (swatches) {
           const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
           
-          // Usamos eval para inyectar los colores en el objeto COLORES de JsLobby
           try {
             for (const [nombre, hex] of Object.entries(nuevosColores)) {
               eval(`COLORES['${nombre}'] = '${hex}';`);
@@ -366,7 +382,8 @@
           } catch(e) {}
 
           for (const [nombre, hex] of Object.entries(nuevosColores)) {
-            if (!Array.from(swatches.children).some(c => c.style.background.includes(hex) || c.style.backgroundColor.includes(hex))) {
+            // Verificamos usando el título para evitar duplicados por formato de color
+            if (!Array.from(swatches.children).some(c => c.title === nombre)) {
               const b = document.createElement('div');
               b.className = 'swatch';
               b.style.background = hex;
@@ -374,7 +391,6 @@
               if (window.ajustes && window.ajustes.color === nombre) b.classList.add('on');
               
               b.onclick = async () => {
-                // Guardamos directamente en la DB y actualizamos la UI
                 try {
                   const db = await new Promise(res => { const req = indexedDB.open('myhub-lobby', 1); req.onsuccess = () => res(req.result); });
                   const tx = db.transaction('kv', 'readwrite');
@@ -450,15 +466,13 @@
 
         // ================= LÓGICA DE LOS ELEMENTOS INYECTADOS =================
 
-        // Toggle de Sonido
         const soundToggle = document.getElementById('cfg-toggle-sound');
         soundToggle.onchange = (e) => {
           sonidosActivos = e.target.checked;
           localStorage.setItem('myhub_sounds', sonidosActivos);
-          if (sonidosActivos) playSound('open');
+          if (sonidosActivos) playSound('click');
         };
 
-        // Exportar
         document.getElementById('cfg-btn-export').onclick = async () => {
           const data = {
             apps_instaladas: await window.kvGet('apps_instaladas') || {},
@@ -477,7 +491,6 @@
           window.MyHub.toast('Copia de seguridad descargada');
         };
 
-        // Importar
         const fileInput = document.getElementById('cfg-input-import');
         document.getElementById('cfg-btn-import').onclick = () => fileInput.click();
         fileInput.onchange = (e) => {
@@ -501,7 +514,6 @@
           reader.readAsText(file);
         };
 
-        // Atajos (Hotkeys)
         document.querySelectorAll('.hotkey-key').forEach(input => {
           input.addEventListener('keydown', (e) => {
             e.preventDefault();
@@ -546,35 +558,30 @@
     setupContextMenuExtendido();
     setupConfigInjection();
 
-    // --- ENGANCHE DE SONIDOS A ACCIONES ---
-    // 1. Sonido al abrir app
+    // Enganchar sonidos
     const origAbrir = window.MyHub.abrir;
     window.MyHub.abrir = function(id) {
       playSound('open');
       return origAbrir.apply(this, arguments);
     };
 
-    // 2. Sonido al cerrar app
     const origCerrar = window.MyHub.cerrar;
     window.MyHub.cerrar = function(id) {
       playSound('close');
       return origCerrar.apply(this, arguments);
     };
 
-    // 3. Sonido al minimizar
     const origMinimizar = window.MyHub.minimizar;
     window.MyHub.minimizar = function(id) {
       playSound('minimize');
       return origMinimizar.apply(this, arguments);
     };
 
-    // 4. Sonido del botón de Inicio
     const btnInicio = document.getElementById('inicio');
     if (btnInicio) {
       btnInicio.addEventListener('pointerdown', () => playSound('start'));
     }
 
-    // 5. Sonido al mover ventana (se activa cuando haces clic en la barra de título)
     document.addEventListener('pointerdown', (e) => {
       if (e.target.closest('.titlebar') && !e.target.closest('.close')) {
         playSound('move');
