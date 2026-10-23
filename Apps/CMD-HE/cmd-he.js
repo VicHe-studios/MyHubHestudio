@@ -24,9 +24,14 @@
   const printCmd = (text) => {
     const div = document.createElement('div');
     div.className = 'line cmd-echo';
-    div.innerHTML = `<span>root@myhub:~$</span> ${text}`;
+    div.innerHTML = `<span style="color: var(--accent);">root@myhub:~$</span> ${text}`;
     output.appendChild(div);
     output.scrollTop = output.scrollHeight;
+  };
+
+  // Formateador para las listas de comandos
+  const printCmdLine = (cmd, desc) => {
+    print(`<div class="cmd-list-item"><strong>${cmd}</strong><span>${desc}</span></div>`);
   };
 
   // ================= Base de Datos (IndexedDB) =================
@@ -40,18 +45,26 @@
   const commands = {
     'HubInfo': () => {
       print('--- COMANDOS DISPONIBLES ---', 'info');
-      print('<strong>HubInfo</strong> - Muestra esta lista.');
-      print('<strong>clear</strong> - Limpia la pantalla.');
-      print('<strong>sys toast <mensaje></strong> - Muestra una notificación flotante.');
-      print('<strong>sys open <id_app></strong> - Abre una aplicación.');
-      print('<strong>sys theme <dark|light></strong> - Cambia el modo del sistema.');
-      print('<strong>db list</strong> - Lista todas las bases de datos IndexedDB.');
-      print('<strong>db drop <nombre></strong> - Elimina una base de datos (¡Cuidado!).');
-      print('<strong>db keys</strong> - Muestra las claves guardadas en el sistema principal.');
-      print('<strong>db get <clave></strong> - Lee el contenido de una clave del sistema.');
-      print('<strong>db rm <clave></strong> - Elimina una clave del sistema (ej. apps_instaladas).');
-      print('<strong>app list</strong> - Lista las apps instaladas.');
-      print('<strong>app delete <id_app></strong> - Desinstala una app.');
+      
+      print('SISTEMA Y NAVEGACIÓN', 'dim');
+      printCmdLine('clear', 'Limpia la pantalla de la consola.');
+      printCmdLine('HubInfo', 'Muestra esta lista de ayuda.');
+      
+      print('CONTROL DEL SISTEMA (sys)', 'dim');
+      printCmdLine('sys toast <msg>', 'Envía una notificación al escritorio.');
+      printCmdLine('sys open <id>', 'Abre una aplicación por su ID.');
+      printCmdLine('sys theme <dark|light>', 'Cambia el modo visual.');
+      
+      print('BASE DE DATOS (db)', 'dim');
+      printCmdLine('db list', 'Lista todas las bases de datos.');
+      printCmdLine('db drop <nombre>', 'Elimina una base de datos entera.');
+      printCmdLine('db keys', 'Muestra las claves del sistema.');
+      printCmdLine('db get <clave>', 'Lee el contenido de una clave.');
+      printCmdLine('db rm <clave>', 'Elimina una clave específica.');
+      
+      print('APLICACIONES (app)', 'dim');
+      printCmdLine('app list', 'Lista las apps instaladas.');
+      printCmdLine('app delete <id>', 'Desinstala una aplicación.');
     },
 
     'clear': () => {
@@ -63,7 +76,7 @@
       if (!msg) return print('Uso: sys toast <mensaje>', 'error');
       if (window.parent && window.parent.MyHub) {
         window.parent.MyHub.toast(msg);
-        print(`Notificación enviada: "${msg}"`, 'success');
+        print(`Notificación enviada.`, 'success');
       }
     },
 
@@ -80,14 +93,11 @@
       const mode = args[0];
       if (mode !== 'dark' && mode !== 'light') return print('Uso: sys theme <dark|light>', 'error');
       
-      // Enviamos el comando al lobby para que actualice el almacenamiento
       if (window.parent && window.parent.document) {
-        // Hack rápido para cambiar el tema visualmente desde el iframe
         const root = window.parent.document.documentElement;
         root.dataset.modo = mode === 'dark' ? 'oscuro' : 'claro';
         print(`Tema cambiado a ${mode}`, 'success');
         
-        // Intentar guardar el ajuste en el sistema
         if (window.parent.ajustes && window.parent.guardarAjustes) {
           window.parent.ajustes.modo = mode === 'dark' ? 'oscuro' : 'claro';
           window.parent.guardarAjustes();
@@ -101,7 +111,7 @@
       if (typeof dbs === 'string') return print(dbs, 'error');
       if (dbs.length === 0) return print('No hay bases de datos.', 'dim');
       
-      print('--- BASES DE DATOS ENCONTRADAS ---', 'info');
+      print('--- BASES DE DATOS ---', 'info');
       dbs.forEach(db => print(`- ${db}`));
     },
 
@@ -109,16 +119,16 @@
       const dbName = args[0];
       if (!dbName) return print('Uso: db drop <nombre_de_db>', 'error');
       if (dbName === 'myhub-lobby') {
-        return print('Error Crítico: No se puede eliminar la base de datos principal del sistema (myhub-lobby).', 'error');
+        return print('Error: No se puede eliminar la base de datos del sistema (myhub-lobby).', 'error');
       }
 
-      print(`Advertencia: Vas a eliminar la base de datos "${dbName}".`, 'info');
+      print(`Advertencia: Eliminando "${dbName}"...`, 'info');
       
       try {
         const req = indexedDB.deleteDatabase(dbName);
-        req.onsuccess = () => print(`Base de datos "${dbName}" eliminada con éxito.`, 'success');
-        req.onerror = () => print(`Error al eliminar la base de datos "${dbName}".`, 'error');
-        req.onblocked = () => print(`Bloqueado: Cierra otras pestañas o apps que estén usando "${dbName}".`, 'error');
+        req.onsuccess = () => print(`Base de datos "${dbName}" eliminada.`, 'success');
+        req.onerror = () => print(`Error al eliminar "${dbName}".`, 'error');
+        req.onblocked = () => print(`Bloqueado: Cierra otras apps usando "${dbName}".`, 'error');
       } catch (e) {
         print(`Error: ${e.message}`, 'error');
       }
@@ -139,10 +149,10 @@
           req.onsuccess = () => res(req.result);
         });
 
-        print('--- CLAVES EN EL SISTEMA PRINCIPAL ---', 'info');
+        print('--- CLAVES DEL SISTEMA ---', 'info');
         keys.forEach(k => print(`- ${k}`));
       } catch (e) {
-        print('Error al leer las claves de myhub-lobby.', 'error');
+        print('Error al leer las claves.', 'error');
       }
     },
 
@@ -167,7 +177,9 @@
         if (val === undefined) return print(`La clave "${key}" no existe.`, 'error');
         
         print(`Contenido de "${key}":`, 'info');
-        print(JSON.stringify(val, null, 2));
+        const str = JSON.stringify(val, null, 2);
+        // Dividimos el JSON en líneas para que no sea un bloque gigante
+        str.split('\n').forEach(line => print(line, 'dim'));
       } catch (e) {
         print('Error al leer la clave.', 'error');
       }
@@ -188,23 +200,22 @@
         tx.objectStore('kv').delete(key);
         
         tx.oncomplete = () => {
-          print(`Clave "${key}" eliminada del sistema.`, 'success');
-          // Si se elimina una clave crítica, avisamos que debe recargar
+          print(`Clave "${key}" eliminada.`, 'success');
           if (['apps_instaladas', 'carpetas', 'cuenta'].includes(key)) {
-            print('¡Aviso! Has borrado una clave crítica. Recarga el escritorio (Shift + R) para ver los cambios.', 'error');
+            print('¡Aviso! Has borrado una clave crítica. Recarga el escritorio (Shift + R).', 'error');
           }
         };
       } catch (e) {
-        print('Error al intentar borrar la clave.', 'error');
+        print('Error al borrar la clave.', 'error');
       }
     },
 
     'app list': () => {
-      if (!window.parent || !window.parent.registro) return print('Error: No se puede acceder al registro de apps.', 'error');
+      if (!window.parent || !window.parent.registro) return print('Error: No se puede acceder al registro.', 'error');
       
       print('--- APLICACIONES INSTALADAS ---', 'info');
       window.parent.registro.forEach((app, id) => {
-        print(`- <strong>${app.titulo}</strong> (ID: ${id})`);
+        printCmdLine(id, app.titulo);
       });
     },
 
@@ -214,7 +225,7 @@
       
       if (window.parent && window.parent.MyHub) {
         window.parent.MyHub.eliminarApp(id);
-        print(`App "${id}" eliminada (o se envió la orden).`, 'success');
+        print(`App "${id}" eliminada.`, 'success');
       }
     }
   };
@@ -228,21 +239,16 @@
       printCmd(raw);
       input.value = '';
 
-      // Parsear comando
       const parts = raw.split(' ');
       let cmdKey = parts[0].toLowerCase();
       let args = parts.slice(1);
 
-      // Comandos compuestos (ej. "sys toast", "db list")
       if (['sys', 'db', 'app'].includes(cmdKey) && args.length > 0) {
         cmdKey = `${cmdKey} ${args[0].toLowerCase()}`;
         args = args.slice(1);
       }
 
-      // Buscar coincidencia exacta o parcial en las claves (case-insensitive)
-      const commandFn = Object.keys(commands).find(
-        k => k.toLowerCase() === cmdKey
-      );
+      const commandFn = Object.keys(commands).find(k => k.toLowerCase() === cmdKey);
 
       if (commandFn) {
         try {
@@ -251,18 +257,16 @@
           print(`Error interno: ${err.message}`, 'error');
         }
       } else {
-        // Si no es un comando, intentar abrir la app directamente (acceso rápido)
         if (window.parent && window.parent.registro && window.parent.registro.has(parts[0])) {
           window.parent.MyHub.abrir(parts[0]);
           print(`Abriendo aplicación "${parts[0]}"...`, 'success');
         } else {
-          print(`Comando no reconocido: "${raw}". Escribe HubInfo para ver la lista.`, 'error');
+          print(`Comando no reconocido: "${raw}". Escribe HubInfo.`, 'error');
         }
       }
     }
   });
 
-  // Mantener el foco en el input
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.btn') && window.getSelection().toString() === '') {
       input.focus();
@@ -271,7 +275,6 @@
 
   btnClear.onclick = () => commands['clear']();
   
-  // Autofocus al iniciar
   setTimeout(() => input.focus(), 100);
 
 })();
