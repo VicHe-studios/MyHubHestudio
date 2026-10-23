@@ -1620,7 +1620,7 @@ window.descargarDocApps = function() {
   const doc = `
 ==================================================
 MYHUBHESTUDIO - GUÍA DEFINITIVA DE DESARROLLO
-Versión 2.0 - Edición "ADN VicHeStudios"
+Versión 2.1 - Edición "ADN VicHeStudios"
 ==================================================
 
 Bienvenido al entorno de desarrollo de MyHubHestudio.
@@ -1681,6 +1681,16 @@ NO uses archivos separados como style.css, app.js o carpetas de imágenes.
 En su lugar, integra todo dentro del index.html usando las etiquetas
 <style> para el diseño y <script> para la lógica.
 
+--- ¿Y si necesito imágenes o assets? ---
+Embébelos como Data URLs (Base64) directamente dentro del HTML:
+  <img src="data:image/png;base64,..." alt="">
+O mejor aún, usa SVG inline (más liviano y escalable):
+  <svg viewBox="0 0 24 24" ...>...</svg>
+
+--- ¿Y si necesito guardar archivos pesados del usuario? ---
+NO uses localStorage para binarios grandes (>1MB). Usá IndexedDB
+(ver sección 8: ALMACENAMIENTO).
+
 --- EL MANIFEST.JSON EXPLICADO ---
 {
   "id": "mi-app",             // (Obligatorio) ID único, sin espacios ni mayúsculas.
@@ -1700,6 +1710,7 @@ MyHubHestudio usa un sistema de 3 ventanas fijas (Izquierda, Centro, Derecha).
 Tu app NO ocupará toda la pantalla, sino 1/3 de ella.
 
 - Resolución aproximada: En 1920x1080, tu app tendrá ~600px de ancho.
+- Máximo 6 apps abiertas simultáneamente (3 visibles + 3 minimizadas).
 - Tu HTML y CSS DEBEN ser responsivos. Regla obligatoria en body:
   html, body { height: 100vh; width: 100%; margin: 0; overflow: hidden; }
 - Si tu app tiene muchos elementos, usa overflow-y: auto en el contenedor
@@ -1825,7 +1836,30 @@ Usa Lucide. Dos formas válidas:
   B) SVG inline con stroke="currentColor" stroke-width="2"
 
 --------------------------------------------------
-5. SINCRONIZACIÓN DE TEMA CON EL LOBBY (OBLIGATORIO)
+5. PALETA DE COLORES OFICIAL
+--------------------------------------------------
+El sistema permite personalizar el color de acento. Estos son los
+colores disponibles en el modal de Configuración:
+
+  Azul       #2563eb  (por defecto)
+  Celeste    #0ea5e9
+  Rojo       #dc2626
+  Verde      #16a34a
+  Morado     #7c3aed
+  Amarillo   #ca8a04
+  Rosado     #ec4899
+  Café       #8b4513
+
+Tu app NO necesita hardcodear ninguno de estos colores: usa siempre
+var(--accent) y se actualizará automáticamente cuando el usuario
+cambie el color del sistema.
+
+Si tu app ofrece al usuario ELEGIR un color (como Pint-He), entonces
+sí podés incluir la paleta completa como opciones fijas. Pero para
+la UI de tu app (botones, headers, etc.), usá siempre var(--accent).
+
+--------------------------------------------------
+6. SINCRONIZACIÓN DE TEMA CON EL LOBBY (OBLIGATORIO)
 --------------------------------------------------
 Toda app instalable DEBE escuchar el tema del sistema. Sin esto,
 tu app se queda con los colores por defecto y rompe la armonía
@@ -1847,31 +1881,95 @@ Pega esto al inicio de tu <script>, sin excepciones:
 Nota: '26' es la opacidad en hex (~15%). Es el estándar oficial para
 --accent-soft. Si tu app no usa --accent-soft, puedes omitir esa línea.
 
+El mensaje "myhub:tema:res" devuelve:
+  { type: 'myhub:tema:res', color: '#2563eb', modo: 'claro' | 'oscuro' }
+
 --------------------------------------------------
-6. CONVENCIONES DE NOMENCLATURA
+7. CONVENCIONES DE NOMENCLATURA
 --------------------------------------------------
-Para que tu app se sienta parte del sistema, sigue estas reglas:
+El sufijo/prefijo "He" es una RECOMENDACIÓN, no una obligación.
+Las apps oficiales lo siguen, las apps externas son libres de
+nombrarse como quieran.
 
-ID en manifest.json:
-  Formato: [nombre-descriptivo]-he (sufijo)
-  ✅ calcul-he, clim-he, pass-he, qr-he
-  ❌ calculadora, MiApp, CALC
+--- ID en manifest.json ---
+Formato recomendado: [nombre]-he (sufijo) o he-[nombre] (prefijo)
+  ✅ calcul-he, clim-he, qr-he
+  ✅ he-nteligens, he-ptune, he-vento
+  ✅ ocplaylist, mi-app, cualquier-cosa   (apps externas)
+  ❌ MiApp, CALC, con espacios            (nunca, sin importar autor)
 
-Título visible:
-  Formato: Capitalizado con guion, sufijo -He
-  ✅ Calcul-He, Clim-He, QR-He
-  ❌ calculadora, Calculadora
+--- Título visible ---
+Formato recomendado: Capitalizado, con guion si aplica
+  ✅ Calcul-He, Clim-He, He-nteligens, OcPlaylist
+  ❌ calculadora, MiApp
 
-Icono Lucide:
-  Nombre exacto de la librería (sin "icon-", sin guiones bajos)
+--- Icono Lucide ---
+Nombre exacto de la librería (sin "icon-", sin guiones bajos)
   ✅ calculator, cloud-sun, key-round, qr-code
   ❌ Calculator, cloud_sun
 
-Autor (opcional):
+--- Autor (opcional) ---
   ✅ VicHeStudios (el nombre oficial del estudio)
+  ✅ Tu nombre de usuario si contribuyes desde fuera
+
+Si sos contribuidor externo, sos libre de nombrar tu app como quieras.
+Solo te pedimos que el ID sea único, sin espacios y en minúsculas.
 
 --------------------------------------------------
-7. COMUNICACIÓN CON EL LOBBY (postMessage)
+8. ALMACENAMIENTO: localStorage vs IndexedDB
+--------------------------------------------------
+Elegir bien dónde guardar los datos es CRÍTICO. Un error común es
+usar localStorage para todo, lo cual rompe apps después de cierto
+volumen de datos.
+
+--- localStorage (límite ~5MB por dominio) ---
+Usalo SOLO para:
+  ✅ Configuraciones pequeñas (preferencias, tema, tokens de API)
+  ✅ Listas simples de IDs o strings cortos
+  ✅ Estados de UI (chat activo, pestaña seleccionada)
+
+NO lo uses para:
+  ❌ Imágenes (Base64 ocupa 33% más que el binario original)
+  ❌ Audio o video
+  ❌ Archivos grandes del usuario
+
+--- IndexedDB (límite cientos de MB, asíncrono) ---
+Usalo para:
+  ✅ Imágenes, audio, video (Blobs nativos, sin Base64)
+  ✅ Archivos que sube el usuario
+  ✅ Bases de datos estructuradas con muchos registros
+  ✅ Cualquier cosa que pueda crecer con el uso
+
+--- Ejemplo mínimo de IndexedDB ---
+const dbP = new Promise((resolve) => {
+  const req = indexedDB.open('mi-app-db', 1);
+  req.onupgradeneeded = () => req.result.createObjectStore('kv');
+  req.onsuccess = () => resolve(req.result);
+});
+
+const kvGet = async (k) => {
+  const db = await dbP;
+  return new Promise((res) => {
+    const r = db.transaction('kv').objectStore('kv').get(k);
+    r.onsuccess = () => res(r.result ?? null);
+  });
+};
+
+const kvSet = async (k, v) => {
+  const db = await dbP;
+  return new Promise((res) => {
+    const t = db.transaction('kv', 'readwrite');
+    t.objectStore('kv').put(v, k);
+    t.oncomplete = () => res();
+  });
+};
+
+Referencia: Spoti-vic y Galería-He usan IndexedDB para archivos
+binarios. HE-nteligens usa localStorage solo para configuración
+(token, modelo, nombre). Usá esas apps como ejemplo según tu caso.
+
+--------------------------------------------------
+9. COMUNICACIÓN CON EL LOBBY (postMessage)
 --------------------------------------------------
 Tu app corre dentro de un iframe. Si necesitas datos del sistema,
 usa window.parent.postMessage. Nunca uses window.top ni localStorage
@@ -1886,14 +1984,64 @@ window.addEventListener('message', (e) => {
   }
 });
 
---- API Global Útil ---
+--- API Global Útil (window.MyHub.*) ---
 window.MyHub.toast('Mensaje');          // Notificación flotante
 window.MyHub.cerrar('mi-app');          // Cierra la ventana
 window.MyHub.minimizar('mi-app');       // Minimiza la ventana
 window.MyHub.restaurar('mi-app');       // Restaura la ventana
+window.MyHub.isMinimized('mi-app');     // true/false
+window.MyHub.abrir('otra-app');         // Abre otra app
+window.MyHub.tema();                    // { color: '#2563eb', modo: 'claro' }
+window.MyHub.sesion();                  // true/false (si hay sesión activa)
+
+--- Identidad del usuario en apps sociales ---
+Si tu app necesita identificar al usuario de forma persistente
+(como HE-ptune o un chat), el lobby NO expone un ID único. Cada
+app debe generar su propio device_id en localStorage:
+
+  let deviceId = localStorage.getItem('mi-app_device_id');
+  if (!deviceId) {
+    deviceId = 'user_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    localStorage.setItem('mi-app_device_id', deviceId);
+  }
+
+Esto es válido para apps locales. Para apps con backend (como
+HE-ptune con Supabase), combiná device_id + username + password
+para que el usuario pueda recuperar su cuenta en otro dispositivo.
 
 --------------------------------------------------
-8. CHECKLIST ANTES DE EMPAQUETAR
+10. APPS DEL SISTEMA (referencia)
+--------------------------------------------------
+MyHubHestudio incluye estas apps oficiales que sirven como ejemplo
+de implementación correcta del ADN:
+
+  🗑️ Papelera     - CRUD de apps instaladas
+  🛠️ Forge        - Instalación de ZIPs locales
+  🛒 Stor-He      - Tienda conectada a GitHub
+  🖥️ CMD-HE       - Terminal con acceso al kernel
+
+Mirar el código fuente de estas apps (están en Apps/) es la mejor
+forma de aprender los patrones oficiales. Cada una resuelve un caso
+de uso diferente y todas siguen el mismo ADN.
+
+--------------------------------------------------
+11. APPS DEL CATÁLOGO OFICIAL (referencia por categoría)
+--------------------------------------------------
+Para ver patrones según el tipo de app, revisá:
+
+  UTILIDADES:      Calcul-He, HE-loj, QR-He, Trans-He
+  PRODUCTIVIDAD:   Not-He, He-To-Do, He-vento, Cod-He
+  MULTIMEDIA:      Galeria-He, Spoti-vic, Pint-He, PDF-He
+  INFORMACIÓN:     Clim-He, Map-He
+  IA / REDES:      He-nteligens, HE-ptune
+  JUEGOS:          Ajedr-He
+  SEGURIDAD:       Pass-He
+
+Cada una demuestra un patrón distinto: manejo de audio, canvas,
+IndexedDB, APIs externas, etc.
+
+--------------------------------------------------
+12. CHECKLIST ANTES DE EMPAQUETAR
 --------------------------------------------------
 Marca todas antes de generar el ZIP:
 
@@ -1905,14 +2053,15 @@ Marca todas antes de generar el ZIP:
 [ ] Header con border-bottom y padding estándar
 [ ] Botones con radius 8px y font-weight 600
 [ ] Inputs con radius 10px y focus var(--accent)
-[ ] Footer .app-credit con "Hecho con ❤️ por VicHeStudios"
+[ ] Footer .app-credit con "Hecho con ❤️ por VicHeStudios" (o tu autoría)
 [ ] Scrollbar 6px estilizada (desktop)
 [ ] Iconos Lucide o SVG inline (no emojis en el header)
+[ ] Archivos pesados (>1MB) van en IndexedDB, no localStorage
 [ ] Probado en modo claro Y oscuro
 [ ] Probado en ventana estrecha (~600px de ancho)
 
 --------------------------------------------------
-9. PLANTILLA BASE COMPLETA (copiar y pegar)
+13. PLANTILLA BASE COMPLETA (copiar y pegar)
 --------------------------------------------------
 Este es el esqueleto mínimo de una app oficial. Cópialo y empieza
 a construir encima. Todo lo que está aquí es obligatorio.
@@ -2039,7 +2188,7 @@ a construir encima. Todo lo que está aquí es obligatorio.
 }
 
 --------------------------------------------------
-10. FILOSOFÍA
+14. FILOSOFÍA
 --------------------------------------------------
 El objetivo no es que cada app se vea igual, sino que todas se
 sientan parte del mismo sistema. Un usuario no debería notar dónde
@@ -2048,6 +2197,11 @@ termina el escritorio y dónde empieza tu app.
 Cuando dudes entre dos opciones de diseño, pregúntate:
 "¿Esto ya existe en alguna otra app del sistema?"
 Si la respuesta es sí, úsalo igual. Si es no, pregúntate por qué.
+
+Y si sos contribuidor externo: no te sientas obligado a seguir el
+sufijo "He" ni a imitar cada detalle. Lo importante es que tu app
+funcione bien, respete el tema del sistema y no rompa la experiencia.
+El resto es estilo, y el estilo es tuyo.
 
 ==================================================
 Hecho con amor para MyHubHestudio. ¡Feliz código!
