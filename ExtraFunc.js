@@ -28,79 +28,28 @@
     'KeyF': 'fullscreen'
   };
 
-  // ================= SISTEMA DE SONIDO CORREGIDO =================
-  let audioCtx = null;
-
-  const initAudio = () => {
-    if (!audioCtx) {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (AudioContext) audioCtx = new AudioContext();
-    }
-    if (audioCtx && audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
-  };
-
-  // Desbloquear el audio al primer clic en cualquier parte del sistema
-  document.addEventListener('pointerdown', initAudio, { once: true });
-
+  // ================= SISTEMA DE SONIDO (snd-lib) =================
   const playSound = (type) => {
     if (!sonidosActivos) return;
-    try {
-      initAudio();
-      if (!audioCtx) return;
-      
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      
-      const now = audioCtx.currentTime;
-      gain.gain.setValueAtTime(0, now);
+    
+    // Verificamos que la librería se haya cargado correctamente
+    if (typeof snd === 'undefined') {
+      console.warn('[ExtraFunc] La librería snd-lib no está cargada.');
+      return;
+    }
 
-      if (type === 'open') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(350, now);
-        osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now); osc.stop(now + 0.15);
-      } else if (type === 'close') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
-        osc.start(now); osc.stop(now + 0.15);
-      } else if (type === 'minimize') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(500, now);
-        osc.frequency.linearRampToValueAtTime(400, now + 0.1);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-        osc.start(now); osc.stop(now + 0.1);
-      } else if (type === 'start') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(250, now);
-        osc.frequency.linearRampToValueAtTime(350, now + 0.12);
-        gain.gain.linearRampToValueAtTime(0.15, now + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-        osc.start(now); osc.stop(now + 0.12);
-      } else if (type === 'move') {
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(150, now);
-        gain.gain.linearRampToValueAtTime(0.05, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
-      } else if (type === 'click') {
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(600, now);
-        gain.gain.linearRampToValueAtTime(0.1, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-        osc.start(now); osc.stop(now + 0.05);
+    try {
+      switch (type) {
+        case 'open':    snd.open(); break;
+        case 'close':   snd.caution(); break;
+        case 'minimize':snd.tap(); break;
+        case 'start':   snd.success(); break;
+        case 'move':    snd.click(); break;
+        case 'click':   snd.click(); break;
       }
-    } catch(e) {}
+    } catch(e) {
+      console.error('Error al reproducir sonido:', e);
+    }
   };
 
   // ================= INYECCIÓN DE ESTILOS =================
@@ -370,7 +319,7 @@
         container.id = 'extrafunc-config-injected';
         container.style.marginTop = '20px';
 
-        // --- 1. NUEVOS COLORES (CORREGIDO) ---
+        // --- 1. NUEVOS COLORES ---
         const swatches = mBody.querySelector('.swatches');
         if (swatches) {
           const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
@@ -382,7 +331,6 @@
           } catch(e) {}
 
           for (const [nombre, hex] of Object.entries(nuevosColores)) {
-            // Verificamos usando el título para evitar duplicados por formato de color
             if (!Array.from(swatches.children).some(c => c.title === nombre)) {
               const b = document.createElement('div');
               b.className = 'swatch';
