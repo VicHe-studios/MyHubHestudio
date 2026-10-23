@@ -1,5 +1,5 @@
 // ============================================================================
-// ExtraFunc.js - Extensiones del Sistema (Atajos, Miniaturas y Menús)
+// ExtraFunc.js - Extensiones del Sistema (Atajos, Sonidos, Backup, Config)
 // ============================================================================
 
 (function() {
@@ -11,20 +11,69 @@
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const getWin = () => window.win || (typeof win !== 'undefined' ? win : null);
 
-  const init = () => {
-    if (!window.MyHub || !getReg()) {
-      setTimeout(init, 100);
-      return;
-    }
-
-    inyectarEstilos();
-    setupAtajosTeclado();
-    setupMiniaturas();
-    setupContextMenuExtendido();
-    
-    console.log('%c[ExtraFunc] Extensiones cargadas correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+  // ================= ESTADO Y CONFIGURACIÓN =================
+  let sonidosActivos = localStorage.getItem('myhub_sounds') !== 'false'; // Por defecto ON
+  let hotkeys = JSON.parse(localStorage.getItem('myhub_hotkeys') || '{}');
+  const defaultHotkeys = {
+    'Digit1': 'papelera',
+    'Digit2': 'forge',
+    'Digit3': 'storhe',
+    'Digit4': 'cmdhe',
+    'KeyM': 'minimize',
+    'KeyC': 'close',
+    'KeyD': 'theme',
+    'KeyR': 'reload',
+    'KeyN': 'newfolder',
+    'KeyS': 'settings',
+    'KeyF': 'fullscreen'
   };
 
+  // ================= SISTEMA DE SONIDO (Web Audio API) =================
+  const playSound = (type) => {
+    if (!sonidosActivos) return;
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      if (type === 'click') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+        osc.start(); osc.stop(ctx.currentTime + 0.1);
+      } else if (type === 'open') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+      } else if (type === 'close') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+        osc.start(); osc.stop(ctx.currentTime + 0.15);
+      }
+    } catch(e) {}
+  };
+
+  // Enganchar sonidos a clicks globales (solo en botones y elementos interactivos)
+  document.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.btn') || e.target.closest('.icon') || e.target.closest('.task') || e.target.closest('.menu-op')) {
+      playSound('click');
+    }
+  }, true);
+
+  // ================= INYECCIÓN DE ESTILOS =================
   const inyectarEstilos = () => {
     if (document.getElementById('extrafunc-style')) return;
     const style = document.createElement('style');
@@ -43,19 +92,10 @@
       .preview-hint { font-size: 11px; color: var(--muted); text-align: center; }
 
       /* --- BOTONES DEL MENÚ CONTEXTUAL --- */
-      .extrafunc-btn {
-        display: flex; align-items: center; gap: 10px;
-        width: 100%; padding: 9px 12px; border: none; border-radius: 7px;
-        background: transparent; color: var(--text);
-        font: inherit; font-size: 13px; font-weight: 500;
-        cursor: pointer; text-align: left;
-        transition: background 0.15s, color 0.15s;
-      }
+      .extrafunc-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s; }
       .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
       .extrafunc-btn.danger { color: #ef4444; }
       .extrafunc-btn.danger:hover { background: #ef4444; color: #fff; }
-      
-      /* Botón bloqueado para apps de sistema */
       .extrafunc-btn.locked { color: var(--muted); cursor: not-allowed; }
       .extrafunc-btn.locked:hover { background: transparent; color: var(--muted); }
 
@@ -73,6 +113,14 @@
       .extrafunc-modal-btn.cancel:hover { background: var(--card); }
       .extrafunc-modal-btn.confirm { background: #ef4444; color: #fff; }
       .extrafunc-modal-btn.confirm:hover { filter: brightness(1.1); }
+
+      /* --- CONFIGURACIÓN EXTRA --- */
+      .cfg-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .cfg-toggle span { font-size: 13px; font-weight: 500; }
+      .cfg-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+      .hotkey-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
+      .hotkey-key { background: var(--field); border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; transition: 0.2s; }
+      .hotkey-key:focus { border-color: var(--accent); outline: none; background: var(--card); }
     `;
     document.head.appendChild(style);
   };
@@ -94,9 +142,7 @@
       `;
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
-      
-      void overlay.offsetWidth; 
-      overlay.classList.add('active');
+      void overlay.offsetWidth; overlay.classList.add('active');
 
       const close = (result) => {
         overlay.classList.remove('active');
@@ -110,21 +156,24 @@
     });
   };
 
-  // ================= 1. ATAJOS DE TECLADO (Shift + Tecla) =================
+  // ================= ATAJOS DE TECLADO =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
       if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         const code = e.code;
         const winObj = getWin();
+        const action = hotkeys[code] || defaultHotkeys[code];
 
-        switch (code) {
-          case 'Digit1': e.preventDefault(); window.MyHub.abrir('papelera'); break;
-          case 'Digit2': e.preventDefault(); window.MyHub.abrir('forge'); break;
-          case 'Digit3': e.preventDefault(); window.MyHub.abrir('storhe'); break;
-          case 'Digit4': e.preventDefault(); window.MyHub.abrir('cmdhe'); break; // Atajo para CMD-HE
-          case 'KeyM': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
-          case 'KeyC': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
-          case 'KeyD': 
+        if (!action) return;
+
+        switch (action) {
+          case 'papelera': e.preventDefault(); window.MyHub.abrir('papelera'); break;
+          case 'forge': e.preventDefault(); window.MyHub.abrir('forge'); break;
+          case 'storhe': e.preventDefault(); window.MyHub.abrir('storhe'); break;
+          case 'cmdhe': e.preventDefault(); window.MyHub.abrir('cmdhe'); break;
+          case 'minimize': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.minimizar(id)); break;
+          case 'close': e.preventDefault(); if (winObj) Object.keys(winObj).forEach(id => window.MyHub.cerrar(id)); break;
+          case 'theme': 
             e.preventDefault();
             if (typeof ajustes !== 'undefined' && typeof guardarAjustes !== 'undefined' && typeof aplicarAjustes !== 'undefined') {
               ajustes.modo = ajustes.modo === 'oscuro' ? 'claro' : 'oscuro';
@@ -132,13 +181,13 @@
               window.MyHub.toast(`Modo ${ajustes.modo} activado`);
             }
             break;
-          case 'KeyR': e.preventDefault(); location.reload(); break;
-          case 'KeyN': 
+          case 'reload': e.preventDefault(); location.reload(); break;
+          case 'newfolder': 
             e.preventDefault(); 
             const btnCarpeta = document.getElementById('menu-nueva-carpeta');
             if (btnCarpeta) btnCarpeta.click();
             break;
-          case 'KeyS':
+          case 'settings':
             e.preventDefault();
             document.getElementById('inicio').click();
             setTimeout(() => {
@@ -146,7 +195,7 @@
               for (let op of ops) { if (op.textContent.includes('Configuración')) op.click(); }
             }, 50);
             break;
-          case 'KeyF':
+          case 'fullscreen':
             e.preventDefault();
             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
             else document.exitFullscreen();
@@ -156,7 +205,7 @@
     }, true);
   };
 
-  // ================= 2. MINIATURAS EN LA TASKBAR =================
+  // ================= MINIATURAS TASKBAR =================
   const setupMiniaturas = () => {
     if (document.getElementById('task-preview')) return;
     const reg = getReg();
@@ -207,17 +256,15 @@
     });
   };
 
-  // ================= 3. MENÚ CONTEXTUAL EXTENDIDO =================
+  // ================= MENÚ CONTEXTUAL =================
   const setupContextMenuExtendido = () => {
     let targetAppId = null;
 
     document.addEventListener('contextmenu', (e) => {
       targetAppId = null;
-      
       const deskIcon = e.target.closest('.icon[data-app-id]');
-      if (deskIcon) {
-        targetAppId = deskIcon.dataset.appId;
-      } else {
+      if (deskIcon) targetAppId = deskIcon.dataset.appId;
+      else {
         const folderItem = e.target.closest('.folder-item');
         if (folderItem) {
           const title = folderItem.querySelector('span').textContent;
@@ -251,11 +298,9 @@
               return btn;
             };
 
-            // MAGIA AQUÍ: Detectar si es app de sistema
             const esAppSistema = ['papelera', 'forge', 'storhe', 'cmdhe'].includes(targetAppId) || app.url;
 
             if (esAppSistema) {
-              // Botón bloqueado
               const btnLocked = document.createElement('button');
               btnLocked.className = 'extrafunc-btn locked';
               btnLocked.innerHTML = `<i data-lucide="lock"></i><span>App de Sistema</span>`;
@@ -266,7 +311,6 @@
               };
               menu.appendChild(btnLocked);
             } else {
-              // Botón normal de eliminar
               const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
                 const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
                 if (ok) {
@@ -276,7 +320,6 @@
               });
               menu.appendChild(btnDelete);
             }
-
             refrescarIconos();
           }
         }, 20);
@@ -284,7 +327,201 @@
     }, true);
   };
 
-  // Iniciar cuando el DOM esté listo
+  // ================= INYECCIÓN EN CONFIGURACIÓN =================
+  const setupConfigInjection = () => {
+    const modal = document.getElementById('modal');
+    const mTitulo = document.getElementById('mTitulo');
+    const mBody = document.getElementById('mBody');
+    if (!modal || !mBody) return;
+
+    const observer = new MutationObserver(() => {
+      // Verificamos si la ventana de Configuración está abierta y si ya inyectamos
+      if (mTitulo.textContent === 'Configuración' && !document.getElementById('extrafunc-config-injected')) {
+        const container = document.createElement('div');
+        container.id = 'extrafunc-config-injected';
+        container.style.marginTop = '20px';
+
+        // --- 1. NUEVOS COLORES ---
+        const swatches = mBody.querySelector('.swatches');
+        if (swatches) {
+          const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
+          for (const [nombre, hex] of Object.entries(nuevosColores)) {
+            // Si no existe el color en el contenedor original
+            if (!Array.from(swatches.children).some(c => c.style.background.includes(hex) || c.style.backgroundColor.includes(hex))) {
+              const b = document.createElement('div');
+              b.className = 'swatch';
+              b.style.background = hex;
+              b.title = nombre;
+              // Comprobamos si es el actual
+              if (window.ajustes && window.ajustes.color === nombre) b.classList.add('on');
+              
+              b.onclick = () => {
+                // Actualizamos la variable global COLORES si existe
+                if (window.COLORES) window.COLORES[nombre] = hex;
+                if (window.ajustes) {
+                  window.ajustes.color = nombre;
+                  if (typeof window.guardarAjustes === 'function') window.guardarAjustes();
+                  if (typeof window.aplicarAjustes === 'function') window.aplicarAjustes();
+                }
+                // Recargamos la vista de config
+                const recargar = () => {
+                  const configBtn = Array.from(document.getElementById('menuOps').children).find(el => el.textContent.includes('Configuración'));
+                  if(configBtn) configBtn.click();
+                };
+                recargar();
+              };
+              swatches.appendChild(b);
+            }
+          }
+        }
+
+        // --- 2. SECCIÓN DE SONIDO ---
+        container.innerHTML += `
+          <div class="sec" style="margin-top: 20px;">Efectos de Sonido</div>
+          <div class="cfg-toggle">
+            <span>Sonidos del sistema</span>
+            <input type="checkbox" id="cfg-toggle-sound" ${sonidosActivos ? 'checked' : ''}>
+          </div>
+        `;
+
+        // --- 3. COPIA DE SEGURIDAD ---
+        container.innerHTML += `
+          <div class="sec" style="margin-top: 20px;">Copia de Seguridad</div>
+          <div class="fila-btns">
+            <button class="btn" id="cfg-btn-export"><i data-lucide="download"></i>Exportar Datos</button>
+            <button class="btn gray" id="cfg-btn-import"><i data-lucide="upload"></i>Importar Datos</button>
+            <input type="file" id="cfg-input-import" accept=".json" hidden>
+          </div>
+          <p class="nota">Descarga un archivo con todas tus apps, carpetas y ajustes.</p>
+        `;
+
+        // --- 4. ATAJOS DE TECLADO ---
+        const hotkeysHTML = Object.entries(defaultHotkeys).map(([code, action]) => {
+          const currentCode = Object.keys(hotkeys).find(k => hotkeys[k] === action) || code;
+          const displayKey = currentCode.replace('Digit', '').replace('Key', '');
+          return `
+            <div class="hotkey-row">
+              <span>${action === 'minimize' ? 'Minimizar todo' : action === 'close' ? 'Cerrar todo' : action === 'theme' ? 'Modo oscuro' : action === 'newfolder' ? 'Nueva carpeta' : action === 'settings' ? 'Ajustes' : action === 'fullscreen' ? 'Pantalla completa' : 'Abrir ' + action}</span>
+              <input type="text" class="hotkey-key" data-action="${action}" value="Shift + ${displayKey}" readonly>
+            </div>
+          `;
+        }).join('');
+
+        container.innerHTML += `
+          <div class="sec" style="margin-top: 20px;">Atajos de Teclado</div>
+          <p class="nota" style="margin-bottom: 10px;">Haz clic en un atajo y presiona la nueva combinación (Shift + Tecla).</p>
+          <div style="max-height: 150px; overflow-y: auto; padding-right: 8px;">
+            ${hotkeysHTML}
+          </div>
+        `;
+
+        mBody.appendChild(container);
+
+        // ================= LÓGICA DE LOS ELEMENTOS INYECTADOS =================
+
+        // Toggle de Sonido
+        const soundToggle = document.getElementById('cfg-toggle-sound');
+        soundToggle.onchange = (e) => {
+          sonidosActivos = e.target.checked;
+          localStorage.setItem('myhub_sounds', sonidosActivos);
+          if (sonidosActivos) playSound('open'); // Feedback
+        };
+
+        // Exportar
+        document.getElementById('cfg-btn-export').onclick = async () => {
+          const data = {
+            apps_instaladas: await window.kvGet('apps_instaladas') || {},
+            carpetas: await window.kvGet('carpetas') || {},
+            ajustes: await window.kvGet('ajustes') || {},
+            cuenta: await window.kvGet('cuenta') || null,
+            posiciones_iconos: await window.kvGet('posiciones_iconos') || {}
+          };
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `MyHub_Backup_${new Date().toISOString().slice(0,10)}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          window.MyHub.toast('Copia de seguridad descargada');
+        };
+
+        // Importar
+        const fileInput = document.getElementById('cfg-input-import');
+        document.getElementById('cfg-btn-import').onclick = () => fileInput.click();
+        fileInput.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            try {
+              const data = JSON.parse(ev.target.result);
+              if (data.apps_instaladas) await window.kvSet('apps_instaladas', data.apps_instaladas);
+              if (data.carpetas) await window.kvSet('carpetas', data.carpetas);
+              if (data.ajustes) await window.kvSet('ajustes', data.ajustes);
+              if (data.cuenta) await window.kvSet('cuenta', data.cuenta);
+              if (data.posiciones_iconos) await window.kvSet('posiciones_iconos', data.posiciones_iconos);
+              window.MyHub.toast('Datos importados. Recargando...');
+              setTimeout(() => location.reload(), 1500);
+            } catch (err) {
+              window.MyHub.toast('Error al importar: Archivo inválido');
+            }
+          };
+          reader.readAsText(file);
+        };
+
+        // Atajos (Hotkeys)
+        document.querySelectorAll('.hotkey-key').forEach(input => {
+          input.addEventListener('keydown', (e) => {
+            e.preventDefault();
+            if (e.key === 'Escape') { input.blur(); return; }
+            
+            // Solo aceptamos combinaciones con Shift
+            if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.code !== 'ShiftLeft' && e.code !== 'ShiftRight') {
+              const newCode = e.code;
+              const action = input.dataset.action;
+              
+              // Limpiar si otra tecla tenía esa acción
+              for (let k in hotkeys) { if (hotkeys[k] === action) delete hotkeys[k]; }
+              
+              // Guardar nuevo
+              hotkeys[newCode] = action;
+              localStorage.setItem('myhub_hotkeys', JSON.stringify(hotkeys));
+              
+              const displayKey = newCode.replace('Digit', '').replace('Key', '');
+              input.value = `Shift + ${displayKey}`;
+              input.blur();
+              window.MyHub.toast('Atajo actualizado');
+              playSound('click');
+            } else {
+              window.MyHub.toast('Debes usar Shift + una tecla');
+            }
+          });
+        });
+
+        refrescarIconos();
+      }
+    });
+
+    observer.observe(modal, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  };
+
+  // ================= INICIALIZACIÓN =================
+  const init = () => {
+    if (!window.MyHub || !getReg()) {
+      setTimeout(init, 100);
+      return;
+    }
+
+    inyectarEstilos();
+    setupAtajosTeclado();
+    setupMiniaturas();
+    setupContextMenuExtendido();
+    setupConfigInjection();
+    
+    console.log('%c[ExtraFunc] Extensiones cargadas correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+  };
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
   } else {
