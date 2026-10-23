@@ -163,13 +163,9 @@
       const card = document.createElement('div');
       card.className = 'app-card';
       
-      // Autor sutil (Texto gris en lugar de badge morado)
       const autorHtml = app.autor ? `<span style="color: var(--muted); font-size: 11px; font-weight: 500;">Por ${app.autor}</span>` : '';
-      
-      // Descripción
       const descHtml = app.descripcion ? `<span class="app-desc">${app.descripcion}</span>` : '';
       
-      // Badge de Widget sutil (Icono + Texto acento, sin fondo)
       const widgetBadge = app.tieneWidget ? `
         <span style="display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 11px; font-weight: 600; margin-left: 2px;">
           <i data-lucide="layout-grid" style="width: 12px; height: 12px;"></i> Widget
@@ -228,7 +224,6 @@
       const archivos = {};
       let manifest = null;
       
-      // Función auxiliar para descargar archivos y carpetas recursivamente
       const descargarContenido = async (path) => {
         const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}?t=${Date.now()}`;
         const res = await fetch(apiUrl);
@@ -241,7 +236,11 @@
             const fileRes = await fetch(rawUrl);
             if (!fileRes.ok) continue; 
             const blob = await fileRes.blob();
-            archivos[item.path] = blob;
+            
+            // FIX: Guardar la ruta relativa eliminando el prefijo de la carpeta de la app
+            const relativePath = item.path.replace(new RegExp('^' + appId + '/'), '');
+            archivos[relativePath] = blob;
+            
             if (item.name === 'manifest.json') manifest = JSON.parse(await blob.text());
           } else if (item.type === 'dir') {
             await descargarContenido(item.path);
