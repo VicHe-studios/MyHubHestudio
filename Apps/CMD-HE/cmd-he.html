@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="cmd-he.css">
+<script src="../../vendor/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app-cmd">
+    <div class="cmd-cab">
+      <div class="cmd-info">
+        <i data-lucide="terminal"></i>
+        <h2>CMD-HE</h2>
+      </div>
+      <div class="cmd-tools">
+        <button class="btn" id="btn-clear" title="Limpiar pantalla"><i data-lucide="eraser"></i></button>
+      </div>
+    </div>
+    <div class="cmd-output" id="output">
+      <div class="line welcome">Bienvenido a CMD-HE v1.0.0</div>
+      <div class="line dim">Escribe <strong>HubInfo</strong> para ver la lista de comandos disponibles.</div>
+    </div>
+    <div class="cmd-input-area">
+      <span class="prompt">root@myhub:~$</span>
+      <input type="text" id="cmd-input" autocomplete="off" spellcheck="false" autofocus>
+    </div>
+  </div>
+  <script src="cmd-he.js"></script>
+</body>
+</html>
