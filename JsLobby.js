@@ -204,7 +204,7 @@ function avatarEl(blob) {
   return a;
 }
 
-function vista() {
+function vistaCreditos() {
   const d = document.createElement('div');
   d.className = 'creditos';
   d.innerHTML = `
