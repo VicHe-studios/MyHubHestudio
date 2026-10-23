@@ -13,6 +13,7 @@
     }
   });
 
+  // Lectura de datos (la escritura la hace SIEMPRE el lobby, para no pisarse)
   const dbP = new Promise((resolve) => {
     const req = indexedDB.open('myhub-lobby', 1);
     req.onsuccess = () => resolve(req.result);
@@ -24,21 +25,15 @@
       r.onsuccess = () => res(r.result ?? null);
     });
   };
-  const kvSet = async (k, v) => {
-    const db = await dbP;
-    return new Promise((res) => {
-      const t = db.transaction('kv', 'readwrite');
-      t.objectStore('kv').put(v, k);
-      t.oncomplete = () => res();
-    });
-  };
+
+  const lobby = () => (window.parent && window.parent !== window ? window.parent.MyHub : null);
 
   // ================= MODAL DE CONFIRMACIÓN =================
   const showConfirm = (title, message) => {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
       overlay.className = 'modal-confirm-overlay';
-      
+
       const box = document.createElement('div');
       box.className = 'modal-confirm-box';
       box.innerHTML = `
@@ -49,11 +44,11 @@
           <button class="modal-confirm-btn confirm">Aceptar</button>
         </div>
       `;
-      
+
       overlay.appendChild(box);
       document.body.appendChild(overlay);
-      
-      void overlay.offsetWidth; 
+
+      void overlay.offsetWidth;
       overlay.classList.add('active');
 
       const close = (result) => {
@@ -71,12 +66,20 @@
   let appsObj = {};
   let carpetasObj = {};
   let searchQuery = '';
-  let selectedItems = new Set(); // Guarda strings tipo "app:id" o "folder:id"
+  let selectedItems = new Set(); // "app:id" o "folder:id"
 
   const cargarDatos = async () => {
-    appsObj = await kvGet('apps_instaladas') || {};
-    carpetasObj = await kvGet('carpetas') || {};
+    appsObj = (await kvGet('apps_instaladas')) || {};
+    carpetasObj = (await kvGet('carpetas')) || {};
     render();
+  };
+
+  // Borra UN elemento a través del lobby y espera a que termine de guardar
+  const borrarItem = async (type, id) => {
+    const M = lobby();
+    if (!M) return;
+    if (type === 'app') await M.eliminarApp(id);
+    else if (M.eliminarCarpeta) await M.eliminarCarpeta(id);
   };
 
   const updateSelectionUI = () => {
@@ -95,13 +98,12 @@
 
   const render = () => {
     const q = searchQuery.toLowerCase().trim();
-    
-    // Filtrar por búsqueda
+
     const filteredCarpetas = Object.keys(carpetasObj).filter(id => {
       const c = carpetasObj[id];
       return c.nombre.toLowerCase().includes(q);
     });
-    
+
     const filteredApps = Object.keys(appsObj).filter(id => {
       const app = appsObj[id];
       return app.manifest.titulo.toLowerCase().includes(q) || id.toLowerCase().includes(q);
@@ -119,10 +121,9 @@
       `;
     } else {
       btnVaciar.style.display = 'inline-flex';
-      
+
       let html = '';
 
-      // Renderizar Carpetas
       html += filteredCarpetas.map(id => {
         const c = carpetasObj[id];
         const isSelected = selectedItems.has(`folder:${id}`);
@@ -143,7 +144,6 @@
         `;
       }).join('');
 
-      // Renderizar Apps
       html += filteredApps.map(id => {
         const app = appsObj[id];
         const isSelected = selectedItems.has(`app:${id}`);
@@ -168,7 +168,6 @@
     if (window.lucide) lucide.createIcons();
   };
 
-  // Exponer funciones al DOM para los onclick
   window.toggleSelect = toggleSelect;
 
   window.eliminarIndividual = async (type, id) => {
@@ -176,44 +175,26 @@
     if (!ok) return;
 
     selectedItems.delete(`${type}:${id}`);
-    
-    if (type === 'app') {
-      delete appsObj[id];
-      await kvSet('apps_instaladas', appsObj);
-      if (window.parent && window.parent.MyHub) window.parent.MyHub.eliminarApp(id);
-    } else {
-      delete carpetasObj[id];
-      await kvSet('carpetas', carpetasObj);
-      if (window.parent && window.parent.MyHub && window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id);
-    }
-    
+    await borrarItem(type, id);
+
     updateSelectionUI();
     await cargarDatos();
   };
 
-  // Borrar Seleccionados
   btnBorrarSeleccion.onclick = async () => {
     if (selectedItems.size === 0) return;
-    
+
     const ok = await showConfirm('Eliminar seleccionados', `¿Eliminar los ${selectedItems.size} elementos seleccionados permanentemente?`);
     if (!ok) return;
 
-    for (const item of selectedItems) {
+    const pendientes = [...selectedItems];
+    for (const item of pendientes) {
       const [type, id] = item.split(':');
-      if (type === 'app') {
-        delete appsObj[id];
-        if (window.parent && window.parent.MyHub) window.parent.MyHub.eliminarApp(id);
-      } else {
-        delete carpetasObj[id];
-        if (window.parent && window.parent.MyHub && window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id);
-      }
+      await borrarItem(type, id);
     }
-    
-    await kvSet('apps_instaladas', appsObj);
-    await kvSet('carpetas', carpetasObj);
+
     selectedItems.clear();
-    
-    if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Elementos eliminados');
+    if (lobby()) lobby().toast('Elementos eliminados');
     updateSelectionUI();
     await cargarDatos();
   };
@@ -222,16 +203,19 @@
     const ok = await showConfirm('Vaciar Papelera', '¿Seguro que quieres eliminar TODAS las apps y carpetas permanentemente?');
     if (!ok) return;
 
-    if (window.parent && window.parent.MyHub) {
-      Object.keys(carpetasObj).forEach(id => { if (window.parent.MyHub.eliminarCarpetaLobby) window.parent.MyHub.eliminarCarpetaLobby(id); });
-      Object.keys(appsObj).forEach(id => window.parent.MyHub.eliminarApp(id));
-    }
-    appsObj = {}; carpetasObj = {}; selectedItems.clear();
-    await kvSet('apps_instaladas', appsObj);
-    await kvSet('carpetas', carpetasObj);
+    // Lectura fresca justo antes de borrar, para no perder apps instaladas después de abrir la Papelera
+    const apps = (await kvGet('apps_instaladas')) || {};
+    const carpetas = (await kvGet('carpetas')) || {};
+    const todos = [
+      ...Object.keys(apps).map(id => ['app', id]),
+      ...Object.keys(carpetas).map(id => ['folder', id])
+    ];
+    for (const [type, id] of todos) await borrarItem(type, id);
+
+    selectedItems.clear();
     updateSelectionUI();
     await cargarDatos();
-    if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Papelera vaciada');
+    if (lobby()) lobby().toast('Papelera vaciada');
   };
 
   searchInput.addEventListener('input', (e) => {
