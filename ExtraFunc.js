@@ -9,7 +9,6 @@
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const MARGEN = 16, GX = 100, GY = 110;
-  // AHORA RESTAMOS 10px EN LUGAR DE SUMAR 5
   const OFFSET_Y = -10; 
 
   const inyectarEstilosWidgets = () => {
@@ -27,20 +26,23 @@
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
       .extrafunc-modal-overlay.active .extrafunc-modal { transform: scale(1); }
-      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 16px; font-weight: 700; color: var(--text, #000); }
+      .extrafunc-modal h3 { margin: 0 0 10px; font-size: 18px; font-weight: 700; color: var(--text, #000); letter-spacing: -0.02em; }
       .extrafunc-modal p { margin: 0 0 20px; font-size: 13px; color: var(--muted, #666); line-height: 1.4; }
-      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+      .extrafunc-modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
       .extrafunc-modal-btn { padding: 8px 16px; border-radius: 8px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, filter 0.15s; }
       .extrafunc-modal-btn:active { transform: scale(0.95); }
       .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
       .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
-      .extrafunc-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: none; border-radius: 7px; background: transparent; color: var(--text, #000); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; transition: background 0.15s, color 0.15s; }
-      .extrafunc-btn:hover { background: var(--accent, #2563eb); color: #fff; }
+      
+      .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; }
+      .widget-list-item:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: translateY(-1px); }
+      .widget-list-item i { width: 20px; height: 20px; color: var(--accent); }
     `;
     document.head.appendChild(style);
   };
 
   let widgetsActivos = []; 
+  window.getWidgetsActivos = () => widgetsActivos; // Exponer para JsLobby
   
   const cargarWidgets = async () => {
     const data = await kvGet('widgets_activos') || [];
@@ -58,15 +60,14 @@
     return { cols: 1, rows: 1 };
   };
 
-  const findFreeSpot = (size) => {
+  // NUEVO: Encuentra el hueco libre MÁS CERCANO al lugar donde soltaste el widget
+  const findClosestFreeSpot = (size, targetLeft, targetTop) => {
     const { cols, rows } = getWidgetCells(size);
     const desk = document.getElementById('desktop');
-    const deskH = desk.clientHeight || window.innerHeight - 90;
-    const maxRows = Math.max(1, Math.floor((deskH - MARGEN) / GY));
+    const maxRows = Math.max(1, Math.floor((desk.clientHeight - MARGEN) / GY));
     const maxCols = Math.max(1, Math.floor((desk.clientWidth - MARGEN) / GX));
 
     const ocupadas = new Set();
-    
     if (typeof posicionesIconos !== 'undefined') {
       Object.values(posicionesIconos).forEach(pos => {
         const c = Math.round((parseFloat(pos.left) - MARGEN) / GX);
@@ -78,7 +79,6 @@
     widgetsActivos.forEach(w => {
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
-      // Usamos el OFFSET_Y para calcular la fila correcta
       const wr = Math.round((parseFloat(w.pos.top) - MARGEN - OFFSET_Y) / GY);
       const wsize = getWidgetCells(w.size);
       for (let i = 0; i < wsize.cols; i++) {
@@ -88,8 +88,14 @@
       }
     });
 
+    const targetCol = Math.round((targetLeft - MARGEN) / GX);
+    const targetRow = Math.round((targetTop - MARGEN - OFFSET_Y) / GY);
+
+    let bestSpot = null;
+    let minDist = Infinity;
+
     for (let r = 0; r < maxRows; r++) {
-      for (let c = 1; c < maxCols; c++) {
+      for (let c = 0; c < maxCols; c++) {
         let libre = true;
         for (let i = 0; i < cols; i++) {
           for (let j = 0; j < rows; j++) {
@@ -97,11 +103,15 @@
           }
         }
         if (libre) {
-          return { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN + OFFSET_Y}px` };
+          const dist = Math.abs(c - targetCol) + Math.abs(r - targetRow);
+          if (dist < minDist) {
+            minDist = dist;
+            bestSpot = { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN + OFFSET_Y}px` };
+          }
         }
       }
     }
-    return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN + OFFSET_Y}px` };
+    return bestSpot || { left: `${MARGEN}px`, top: `${MARGEN}px` };
   };
 
   const checkCollision = (rect1, rect2) => {
@@ -226,7 +236,6 @@
         el.style.boxShadow = '';
         
         if (isDragging) {
-          // Snap al grid usando el OFFSET_Y corregido
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
           let snapY = Math.round((parseFloat(el.style.top) - MARGEN - OFFSET_Y) / GY) * GY + MARGEN + OFFSET_Y;
 
@@ -259,7 +268,8 @@
           el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
 
           if (colision) {
-            const safeSpot = findFreeSpot(widgetData.size);
+            // AHORA USA findClosestFreeSpot
+            const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY);
             el.style.left = safeSpot.left;
             el.style.top = safeSpot.top;
             widgetData.pos = safeSpot;
@@ -299,14 +309,18 @@
     modal.className = 'extrafunc-modal';
     modal.style.width = '400px';
     
+    // PANEL CON NUEVO ESTILO
     modal.innerHTML = `
       <h3>Añadir Widget</h3>
       <p>Elige un widget para colocarlo en tu escritorio.</p>
-      <div style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto;">
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
         ${appsConWidgets.map((w, i) => `
-          <button class="extrafunc-btn" data-index="${i}" style="border:1px solid var(--line); background:var(--field);">
+          <button class="widget-list-item" data-index="${i}">
             <i data-lucide="layout-grid"></i>
-            <span>${w.titulo} (${w.size})</span>
+            <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
+                <span style="font-weight:600; font-size:14px;">${w.titulo}</span>
+                <span style="font-size:11px; color:var(--muted); text-transform:uppercase;">Tamaño: ${w.size}</span>
+            </div>
           </button>
         `).join('')}
       </div>
@@ -328,10 +342,10 @@
 
     modal.querySelector('.cancel').onclick = cerrarPanel;
     
-    modal.querySelectorAll('.extrafunc-btn').forEach(btn => {
+    modal.querySelectorAll('.widget-list-item').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        const pos = findFreeSpot(w.size);
+        const pos = findClosestFreeSpot(w.size, 116, 6); // Posición por defecto cerca del top izquierdo
         widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
         renderWidgets();
