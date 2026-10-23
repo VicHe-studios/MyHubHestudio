@@ -246,7 +246,7 @@
               return btn;
             };
 
-            // Botón Eliminar
+            // Único botón extra: Eliminar App
             const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
               const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
               if (ok) {
@@ -255,41 +255,7 @@
               }
             });
 
-            // Botón Limpiar Datos (VERSIÓN MEJORADA Y PROFUNDA)
-            const btnClear = createBtn('database', 'Limpiar Datos', true, async () => {
-              const ok = await showConfirm('Limpiar Datos', `¿Borrar TODOS los datos guardados de "${app.titulo}"? La app se cerrará para aplicar los cambios.`);
-              if (ok) {
-                // Normalizamos el nombre para buscar variaciones
-                const idLower = targetAppId.toLowerCase();
-                const titleLower = app.titulo.toLowerCase().replace(/[\s-]/g, ''); // Ej: "playlistsoc"
-
-                // 1. Intentar borrar claves específicas en localStorage
-                Object.keys(localStorage).forEach(k => {
-                  const keyLower = k.toLowerCase();
-                  if (keyLower.includes(idLower) || keyLower.includes(titleLower)) {
-                    localStorage.removeItem(k);
-                  }
-                });
-
-                // 2. Limpieza profunda en IndexedDB (Borramos todas las DBs excepto la del sistema)
-                const dbs = await indexedDB.databases();
-                for (let db of dbs) {
-                  if (db.name && db.name !== 'myhub-lobby') {
-                    indexedDB.deleteDatabase(db.name);
-                  }
-                }
-
-                // 3. Si la app está abierta, la cerramos para forzar recarga limpia
-                if (getWin() && getWin()[targetAppId]) {
-                  window.MyHub.cerrar(targetAppId);
-                }
-
-                window.MyHub.toast(`Datos de "${app.titulo}" eliminados por completo`);
-              }
-            });
-
             menu.appendChild(btnDelete);
-            menu.appendChild(btnClear);
             refrescarIconos();
           }
         }, 20);
