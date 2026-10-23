@@ -68,7 +68,6 @@ html, body {
   text-rendering: optimizeLegibility;
 }
 
-/* El body ahora se adapta dinámicamente con el zoom de ExtraFunc.js */
 body {
   display: flex; 
   flex-direction: column;
@@ -95,9 +94,10 @@ body {
   background-clip: padding-box;
 }
 
-/* ================= Fondo plano ================= */
+/* ================= Fondo plano (CORREGIDO A ABSOLUTE) ================= */
 #fondo-imagen {
-  position: fixed; inset: 0; z-index: -2;
+  position: absolute; 
+  inset: 0; z-index: -2;
   background: linear-gradient(160deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 82%, #000) 100%);
   background-size: cover; background-position: center;
   transition: background .4s var(--ease-out);
@@ -107,7 +107,9 @@ html[data-modo="oscuro"] #fondo-imagen {
 }
 
 body::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  content: ''; 
+  position: absolute; 
+  inset: 0; pointer-events: none; z-index: -1;
   background: radial-gradient(ellipse at 30% -10%, rgba(255,255,255,.15), transparent 55%);
   transition: opacity .4s;
 }
