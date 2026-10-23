@@ -42,7 +42,7 @@
   };
 
   let widgetsActivos = []; 
-  window.getWidgetsActivos = () => widgetsActivos; // Exponer para JsLobby
+  window.getWidgetsActivos = () => widgetsActivos;
   
   const cargarWidgets = async () => {
     const data = await kvGet('widgets_activos') || [];
@@ -60,7 +60,6 @@
     return { cols: 1, rows: 1 };
   };
 
-  // NUEVO: Encuentra el hueco libre MÁS CERCANO al lugar donde soltaste el widget
   const findClosestFreeSpot = (size, targetLeft, targetTop) => {
     const { cols, rows } = getWidgetCells(size);
     const desk = document.getElementById('desktop');
@@ -268,7 +267,6 @@
           el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
 
           if (colision) {
-            // AHORA USA findClosestFreeSpot
             const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY);
             el.style.left = safeSpot.left;
             el.style.top = safeSpot.top;
@@ -309,7 +307,6 @@
     modal.className = 'extrafunc-modal';
     modal.style.width = '400px';
     
-    // PANEL CON NUEVO ESTILO
     modal.innerHTML = `
       <h3>Añadir Widget</h3>
       <p>Elige un widget para colocarlo en tu escritorio.</p>
@@ -345,7 +342,7 @@
     modal.querySelectorAll('.widget-list-item').forEach(btn => {
       btn.onclick = () => {
         const w = appsConWidgets[btn.dataset.index];
-        const pos = findClosestFreeSpot(w.size, 116, 6); // Posición por defecto cerca del top izquierdo
+        const pos = findClosestFreeSpot(w.size, 116, 6);
         widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
         renderWidgets();
@@ -423,6 +420,64 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     const observer = new MutationObserver(injectButton);
     observer.observe(menuOps, { childList: true });
   };
+
+  // ================= INTERCEPTOR DE APPS (NO TOCAR KERNEL) =================
+  let dragStartIcon = null;
+  let dragStartPos = null;
+
+  document.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const icon = e.target.closest('.icon');
+    if (icon) {
+      dragStartIcon = icon;
+      dragStartPos = { left: icon.style.left, top: icon.style.top };
+    }
+  }, true);
+
+  window.addEventListener('pointerup', (e) => {
+    if (!dragStartIcon) return;
+    const icon = dragStartIcon;
+    const startPos = dragStartPos;
+    dragStartIcon = null;
+    dragStartPos = null;
+
+    // Esperar a que el kernel haga su magia primero
+    setTimeout(() => {
+      if (!icon.parentElement) return; 
+      const rect = icon.getBoundingClientRect();
+      let collision = false;
+
+      document.querySelectorAll('.widget-container').forEach(w => {
+        const wRect = w.getBoundingClientRect();
+        if (!(rect.right <= wRect.left || rect.left >= wRect.right || rect.bottom <= wRect.top || rect.top >= wRect.bottom)) {
+          collision = true;
+        }
+      });
+
+      if (collision) {
+        // Revertir el icono a su posición original
+        icon.style.left = startPos.left;
+        icon.style.top = startPos.top;
+
+        // Actualizar en la base de datos
+        if (icon.dataset.appId) {
+          const id = icon.dataset.appId;
+          if (typeof posicionesIconos !== 'undefined') {
+            posicionesIconos[id] = startPos;
+            kvSet('posiciones_iconos', posicionesIconos);
+          }
+        } else if (icon.dataset.folderId) {
+          const folderId = icon.dataset.folderId;
+          if (typeof carpetas !== 'undefined' && carpetas[folderId]) {
+            carpetas[folderId].pos = startPos;
+            guardarCarpetas();
+          }
+        }
+        window.MyHub.toast('No puedes colocar iconos sobre un widget');
+      }
+    }, 50);
+  }, true);
+  // =========================================================================
 
   const init = () => {
     if (!window.MyHub || !getReg()) {
