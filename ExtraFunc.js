@@ -34,9 +34,13 @@
       .extrafunc-modal-btn.cancel { background: var(--field, #f0f0f0); color: var(--text, #000); border: 1px solid var(--line, #ccc); }
       .extrafunc-modal-btn.cancel:hover { background: var(--card, #fff); }
       
-      .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; }
+      /* CSS del botón de la lista mejorado */
+      .widget-list-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); color: var(--text); font: inherit; cursor: pointer; transition: all 0.15s; text-align: left; box-sizing: border-box; }
       .widget-list-item:hover { background: var(--accent-soft); border-color: var(--accent-line); transform: translateY(-1px); }
-      .widget-list-item i { width: 20px; height: 20px; color: var(--accent); }
+      .widget-list-item i { width: 20px; height: 20px; color: var(--accent); flex-shrink: 0; }
+      .widget-list-info { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+      .widget-list-title { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+      .widget-list-size { font-size: 11px; color: var(--muted); text-transform: uppercase; }
     `;
     document.head.appendChild(style);
   };
@@ -307,16 +311,17 @@
     modal.className = 'extrafunc-modal';
     modal.style.width = '400px';
     
+    // LISTA CON PADDING INTERNO PARA EVITAR CORTES
     modal.innerHTML = `
       <h3>Añadir Widget</h3>
       <p>Elige un widget para colocarlo en tu escritorio.</p>
-      <div style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding-right:4px;">
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding: 8px; margin: -8px; box-sizing: border-box;">
         ${appsConWidgets.map((w, i) => `
           <button class="widget-list-item" data-index="${i}">
             <i data-lucide="layout-grid"></i>
-            <div style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;">
-                <span style="font-weight:600; font-size:14px;">${w.titulo}</span>
-                <span style="font-size:11px; color:var(--muted); text-transform:uppercase;">Tamaño: ${w.size}</span>
+            <div class="widget-list-info">
+                <span class="widget-list-title">${w.titulo}</span>
+                <span class="widget-list-size">Tamaño: ${w.size}</span>
             </div>
           </button>
         `).join('')}
@@ -480,7 +485,6 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     
     const origEliminar = window.MyHub.eliminarApp;
     window.MyHub.eliminarApp = function(appId) {
-      // 1. Filtrar widgets activos que pertenezcan a esta app
       const widgetsRestantes = widgetsActivos.filter(w => w.id !== appId);
       
       if (widgetsRestantes.length !== widgetsActivos.length) {
@@ -490,7 +494,6 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
         if (window.MyHub.toast) window.MyHub.toast('Widgets asociados eliminados');
       }
 
-      // 2. Llamar a la función original (que borra el icono y limpia carpetas)
       return origEliminar.call(this, appId);
     };
     
@@ -505,7 +508,7 @@ MYHUBHESTUDIO - GUÍA DE WIDGETS
     inyectarEstilosWidgets();
     cargarWidgets();
     setupMenuWidgetsDocs();
-    hookEliminarApp(); // <--- Envuelve la función de borrar app
+    hookEliminarApp();
     console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
   };
 
