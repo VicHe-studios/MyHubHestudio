@@ -174,7 +174,6 @@ function renderMenu() {
   docBtn.onclick = () => { menu.classList.add('hidden'); if (window.descargarDocApps) window.descargarDocApps(); };
   ops.appendChild(docBtn);
 
-  // DocWidgets Inyectado de forma natural
   const docWidgsBtn = document.createElement('button'); docWidgsBtn.className = 'menu-op';
   docWidgsBtn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
   docWidgsBtn.onclick = () => { menu.classList.add('hidden'); if (window.descargarDocWidgets) window.descargarDocWidgets(); };
@@ -680,9 +679,7 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
         if (invalid) {
           el.style.left = startLeft + 'px';
           el.style.top = startTop + 'px';
-          if (snapY > maxYLimit || document.querySelector(`.icon[style*="left: ${snapX}px"][style*="top: ${snapY}px"]`)) {
-             toast('Posición inválida u ocupada');
-          }
+          toast('Posición inválida u ocupada');
         } else {
           el.style.left = snapX + 'px';
           el.style.top = snapY + 'px';
@@ -2545,11 +2542,11 @@ reloj(); setInterval(reloj, 15000);
         clearTimeout(hideTimeout);
         const title = taskEl.getAttribute('title');
         let realId = null;
-        if (window.registro) window.registro.forEach((app, id) => { if (app.titulo === title) realId = id; });
+        if (registro) registro.forEach((app, id) => { if (app.titulo === title) realId = id; });
         
         if (realId) {
           currentTaskId = realId;
-          const app = window.registro.get(realId);
+          const app = registro.get(realId);
           document.getElementById('preview-title').textContent = app.titulo;
           document.getElementById('preview-icon').innerHTML = `<i data-lucide="${app.icono || 'app-window'}"></i>`;
           
@@ -2602,7 +2599,7 @@ reloj(); setInterval(reloj, 15000);
               b.className = 'swatch';
               b.style.background = hex;
               b.title = nombre;
-              if (window.ajustes && window.ajustes.color === nombre) b.classList.add('on');
+              if (typeof ajustes !== 'undefined' && ajustes.color === nombre) b.classList.add('on');
               
               b.onclick = async () => {
                 try {
@@ -2857,7 +2854,7 @@ reloj(); setInterval(reloj, 15000);
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
       
-      const app = window.registro.get(w.id);
+      const app = registro.get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
         const blob = app.archivos[w.file];
         const reader = new FileReader();
@@ -2986,7 +2983,7 @@ reloj(); setInterval(reloj, 15000);
 
   window.abrirPanelWidgets = () => {
     const appsConWidgets = [];
-    window.registro.forEach((app, id) => {
+    registro.forEach((app, id) => {
       if (app.manifest && app.manifest.widgets) {
         app.manifest.widgets.forEach(w => {
           appsConWidgets.push({ appId: id, titulo: app.titulo, file: w.file, size: w.size || '1x1' });
@@ -3052,7 +3049,7 @@ reloj(); setInterval(reloj, 15000);
 
   // ================= INICIALIZACIÓN EXTRAS =================
   const init = () => {
-    if (!window.MyHub || !window.registro) {
+    if (!window.MyHub || typeof registro === 'undefined') {
       setTimeout(init, 100);
       return;
     }
