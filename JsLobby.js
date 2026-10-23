@@ -204,7 +204,7 @@ function avatarEl(blob) {
   return a;
 }
 
-function vistaCreditos() {
+function vista() {
   const d = document.createElement('div');
   d.className = 'creditos';
   d.innerHTML = `
@@ -217,6 +217,7 @@ function vistaCreditos() {
       <p><strong>Lucide</strong> (Iconografía del sistema)</p>
       <p><strong>JSZip</strong> (Manejo de archivos comprimidos en la instalación)</p>
       <p><strong>GitHub Raw</strong> (Distribución instantánea de archivos en Stor-He)</p>
+      <p><strong>snd-lib</strong> (Efectos de sonido de interfaz de usuario)</p>
     </div>
     <div class="credito-item">
       <h4>Infraestructura y Despliegue</h4>
