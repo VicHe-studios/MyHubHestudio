@@ -50,21 +50,18 @@
     await kvSet('widgets_activos', widgetsActivos);
   };
 
-  // Función para saber cuántas celdas ocupa un widget
   const getWidgetCells = (size) => {
     if (size === '2x2') return { cols: 2, rows: 2 };
     if (size === '2x1') return { cols: 2, rows: 1 };
     return { cols: 1, rows: 1 };
   };
 
-  // Función para buscar el primer hueco libre
   const findFreeSpot = (size) => {
     const { cols, rows } = getWidgetCells(size);
     const deskH = document.getElementById('desktop').clientHeight || window.innerHeight - 90;
     const maxRows = Math.max(1, Math.floor((deskH - MARGEN) / GY));
     const maxCols = Math.max(1, Math.floor((document.getElementById('desktop').clientWidth - MARGEN) / GX));
 
-    // Recolectar todas las celdas ocupadas por iconos y widgets
     const ocupadas = new Set();
     
     if (typeof posicionesIconos !== 'undefined') {
@@ -87,7 +84,6 @@
       }
     });
 
-    // Buscar hueco
     for (let r = 0; r < maxRows; r++) {
       for (let c = 0; c < maxCols; c++) {
         let libre = true;
@@ -101,7 +97,6 @@
         }
       }
     }
-    // Si no hay hueco, devolver una posición por defecto (fuera del grid, abajo)
     return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN}px` };
   };
 
@@ -210,49 +205,33 @@
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
         if (isDragging) {
-          const snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
-          const snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
-          
-          const { cols, rows } = getWidgetCells(widgetData.size);
-          const startCol = Math.round((snapX - MARGEN) / GX);
-          const startRow = Math.round((snapY - MARGEN) / GY);
-          
           let colision = false;
-          
-          // 1. Verificar colisión con iconos
-          if (typeof posicionesIconos !== 'undefined') {
-            for (const pos of Object.values(posicionesIconos)) {
-              const iCol = Math.round((parseFloat(pos.left) - MARGEN) / GX);
-              const iRow = Math.round((parseFloat(pos.top) - MARGEN) / GY);
-              if (iCol >= startCol && iCol < startCol + cols && iRow >= startRow && iRow < startRow + rows) {
-                colision = true; break;
-              }
+          const rectW = el.getBoundingClientRect();
+
+          // Comprobar colisión con iconos
+          document.querySelectorAll('.icon').forEach(icon => {
+            const rectI = icon.getBoundingClientRect();
+            // Lógica de intersección de rectángulos
+            if (!(rectW.right <= rectI.left || rectW.left >= rectI.right || rectW.bottom <= rectI.top || rectW.top >= rectI.bottom)) {
+              colision = true;
             }
-          }
-          
-          // 2. Verificar colisión con otros widgets
-          if (!colision) {
-            for (const other of widgetsActivos) {
-              if (other === widgetData || !other.pos) continue;
-              const oCol = Math.round((parseFloat(other.pos.left) - MARGEN) / GX);
-              const oRow = Math.round((parseFloat(other.pos.top) - MARGEN) / GY);
-              const oSize = getWidgetCells(other.size);
-              
-              // Lógica de intersección de rectángulos
-              if (startCol < oCol + oSize.cols && startCol + cols > oCol && 
-                  startRow < oRow + oSize.rows && startRow + rows > oRow) {
-                colision = true; break;
-              }
+          });
+
+          // Comprobar colisión con otros widgets
+          document.querySelectorAll('.widget-container').forEach(other => {
+            if (other === el) return;
+            const rectO = other.getBoundingClientRect();
+            if (!(rectW.right <= rectO.left || rectW.left >= rectO.right || rectW.bottom <= rectO.top || rectW.top >= rectO.bottom)) {
+              colision = true;
             }
-          }
+          });
 
           if (colision) {
             el.style.left = startLeft + 'px';
             el.style.top = startTop + 'px';
             window.MyHub.toast('Espacio ocupado por otra app o widget');
           } else {
-            el.style.left = snapX + 'px';
-            el.style.top = snapY + 'px';
+            // Guardar posición exacta (sin snap)
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
