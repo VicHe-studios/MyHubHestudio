@@ -390,23 +390,33 @@ function injectStyles() {
 
     /* FIX PARA EL RECORTE DEL ICONO AL HOVER */
     #tasks { 
-      overflow-x: auto !important; 
-      overflow-y: visible !important; 
+      overflow: visible !important; 
     }
 
-    /* STATUS PILL */
+    /* STATUS PILL (Coloreado completo para que no se vea gris) */
     .status-pill {
       display: flex; align-items: center; gap: 12px;
-      background: var(--field); border: 1.5px solid var(--line);
+      background: var(--accent-soft); 
+      border: 1px solid var(--accent-line);
       border-radius: 12px; padding: 6px 14px;
-      font-size: 13px; font-weight: 600; color: var(--text);
+      font-size: 13px; font-weight: 600; 
+      color: var(--accent);
       margin-left: auto; font-variant-numeric: tabular-nums;
     }
     .status-item { display: flex; align-items: center; gap: 6px; }
     .status-item svg { width: 16px; height: 16px; color: currentColor; }
     .status-item.low { color: #ef4444; }
     
-    /* EL OVERRIDE DE #clock HA SIDO ELIMINADO PARA QUE LobbyStyle.css MANDE */
+    /* Obligamos al reloj a ser transparente para que herede el color de la píldora */
+    #clock {
+      margin: 0 !important; 
+      padding: 0 !important;
+      background: transparent !important; 
+      color: inherit !important;
+      font-size: inherit !important; 
+      font-weight: inherit !important;
+      border: none !important;
+    }
 
     @media (max-width: 860px) { .status-item.date { display: none; } }
     @media (max-width: 680px) { .status-item.battery { display: none; } }
