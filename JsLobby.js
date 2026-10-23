@@ -260,7 +260,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') { cerrarModa
 
 function avatarEl(blob) {
   const a = document.createElement('div'); a.className = 'avatar';
-  if (blob) { const img = document.createElement('img'); const url = URL.createObjectURL(blob); img.src = url; img.onload = () => URL.revokeObjectURL(url); a.appendChild(img); }
+  if (blob instanceof Blob) { const img = document.createElement('img'); const url = URL.createObjectURL(blob); img.src = url; img.onload = () => URL.revokeObjectURL(url); a.appendChild(img); }
   else a.innerHTML = '<i data-lucide="user-round"></i>';
   return a;
 }
@@ -1444,7 +1444,7 @@ function setupEditProfile() {
     `;
 
     const editFotoBox = d.querySelector('#editFotoBox');
-    if (cuenta.foto) {
+    if (cuenta.foto instanceof Blob) {
       const img = document.createElement('img');
       const url = URL.createObjectURL(cuenta.foto);
       img.src = url; img.onload = () => URL.revokeObjectURL(url);
