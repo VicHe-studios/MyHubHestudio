@@ -249,8 +249,8 @@ body.con-fondo #desktop::before { opacity: 0; }
   padding: 0 14px; border-radius: var(--radius-xl);
   background: var(--bar);
   border: 1.5px solid var(--line);
-  box-shadow: var(--shadow-xl); /* Sombra devuelta */
-  backdrop-filter: blur(24px) saturate(1.6); /* Efecto cristal devuelto */
+  box-shadow: var(--shadow-xl); /* Barra con sombra exterior */
+  backdrop-filter: blur(24px) saturate(1.6); /* Efecto cristal */
   -webkit-backdrop-filter: blur(24px) saturate(1.6);
 }
 
@@ -289,11 +289,12 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 .task:active { transform: scale(.93); }
 
-/* 2. APP ACTIVA (Enfocada) - Color acento sólido */
+/* 2. APP ACTIVA (Enfocada) - Color acento sólido SIN SOMBRAS */
 .task.active {
-  background: var(--accent); color: #fff;
+  background: var(--accent); 
+  color: #fff;
   border-color: var(--accent);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+  /* Eliminado cualquier box-shadow aquí */
 }
 .task.active svg { color: #fff; }
 
@@ -311,12 +312,13 @@ body.con-fondo #desktop::before { opacity: 0; }
   opacity: 1;
 }
 
-/* Reloj - Color acento devuelto */
+/* Reloj - COLOR ACENTO DEVUELTO */
 #clock {
   margin-left: auto; font-size: 13px; font-weight: 600;
   padding: 8px 14px; border-radius: 12px;
   font-variant-numeric: tabular-nums;
-  background: var(--accent-soft); color: var(--accent);
+  background: var(--accent-soft); 
+  color: var(--accent);
 }
 
 /* ================= Menú ================= */
