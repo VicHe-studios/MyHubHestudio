@@ -88,14 +88,18 @@ const PAISES = [['CL','Chile'],['AR','Argentina'],['BO','Bolivia'],['BR','Brasil
 const GENEROS = { 'hombre': 'Hombre', 'mujer': 'Mujer', 'no-binario': 'No binario', 'otro': 'Otro' };
 
 const MARGEN_ICONOS = 16;
-const GRID_X = 100;
-const GRID_Y = 110;
+// Cuadrícula FIJA: 14 columnas x 5 filas. No se mide el escritorio.
+// Estos valores deben coincidir con las variables CSS de :root (--grid-cols, --grid-rows, --cell-w, --cell-h).
+const GRID_COLS = 14;
+const GRID_ROWS = 5;
+const GRID_X = 92;   // ancho de celda (px)
+const GRID_Y = 108;  // alto de celda (px)
 
 // FIX: Tamaños de widgets centralizados (antes duplicados en 3 sitios)
 const WIDGET_SIZES = {
-  '1x1': { w: 90,  h: 100, cols: 1, rows: 1 },
-  '2x1': { w: 190, h: 100, cols: 2, rows: 1 },
-  '2x2': { w: 190, h: 210, cols: 2, rows: 2 }
+  '1x1': { w: GRID_X - 2,     h: GRID_Y - 8,      cols: 1, rows: 1 },
+  '2x1': { w: GRID_X * 2 - 2, h: GRID_Y - 8,      cols: 2, rows: 1 },
+  '2x2': { w: GRID_X * 2 - 2, h: GRID_Y * 2 - 8,  cols: 2, rows: 2 }
 };
 
 // ================= Estado global =================
@@ -549,16 +553,6 @@ function injectStyles() {
 }
 
 // ================= Iconos (folder-aware) =================
-// Límites de la cuadrícula: misma norma para iconos y widgets
-function limitesCuadricula() {
-  const deskEl = document.getElementById('desktop');
-  const deskH = (deskEl && deskEl.clientHeight) || window.innerHeight - 90;
-  const deskW = (deskEl && deskEl.clientWidth) || window.innerWidth;
-  const maxRows = Math.max(1, Math.floor((deskH - MARGEN_ICONOS) / GRID_Y));
-  const maxCols = Math.max(1, Math.floor((deskW - MARGEN_ICONOS) / GRID_X));
-  return { maxRows, maxCols, maxY: MARGEN_ICONOS + (maxRows - 1) * GRID_Y };
-}
-
 // Celdas de la cuadrícula ocupadas por widgets (los iconos no deben colocarse sobre ellas)
 function celdasDeWidgets() {
   const ocupadas = new Set();
@@ -580,7 +574,8 @@ function renderIconos() {
   iconsEl.innerHTML = '';
 
   const MARGEN = MARGEN_ICONOS, GX = GRID_X, GY = GRID_Y;
-  const { maxRows, maxY } = limitesCuadricula();
+  const maxRows = GRID_ROWS;
+  const maxY = MARGEN_ICONOS + (GRID_ROWS - 1) * GRID_Y;
   const inFolder = appsEnCarpetas();
 
   inFolder.forEach(id => { delete posicionesIconos[id]; });
@@ -605,19 +600,22 @@ function renderIconos() {
     if (savedPos) {
       const sx = parseFloat(savedPos.left), sy = parseFloat(savedPos.top);
       const key = `${sx}-${sy}`;
-      if (!used.has(key) && sy <= maxY && !isNaN(sx) && !isNaN(sy) && !celdasWidget.has(celdaDe(sx, sy))) {
+      if (!used.has(key) && sy <= maxY && sx <= MARGEN_ICONOS + (GRID_COLS - 1) * GRID_X && !isNaN(sx) && !isNaN(sy) && !celdasWidget.has(celdaDe(sx, sy))) {
         tx = sx; ty = sy; used.add(key);
       }
     }
     if (tx === -1) {
       let col = 0, row = 0, found = false;
       while (!found) {
+        if (col >= GRID_COLS) break; // cuadrícula llena
         const x = MARGEN + col * GX, y = MARGEN + row * GY;
         const key = `${x}-${y}`;
         if (!used.has(key) && !celdasWidget.has(celdaDe(x, y))) { tx = x; ty = y; used.add(key); found = true; }
         else { row++; if (row >= maxRows) { row = 0; col++; } }
       }
     }
+
+    if (tx === -1) return; // sin espacio en la cuadrícula
 
     if (item.kind === 'app') {
       posUpdates[item.id] = { left: tx + 'px', top: ty + 'px' };
@@ -692,7 +690,7 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
       if (isDragging) {
         let newLeft = startLeft + dx;
         let newTop = startTop + dy;
-        const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN;
+        const maxLeft = MARGEN + (GRID_COLS - 1) * GX;
         newTop = Math.max(MARGEN, Math.min(newTop, maxYLimit));
         newLeft = Math.max(MARGEN, Math.min(newLeft, maxLeft));
         el.style.left = newLeft + 'px';
@@ -710,7 +708,7 @@ function hacerArrastrable(el, id, maxRows, maxYLimit) {
         let currentTop = parseFloat(el.style.top) || MARGEN;
         let snapX = Math.round((currentLeft - MARGEN) / GX) * GX + MARGEN;
         let snapY = Math.round((currentTop - MARGEN) / GY) * GY + MARGEN;
-        const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN;
+        const maxLeft = MARGEN + (GRID_COLS - 1) * GX;
         snapX = Math.max(MARGEN, Math.min(snapX, maxLeft));
 
         let invalid = false;
@@ -783,7 +781,7 @@ function hacerArrastrableCarpeta(el, folderId, maxRows, maxY) {
       const dx = ev.clientX - startX, dy = ev.clientY - startY;
       if (Math.abs(dx) > 3 || Math.abs(dy) > 3) isDragging = true;
       if (!isDragging) return;
-      const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN;
+      const maxLeft = MARGEN + (GRID_COLS - 1) * GX;
       let nl = Math.max(MARGEN, Math.min(startLeft + dx, maxLeft));
       let nt = Math.max(MARGEN, Math.min(startTop + dy, maxY));
       el.style.left = nl + 'px'; el.style.top = nt + 'px';
@@ -798,7 +796,7 @@ function hacerArrastrableCarpeta(el, folderId, maxRows, maxY) {
         let ct = parseFloat(el.style.top) || MARGEN;
         let sx = Math.round((cl - MARGEN) / GX) * GX + MARGEN;
         let sy = Math.round((ct - MARGEN) / GY) * GY + MARGEN;
-        const maxLeft = el.parentElement.clientWidth - el.clientWidth - MARGEN;
+        const maxLeft = MARGEN + (GRID_COLS - 1) * GX;
         sx = Math.max(MARGEN, Math.min(sx, maxLeft));
 
         let invalid = sy > maxY;
@@ -2963,7 +2961,7 @@ reloj(); setInterval(reloj, 15000);
   };
 
   // ================= MOTOR DE WIDGETS =================
-  const MARGEN = 16, GX = 100, GY = 110;
+  const MARGEN = MARGEN_ICONOS, GX = GRID_X, GY = GRID_Y;
 
   const guardarWidgets = async () => {
     await kvSet('widgets_activos', window.widgetsActivos);
@@ -2971,7 +2969,7 @@ reloj(); setInterval(reloj, 15000);
 
   const findClosestFreeSpot = (size, targetLeft, targetTop, excludeWidget) => {
     const ws = WIDGET_SIZES[size] || WIDGET_SIZES['1x1'];
-    const { maxRows, maxCols } = limitesCuadricula();
+    const maxRows = GRID_ROWS, maxCols = GRID_COLS;
 
     const ocupadas = new Set();
     if (typeof posicionesIconos !== 'undefined') {
@@ -3044,7 +3042,7 @@ reloj(); setInterval(reloj, 15000);
 
       const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
 
-      const topeW = MARGEN_ICONOS + (limitesCuadricula().maxRows - ws.rows) * GRID_Y;
+      const topeW = MARGEN_ICONOS + (GRID_ROWS - ws.rows) * GRID_Y;
       const topRaw = parseFloat(w.pos?.top);
       const topFinal = Math.max(MARGEN_ICONOS, Math.min(isNaN(topRaw) ? 16 : topRaw, topeW));
       el.style.cssText = `
@@ -3177,9 +3175,9 @@ reloj(); setInterval(reloj, 15000);
           const wW = el.offsetWidth;
           const wH = el.offsetHeight;
 
-          snapX = Math.max(MARGEN, Math.min(snapX, deskW - wW - MARGEN));
+          snapX = Math.max(MARGEN, Math.min(snapX, MARGEN + (GRID_COLS - (WIDGET_SIZES[widgetData.size] || WIDGET_SIZES['1x1']).cols) * GX));
           const wsDrop = WIDGET_SIZES[widgetData.size] || WIDGET_SIZES['1x1'];
-          const topeFila = MARGEN + (limitesCuadricula().maxRows - wsDrop.rows) * GY;
+          const topeFila = MARGEN + (GRID_ROWS - wsDrop.rows) * GY;
           snapY = Math.max(MARGEN, Math.min(snapY, topeFila));
 
           // Posición tentativa (instantánea) para medir colisión
@@ -3418,8 +3416,8 @@ reloj(); setInterval(reloj, 15000);
 
   // ================= Zoom Dinámico (con techo para no agrandar en pantallas grandes) =================
   const setupDynamicZoom = () => {
-    const BASE_WIDTH = 1000;
-    const BASE_HEIGHT = 650;
+    const BASE_WIDTH = MARGEN_ICONOS * 2 + GRID_COLS * GRID_X;
+    const BASE_HEIGHT = MARGEN_ICONOS * 2 + GRID_ROWS * GRID_Y + 90;
 
     const applyZoom = () => {
       const w = window.innerWidth;
