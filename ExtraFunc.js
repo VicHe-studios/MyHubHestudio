@@ -43,19 +43,40 @@
   }
 
   const playSound = (type) => {
-    // Si no hay sonido, no está activo, o aún no se ha cargado, no hacer nada
     if (!sonidosActivos || !sndInstance || !sndReady) return;
 
     try {
-      let soundToPlay = Snd.SOUNDS.TAP; // Fallback por defecto
+      let soundToPlay;
 
-      // Asignación segura verificando si el sonido existe en la librería
-      if (type === 'open' && Snd.SOUNDS.OPEN) soundToPlay = Snd.SOUNDS.OPEN;
-      else if (type === 'close' && Snd.SOUNDS.CLOSE) soundToPlay = Snd.SOUNDS.CLOSE;
-      else if (type === 'minimize' && Snd.SOUNDS.MINIMIZE) soundToPlay = Snd.SOUNDS.MINIMIZE;
-      else if (type === 'start' && Snd.SOUNDS.SUCCESS) soundToPlay = Snd.SOUNDS.SUCCESS;
-      
-      sndInstance.play(soundToPlay);
+      // Mapeo exacto a los sonidos reales del kit SND01
+      switch (type) {
+        case 'open':
+          soundToPlay = Snd.SOUNDS.SWITCH;
+          break;
+        case 'close':
+          soundToPlay = Snd.SOUNDS.SWOOSH;
+          break;
+        case 'minimize':
+          soundToPlay = Snd.SOUNDS.HOVER;
+          break;
+        case 'start':
+          soundToPlay = Snd.SOUNDS.SUCCESS;
+          break;
+        case 'move':
+          soundToPlay = Snd.SOUNDS.CLICK;
+          break;
+        case 'click':
+        default:
+          soundToPlay = Snd.SOUNDS.TAP;
+          break;
+      }
+
+      // Verificamos que el sonido exista en la librería antes de reproducirlo
+      if (soundToPlay) {
+        sndInstance.play(soundToPlay);
+      } else {
+        sndInstance.play(Snd.SOUNDS.TAP); // Fallback definitivo
+      }
     } catch(e) {
       console.error('Error al reproducir sonido:', e);
     }
