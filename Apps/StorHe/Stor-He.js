@@ -162,17 +162,27 @@
       const isInstalled = !!currentInstalledApps[app.id];
       const card = document.createElement('div');
       card.className = 'app-card';
-      const autorHtml = app.autor ? `<span class="app-author">Por ${app.autor}</span>` : '';
+      
+      // Autor sutil (Texto gris en lugar de badge morado)
+      const autorHtml = app.autor ? `<span style="color: var(--muted); font-size: 11px; font-weight: 500;">Por ${app.autor}</span>` : '';
+      
+      // Descripción
       const descHtml = app.descripcion ? `<span class="app-desc">${app.descripcion}</span>` : '';
       
-      // BADGE DE WIDGET
-      const widgetBadge = app.tieneWidget ? `<span style="background: var(--accent); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: bold; vertical-align: middle;">Widget incluido</span>` : '';
+      // Badge de Widget sutil (Icono + Texto acento, sin fondo)
+      const widgetBadge = app.tieneWidget ? `
+        <span style="display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-size: 11px; font-weight: 600; margin-left: 2px;">
+          <i data-lucide="layout-grid" style="width: 12px; height: 12px;"></i> Widget
+        </span>` : '';
 
       card.innerHTML = `
         <div class="app-icon"><i data-lucide="${app.icono}"></i></div>
         <div class="app-info">
-          <h3 class="app-title">${app.titulo} ${widgetBadge}</h3>
-          <div class="app-meta">
+          <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <h3 class="app-title" style="margin: 0;">${app.titulo}</h3>
+            ${widgetBadge}
+          </div>
+          <div class="app-meta" style="margin-top: 2px;">
             <span class="app-id">ID: ${app.id}</span>
             ${autorHtml}
           </div>
@@ -217,36 +227,29 @@
     try {
       const archivos = {};
       let manifest = null;
-      const res = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}?t=${Date.now()}`);
-      if (!res.ok) throw new Error('No se pudo leer la carpeta');
-      const fileList = await res.json();
+      
+      // Función auxiliar para descargar archivos y carpetas recursivamente
+      const descargarContenido = async (path) => {
+        const apiUrl = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${path}?t=${Date.now()}`;
+        const res = await fetch(apiUrl);
+        if (!res.ok) return;
+        const fileList = await res.json();
 
-      // Descarga recursiva simple (solo nivel 1 por ahora, por si tienen carpetas)
-      for (const file of fileList) {
-        if (file.type === 'file') {
-          const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file.path}?t=${Date.now()}`;
-          const fileRes = await fetch(rawUrl);
-          if (!fileRes.ok) continue; 
-          const blob = await fileRes.blob();
-          archivos[file.name] = blob;
-          if (file.name === 'manifest.json') manifest = JSON.parse(await blob.text());
-        } else if (file.type === 'dir') {
-            // Soporte para carpeta Widgets
-            const subRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}/${file.name}?t=${Date.now()}`);
-            if (subRes.ok) {
-                const subFileList = await subRes.json();
-                for (const subFile of subFileList) {
-                    if (subFile.type === 'file') {
-                        const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${subFile.path}?t=${Date.now()}`;
-                        const subFileRes = await fetch(rawUrl);
-                        if (subFileRes.ok) {
-                            archivos[subFile.path] = await subFileRes.blob();
-                        }
-                    }
-                }
-            }
+        for (const item of fileList) {
+          if (item.type === 'file') {
+            const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${item.path}?t=${Date.now()}`;
+            const fileRes = await fetch(rawUrl);
+            if (!fileRes.ok) continue; 
+            const blob = await fileRes.blob();
+            archivos[item.path] = blob;
+            if (item.name === 'manifest.json') manifest = JSON.parse(await blob.text());
+          } else if (item.type === 'dir') {
+            await descargarContenido(item.path);
+          }
         }
-      }
+      };
+
+      await descargarContenido(appId);
 
       if (!manifest) manifest = { id: appId, titulo: appId, icono: 'box', main: 'index.html' };
       manifest.id = appId;
