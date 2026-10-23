@@ -88,11 +88,11 @@ const PAISES = [['CL','Chile'],['AR','Argentina'],['BO','Bolivia'],['BR','Brasil
 const GENEROS = { 'hombre': 'Hombre', 'mujer': 'Mujer', 'no-binario': 'No binario', 'otro': 'Otro' };
 
 const MARGEN_ICONOS = 16;
-// Cuadrícula FIJA: 14 columnas x 5 filas. No se mide el escritorio.
+// Cuadrícula FIJA: 16 columnas x 5 filas. No se mide el escritorio.
 // Estos valores deben coincidir con las variables CSS de :root (--grid-cols, --grid-rows, --cell-w, --cell-h).
-const GRID_COLS = 14;
+const GRID_COLS = 16;
 const GRID_ROWS = 5;
-const GRID_X = 92;   // ancho de celda (px)
+const GRID_X = 82;   // ancho de celda (px)
 const GRID_Y = 108;  // alto de celda (px)
 
 // FIX: Tamaños de widgets centralizados (antes duplicados en 3 sitios)
