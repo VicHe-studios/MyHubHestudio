@@ -9,7 +9,8 @@
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const MARGEN = 16, GX = 100, GY = 110;
-  const OFFSET_Y = 5; // Ajuste para centrar el widget en la celda de 110px
+  // AHORA RESTAMOS 10px EN LUGAR DE SUMAR 5
+  const OFFSET_Y = -10; 
 
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
@@ -57,7 +58,6 @@
     return { cols: 1, rows: 1 };
   };
 
-  // Busca un hueco libre aplicando el OFFSET_Y
   const findFreeSpot = (size) => {
     const { cols, rows } = getWidgetCells(size);
     const desk = document.getElementById('desktop');
@@ -78,6 +78,7 @@
     widgetsActivos.forEach(w => {
       if (!w.pos) return;
       const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+      // Usamos el OFFSET_Y para calcular la fila correcta
       const wr = Math.round((parseFloat(w.pos.top) - MARGEN - OFFSET_Y) / GY);
       const wsize = getWidgetCells(w.size);
       for (let i = 0; i < wsize.cols; i++) {
@@ -100,7 +101,7 @@
         }
       }
     }
-    return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN}px` };
+    return { left: `${MARGEN}px`, top: `${maxRows * GY + MARGEN + OFFSET_Y}px` };
   };
 
   const checkCollision = (rect1, rect2) => {
@@ -125,7 +126,7 @@
       const hSize = w.size === '2x2' ? '210px' : (w.size === '2x1' ? '100px' : '100px');
       
       el.style.cssText = `
-        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '21px'};
+        position: absolute; left: ${w.pos?.left || '116px'}; top: ${w.pos?.top || '6px'};
         width: ${wSize}; height: ${hSize}; pointer-events: auto;
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
@@ -225,7 +226,7 @@
         el.style.boxShadow = '';
         
         if (isDragging) {
-          // Snap al grid sumando el OFFSET_Y
+          // Snap al grid usando el OFFSET_Y corregido
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
           let snapY = Math.round((parseFloat(el.style.top) - MARGEN - OFFSET_Y) / GY) * GY + MARGEN + OFFSET_Y;
 
