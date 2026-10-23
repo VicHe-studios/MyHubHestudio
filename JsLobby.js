@@ -568,6 +568,39 @@ function celdasDeWidgets() {
   return ocupadas;
 }
 
+// Lleva los widgets guardados a la cuadrícula actual y evita solapamientos.
+// Devuelve true si algo cambió (para guardar de nuevo).
+function normalizarWidgets() {
+  const ocupadas = new Set();
+  let cambio = false;
+
+  window.widgetsActivos.forEach(w => {
+    const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+    const px = parseFloat(w.pos?.left), py = parseFloat(w.pos?.top);
+    let c = isNaN(px) ? 0 : Math.round((px - MARGEN_ICONOS) / GRID_X);
+    let r = isNaN(py) ? 0 : Math.round((py - MARGEN_ICONOS) / GRID_Y);
+    c = Math.min(GRID_COLS - ws.cols, Math.max(0, c));
+    r = Math.min(GRID_ROWS - ws.rows, Math.max(0, r));
+
+    const celdas = (cc, rr) => { const out = []; for (let i = 0; i < ws.cols; i++) for (let j = 0; j < ws.rows; j++) out.push(`${cc + i}-${rr + j}`); return out; };
+
+    if (celdas(c, r).some(k => ocupadas.has(k))) {
+      let hueco = null;
+      for (let rr = 0; rr <= GRID_ROWS - ws.rows && !hueco; rr++) {
+        for (let cc = 0; cc <= GRID_COLS - ws.cols && !hueco; cc++) {
+          if (!celdas(cc, rr).some(k => ocupadas.has(k))) hueco = [cc, rr];
+        }
+      }
+      if (hueco) { [c, r] = hueco; }
+    }
+
+    celdas(c, r).forEach(k => ocupadas.add(k));
+    const nuevo = { left: (MARGEN_ICONOS + c * GRID_X) + 'px', top: (MARGEN_ICONOS + r * GRID_Y) + 'px' };
+    if (!w.pos || w.pos.left !== nuevo.left || w.pos.top !== nuevo.top) { w.pos = nuevo; cambio = true; }
+  });
+  return cambio;
+}
+
 function renderIconos() {
   const iconsEl = $('icons');
   if (!iconsEl) return;
@@ -597,24 +630,25 @@ function renderIconos() {
     let savedPos = item.kind === 'app' ? posicionesIconos[item.id] : item.folder.pos;
     let tx = -1, ty = -1;
 
+    // Posición guardada -> celda más cercana de la cuadrícula actual (corrige datos de versiones anteriores)
     if (savedPos) {
       const sx = parseFloat(savedPos.left), sy = parseFloat(savedPos.top);
-      const key = `${sx}-${sy}`;
-      if (!used.has(key) && sy <= maxY && sx <= MARGEN_ICONOS + (GRID_COLS - 1) * GRID_X && !isNaN(sx) && !isNaN(sy) && !celdasWidget.has(celdaDe(sx, sy))) {
-        tx = sx; ty = sy; used.add(key);
+      if (!isNaN(sx) && !isNaN(sy)) {
+        const c = Math.min(GRID_COLS - 1, Math.max(0, Math.round((sx - MARGEN) / GX)));
+        const r = Math.min(GRID_ROWS - 1, Math.max(0, Math.round((sy - MARGEN) / GY)));
+        const key = `${c}-${r}`;
+        if (!used.has(key) && !celdasWidget.has(key)) { tx = MARGEN + c * GX; ty = MARGEN + r * GY; used.add(key); }
       }
     }
+    // Sin posición válida -> primera celda libre
     if (tx === -1) {
-      let col = 0, row = 0, found = false;
-      while (!found) {
-        if (col >= GRID_COLS) break; // cuadrícula llena
-        const x = MARGEN + col * GX, y = MARGEN + row * GY;
-        const key = `${x}-${y}`;
-        if (!used.has(key) && !celdasWidget.has(celdaDe(x, y))) { tx = x; ty = y; used.add(key); found = true; }
-        else { row++; if (row >= maxRows) { row = 0; col++; } }
+      let col = 0, row = 0;
+      while (col < GRID_COLS) {
+        const key = `${col}-${row}`;
+        if (!used.has(key) && !celdasWidget.has(key)) { tx = MARGEN + col * GX; ty = MARGEN + row * GY; used.add(key); break; }
+        row++; if (row >= GRID_ROWS) { row = 0; col++; }
       }
     }
-
     if (tx === -1) return; // sin espacio en la cuadrícula
 
     if (item.kind === 'app') {
@@ -2533,6 +2567,9 @@ reloj(); setInterval(reloj, 15000);
   ajustes = { ...AJUSTES_BASE, ...(a || {}) };
   cuentaActual = c; sesionActiva = !!c && s === true;
   posicionesIconos = pos || {}; carpetas = carpetasData || {}; pinnedApps = pinnedData || [];
+
+  window.widgetsActivos = (await kvGet('widgets_activos')) || [];
+  if (normalizarWidgets()) await kvSet('widgets_activos', window.widgetsActivos);
 
   injectStyles();
   aplicarAjustes(); refrescarEstado(); refrescarIconos();
