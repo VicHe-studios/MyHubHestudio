@@ -2502,28 +2502,81 @@ reloj(); setInterval(reloj, 15000);
   let sndInstance = null;
   let sndReady = false;
 
+  // ================= RESPALDO DE AUDIO (Web Audio, sin dependencias) =================
+  // Se usa si snd-lib no está cargada o no pudo iniciarse.
+  let audioCtx = null;
+  const getAudioCtx = () => {
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      audioCtx = new AC();
+    }
+    return audioCtx;
+  };
+  // Los navegadores bloquean el audio hasta la primera interacción del usuario
+  const desbloquearAudio = () => {
+    const ctx = getAudioCtx();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  };
+  ['pointerdown', 'keydown', 'touchend'].forEach(ev =>
+    document.addEventListener(ev, desbloquearAudio, { capture: true, passive: true }));
+
+  // Cada tono: [frecuencia Hz, retardo s, duración s]
+  const TONOS = {
+    open:     [[660, 0, 0.07], [990, 0.06, 0.09]],
+    close:    [[520, 0, 0.08], [330, 0.06, 0.10]],
+    minimize: [[440, 0, 0.06]],
+    start:    [[523, 0, 0.09], [659, 0.09, 0.09], [784, 0.18, 0.14]],
+    move:     [[900, 0, 0.03]],
+    click:    [[1200, 0, 0.025]]
+  };
+  const tocarTono = (type) => {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state === 'closed') return;
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    const t0 = ctx.currentTime;
+    (TONOS[type] || TONOS.click).forEach(([freq, delay, dur]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t0 + delay);
+      gain.gain.exponentialRampToValueAtTime(0.15, t0 + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + delay + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0 + delay);
+      osc.stop(t0 + delay + dur + 0.02);
+    });
+  };
+
+  // ================= SISTEMA DE SONIDO (snd-lib si existe) =================
   if (typeof Snd !== 'undefined') {
     sndInstance = new Snd();
     sndInstance.load(Snd.KITS.SND01).then(() => {
       sndReady = true;
-      console.log('[ExtraFunc] Kit de sonidos cargado.');
-    }).catch(e => console.error('[ExtraFunc] Error cargando kit de sonidos (snd-lib):', e));
+      console.log('[ExtraFunc] Kit de sonidos snd-lib cargado.');
+    }).catch(e => console.error('[ExtraFunc] Error cargando snd-lib, usando respaldo:', e));
   } else {
-    console.error('[ExtraFunc] snd-lib NO está cargada: los sonidos del sistema no sonarán. Incluye el <script> de snd-lib antes de este bloque.');
+    console.warn('[ExtraFunc] snd-lib no está cargada: usando sonidos de respaldo (Web Audio).');
   }
 
   const playSound = (type) => {
-    if (!sonidosActivos || !sndInstance || !sndReady) return;
+    if (!sonidosActivos) return;
     try {
-      let soundToPlay = Snd.SOUNDS.TAP;
-      switch (type) {
-        case 'open': soundToPlay = Snd.SOUNDS.SWITCH; break;
-        case 'close': soundToPlay = Snd.SOUNDS.SWOOSH; break;
-        case 'minimize': soundToPlay = Snd.SOUNDS.HOVER; break;
-        case 'start': soundToPlay = Snd.SOUNDS.SUCCESS; break;
-        case 'move': soundToPlay = Snd.SOUNDS.CLICK; break;
+      if (sndInstance && sndReady) {
+        let soundToPlay = Snd.SOUNDS.TAP;
+        switch (type) {
+          case 'open': soundToPlay = Snd.SOUNDS.SWITCH; break;
+          case 'close': soundToPlay = Snd.SOUNDS.SWOOSH; break;
+          case 'minimize': soundToPlay = Snd.SOUNDS.HOVER; break;
+          case 'start': soundToPlay = Snd.SOUNDS.SUCCESS; break;
+          case 'move': soundToPlay = Snd.SOUNDS.CLICK; break;
+        }
+        sndInstance.play(soundToPlay);
+      } else {
+        tocarTono(type);
       }
-      if (soundToPlay) sndInstance.play(soundToPlay);
     } catch (e) {
       console.error('[ExtraFunc] Error al reproducir sonido:', e);
     }
