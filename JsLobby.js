@@ -73,6 +73,14 @@ async function kvSet(k, v) {
   });
 }
 
+// Cola de escrituras: operaciones de lectura+escritura en orden, sin pisarse
+let colaKv = Promise.resolve();
+const enCola = (fn) => {
+  const p = colaKv.then(fn);
+  colaKv = p.catch(() => {});
+  return p;
+};
+
 // ================= Datos base =================
 // FIX: rosado y cafe añadidos a COLORES (morado ya estaba). Así aparecen
 // automáticamente en Configuración y aplicarAjustes() los respeta al cambiar de modo.
@@ -415,11 +423,13 @@ async function eliminarApp(id) {
   }
 
   try {
-    const appsInstaladas = await kvGet('apps_instaladas') || {};
-    if (appsInstaladas[id]) {
-      delete appsInstaladas[id];
-      await kvSet('apps_instaladas', appsInstaladas);
-    }
+    await enCola(async () => {
+      const appsInstaladas = (await kvGet('apps_instaladas')) || {};
+      if (appsInstaladas[id]) {
+        delete appsInstaladas[id];
+        await kvSet('apps_instaladas', appsInstaladas);
+      }
+    });
   } catch (err) {
     console.error('[eliminarApp] Error al borrar de IndexedDB:', err);
   }
@@ -1504,7 +1514,7 @@ function setupEliminarApp() {
   const origEliminarApp = window.MyHub.eliminarApp;
   if (origEliminarApp) {
     window.MyHub.eliminarApp = function(appId) {
-      origEliminarApp.call(this, appId);
+      const pendiente = origEliminarApp.call(this, appId);
 
       let carpetasModificadas = false;
       let carpetasParaEliminar = [];
@@ -1523,8 +1533,17 @@ function setupEliminarApp() {
         guardarCarpetas();
         renderIconos();
       }
+      return pendiente;
     };
   }
+
+  // Borrado de carpeta pedido por la Papelera: se guarda en la cola
+  window.MyHub.eliminarCarpeta = (folderId) => enCola(async () => {
+    if (!carpetas[folderId]) return;
+    delete carpetas[folderId];
+    await guardarCarpetas();
+    renderIconos();
+  });
 }
 
 // ================= Ventanas (sistema de 3 columnas) =================
