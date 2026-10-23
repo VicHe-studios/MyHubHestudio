@@ -147,14 +147,15 @@ body.con-fondo #desktop::before { opacity: 0; }
   border: 1.5px solid var(--accent-line);
   box-shadow: var(--shadow-sm);
   color: var(--accent);
-  transition: transform .2s var(--ease-spring), box-shadow .2s var(--ease-out), border-color .2s;
+  transition: transform .2s var(--ease-spring), box-shadow .2s var(--ease-out), border-color .2s, filter .2s;
 }
 .icon:hover .ico {
-  transform: scale(1.05);
+  transform: scale(1.05) translateY(-2px);
   border-color: var(--accent);
   box-shadow: var(--shadow-md);
+  filter: drop-shadow(0 8px 16px rgba(0,0,0,0.25)); /* Elevación real */
 }
-.icon:active .ico { transform: scale(.95); }
+.icon:active .ico { transform: scale(.95) translateY(0); }
 .icon .ico svg { width: 24px; height: 24px; }
 .icon span { font-size: 12px; font-weight: 600; line-height: 1.2; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
 
@@ -202,6 +203,11 @@ body.con-fondo #desktop::before { opacity: 0; }
               width .25s var(--ease-out), height .25s var(--ease-out),
               border-color .2s, box-shadow .2s;
 }
+/* El truco Mica: borde interior sutil en modo oscuro */
+html[data-modo="oscuro"] .win {
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03), var(--shadow-xl);
+}
 .win.dragging {
   transition: none; opacity: .96;
   border-color: var(--accent);
@@ -241,17 +247,23 @@ body.con-fondo #desktop::before { opacity: 0; }
 .close:active { transform: scale(.95); }
 .close svg { width: 18px; height: 18px; pointer-events: none; }
 
-/* ================= Taskbar ================= */
+/* ================= Taskbar Flotante ================= */
 #taskbar {
-  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 60;
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 60;
   width: min(760px, calc(100vw - 24px)); height: 64px;
   display: flex; align-items: center; gap: 10px;
   padding: 0 14px; border-radius: var(--radius-xl);
   background: var(--bar);
-  border: 1.5px solid var(--line);
-  box-shadow: var(--shadow-xl); /* Barra con sombra exterior */
-  backdrop-filter: blur(24px) saturate(1.6); /* Efecto cristal */
-  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.1); /* Borde brillante sutil */
+  
+  /* Sombra multicapa para efecto de elevación */
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 10px 15px -3px rgba(0, 0, 0, 0.15),
+    0 20px 25px -5px rgba(0, 0, 0, 0.2);
+  
+  backdrop-filter: blur(32px) saturate(1.8); /* Desenfoque Mica */
+  -webkit-backdrop-filter: blur(32px) saturate(1.8);
 }
 
 .inicio {
@@ -267,7 +279,7 @@ body.con-fondo #desktop::before { opacity: 0; }
 
 #tasks { display: flex; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 
-/* 1. APP ABIERTA (No enfocada) - Fondo sólido plano */
+/* 1. APP ABIERTA (No enfocada) */
 .task {
   position: relative;
   width: 42px; height: 42px;
@@ -289,16 +301,41 @@ body.con-fondo #desktop::before { opacity: 0; }
 }
 .task:active { transform: scale(.93); }
 
-/* 2. APP ACTIVA (Enfocada) - Color acento sólido SIN SOMBRAS */
-.task.active {
-  background: var(--accent); 
-  color: #fff;
-  border-color: var(--accent);
-  /* Eliminado cualquier box-shadow aquí */
+/* Píldora hover sutil */
+.task:hover::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px; height: 3px;
+  background: var(--muted);
+  border-radius: 3px;
+  opacity: 0.4;
 }
-.task.active svg { color: #fff; }
 
-/* 3. APP MINIMIZADA - Borde punteado indicando que está oculta */
+/* 2. APP ACTIVA (Enfocada) */
+.task.active {
+  background: var(--accent-soft); 
+  color: var(--accent); /* Icono toma color acento */
+  border-color: var(--accent-line);
+}
+
+/* Píldora deslizante activa */
+.task.active::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px; height: 3px;
+  background: var(--accent);
+  border-radius: 3px;
+  box-shadow: 0 0 8px var(--accent);
+  transition: all 0.3s var(--ease-spring);
+}
+
+/* 3. APP MINIMIZADA */
 .task.minimized {
   background: transparent;
   border: 1.5px dashed var(--muted);
@@ -312,73 +349,116 @@ body.con-fondo #desktop::before { opacity: 0; }
   opacity: 1;
 }
 
-/* Reloj - COLOR ACENTO DEVUELTO */
+/* Reloj - Status Pill con Gradiente Sutil */
 #clock {
   margin-left: auto; font-size: 13px; font-weight: 600;
   padding: 8px 14px; border-radius: 12px;
   font-variant-numeric: tabular-nums;
-  background: var(--accent-soft); 
+  background: linear-gradient(135deg, var(--accent-soft) 0%, transparent 100%);
   color: var(--accent);
+  border: 1px solid rgba(255,255,255,0.05);
 }
 
-/* ================= Menú ================= */
+/* ================= Menú Launchpad ================= */
 .menu {
-  position: absolute; bottom: 88px; left: max(12px, calc(50% - 380px));
-  width: 280px; z-index: 100;
-  padding: 8px; border-radius: var(--radius-lg);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(640px, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  z-index: 100;
+  padding: 24px;
+  border-radius: var(--radius-lg);
   background: var(--glass); color: var(--text);
-  backdrop-filter: blur(28px) saturate(1.6);
-  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  backdrop-filter: blur(40px) saturate(2);
+  -webkit-backdrop-filter: blur(40px) saturate(2);
   border: 1.5px solid var(--accent-line);
-  box-shadow: var(--shadow-xl);
-  animation: slideUp .22s var(--ease-out);
+  
+  /* Sombra masiva que oscurece el fondo (hace de Backdrop) */
+  box-shadow: 
+    0 0 0 100vmax rgba(0, 0, 0, 0.4), 
+    var(--shadow-xl);
+  
+  animation: scaleIn .25s var(--ease-out);
 }
 
-/* NUEVO ENCABEZADO DEL MENÚ CON LOGO */
+/* Encabezado del Launchpad */
 .menu-cab {
-  padding: 10px 14px 12px;
+  padding: 0 8px 16px;
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text);
   border-bottom: 1px solid var(--line);
-  margin-bottom: 6px;
+  margin-bottom: 20px;
 }
 .menu-cab .logo-icon {
-  width: 28px;
-  height: 28px;
+  width: 32px; height: 32px;
   border-radius: 8px;
   background: var(--accent-soft);
   color: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: flex; align-items: center; justify-content: center;
 }
-.menu-cab .logo-icon svg {
-  width: 16px;
-  height: 16px;
+.menu-cab .logo-icon svg { width: 18px; height: 18px; }
+
+/* Cuadrícula de Apps */
+#menuOps {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 12px;
 }
 
 .menu-op {
-  width: 100%; display: flex; align-items: center; gap: 12px;
-  padding: 11px 12px; border: none; border-radius: 12px;
-  background: transparent; color: var(--text); font: inherit;
-  font-size: 14px; font-weight: 500; cursor: pointer; text-align: left;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 8px;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
   transition: background .16s, color .16s, transform .18s var(--ease-out);
 }
+
 .menu-op > :first-child {
-  width: 34px; height: 34px; padding: 8px; border-radius: 10px;
-  background: var(--accent-soft); color: var(--accent);
-  transition: background .16s, color .16s;
+  width: 52px; height: 52px; 
+  padding: 0; 
+  border-radius: 14px;
+  background: var(--card); 
+  color: var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--accent-line);
+  transition: background .16s, color .16s, transform .2s;
 }
-.menu-op:hover { background: var(--accent); color: #fff; transform: translateX(2px); }
-.menu-op:hover > :first-child { background: rgba(255,255,255,.22); color: #fff; }
+.menu-op > :first-child svg { width: 24px; height: 24px; }
+
+.menu-op:hover {
+  background: rgba(255, 255, 255, 0.05); /* Sutil en lugar de pintar todo de acento */
+}
+html[data-modo="oscuro"] .menu-op:hover { background: rgba(0, 0, 0, 0.2); }
+
+.menu-op:hover > :first-child {
+  transform: scale(1.05) translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
 .menu-op.bloqueada { opacity: .55; cursor: not-allowed; }
-.menu-op.bloqueada:hover { background: transparent; color: var(--text); transform: none; }
-.menu-op.bloqueada:hover > :first-child { background: var(--accent-soft); color: var(--accent); }
-.menu-op .candado { margin-left: auto; width: 14px; height: 14px; color: var(--muted); padding: 0; background: none; }
+.menu-op.bloqueada:hover { background: transparent; transform: none; }
+.menu-op.bloqueada:hover > :first-child { transform: none; border-color: var(--accent-line); }
+.menu-op .candado { position: absolute; top: 12px; right: 12px; width: 14px; height: 14px; color: var(--muted); padding: 0; background: none; }
 
 /* ================= Modal y Créditos ================= */
 .modal {
@@ -542,6 +622,15 @@ h4 { margin: 14px 0 6px; }
   box-shadow: var(--shadow-md);
   backdrop-filter: blur(12px);
   animation: dropIn .3s var(--ease-out);
+}
+
+/* ================= Modo Enfoque (Focus Mode) ================= */
+body.modo-enfoque #icons,
+body.modo-enfoque #taskbar {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
+  transform: translateY(20px);
 }
 
 /* ================= Reduced motion ================= */
