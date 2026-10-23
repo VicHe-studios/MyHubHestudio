@@ -30,14 +30,21 @@
 
   // ================= SISTEMA DE SONIDO (snd-lib) =================
   let sndInstance = null;
+  let sndReady = false;
 
   if (typeof Snd !== 'undefined') {
     sndInstance = new Snd();
-    sndInstance.load(Snd.KITS.SND01).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+    sndInstance.load(Snd.KITS.SND01).then(() => {
+      sndReady = true; // Se activa cuando los archivos de audio están listos
+      console.log('[ExtraFunc] Kit de sonidos cargado correctamente.');
+    }).catch(e => console.warn('[ExtraFunc] Error cargando kit de sonidos:', e));
+  } else {
+    console.warn('[ExtraFunc] La librería Snd no está disponible.');
   }
 
   const playSound = (type) => {
-    if (!sonidosActivos || !sndInstance) return;
+    // Si no hay sonido, no está activo, o aún no se ha cargado, no hacer nada
+    if (!sonidosActivos || !sndInstance || !sndReady) return;
 
     try {
       let soundToPlay = Snd.SOUNDS.TAP; // Fallback por defecto
@@ -508,7 +515,7 @@
     setupContextMenuExtendido();
     setupConfigInjection();
 
-    // --- NUEVO SISTEMA DE SONIDOS BASADO EN EL DOM ---
+    // --- SISTEMA DE SONIDOS BASADO EN EL DOM ---
     
     // 1. Sonido al abrir app (detecta cuando se inyecta un .win en el DOM)
     const desk = document.getElementById('desktop');
