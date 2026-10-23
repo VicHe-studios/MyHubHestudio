@@ -119,7 +119,6 @@
   const setupWindowBehavior = () => {
     if (!window.matchMedia('(display-mode: standalone)').matches) return;
 
-    // Maximizar al abrir
     setTimeout(() => {
       try {
         window.moveTo(0, 0);
@@ -127,14 +126,12 @@
       } catch (e) {}
     }, 200);
 
-    // Evitar que se achique más allá de este límite
     const MIN_WIDTH = 900;
     const MIN_HEIGHT = 600;
     let resizeTimeout;
 
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimeout);
-      // Esperamos 100ms para que no pelee mientras el usuario sigue arrastrando
       resizeTimeout = setTimeout(() => {
         if (window.outerWidth < MIN_WIDTH || window.outerHeight < MIN_HEIGHT) {
           try {
@@ -162,35 +159,79 @@
 
     window.expandedWins = window.expandedWins || {};
 
-    // Hookear la función acomodar de JsLobby
+    // 1. Hookear la función acomodar de JsLobby para manejar los espacios
     if (!window._origAcomodar) {
       window._origAcomodar = window.acomodar;
       window.acomodar = function() {
         if (typeof window._origAcomodar === 'function') window._origAcomodar();
-        
+
         for (const id in window.expandedWins) {
-          const _win = typeof win !== 'undefined' ? win : window.win;
-          const _minimized = typeof minimized !== 'undefined' ? minimized : window.minimized;
-          
-          if (!_win || !_win[id] || (_minimized && _minimized.has(id))) continue;
-          
+          const _win = window.win;
+          const _minimized = window.minimized;
+
+          // Si la ventana se cerró o minimizó, limpiamos el bloqueo
+          if (!_win || !_win[id] || (_minimized && _minimized.has(id))) {
+            const blockSlot = window.expandedWins[id] === 'left' ? 'center' : (window.expandedWins[id] === 'center' ? 'right' : 'center');
+            if (window.slots[blockSlot] === '__expanded__' + id) window.slots[blockSlot] = null;
+            delete window.expandedWins[id];
+            continue;
+          }
+
           const appWin = _win[id];
-          const slot = window.expandedWins[id];
-          
+          const currentSlot = appWin.slot;
+
           const G = 18, W = desk.clientWidth, H = desk.clientHeight;
           const w = (W - G * 4) / 3;
-          
-          if (slot === 'left') {
+
+          let blockSlot = null;
+
+          // Calcular posición y bloquear el espacio adyacente
+          if (currentSlot === 'left') {
+            blockSlot = 'center';
             Object.assign(appWin.el.style, { left: G + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
-          } else if (slot === 'center') {
+          } else if (currentSlot === 'center') {
+            blockSlot = 'right';
             Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
-          } else if (slot === 'right') {
+          } else if (currentSlot === 'right') {
+            blockSlot = 'center';
             Object.assign(appWin.el.style, { left: (G * 2 + w) + 'px', top: G + 'px', width: (w * 2 + G) + 'px', height: (H - G * 2) + 'px' });
+          }
+
+          if (blockSlot) {
+            // Minimizar la ventana adyacente si existe
+            if (window.slots[blockSlot] && window.slots[blockSlot] !== '__expanded__' + id) {
+              window.MyHub.minimizar(window.slots[blockSlot]);
+            }
+            // Bloquear el slot para que JsLobby no lo use
+            window.slots[blockSlot] = '__expanded__' + id;
           }
         }
       };
     }
 
+    // 2. Hookear la función abrir para evitar conflictos
+    if (!window._origAbrir) {
+      window._origAbrir = window.MyHub.abrir;
+      window.MyHub.abrir = function(id) {
+        // Si abrimos una nueva app, restauramos las expandidas para liberar espacio
+        for (const expId in window.expandedWins) {
+          const blockSlot = window.expandedWins[expId] === 'left' ? 'center' : (window.expandedWins[expId] === 'center' ? 'right' : 'center');
+          if (window.slots[blockSlot] === '__expanded__' + expId) window.slots[blockSlot] = null;
+          delete window.expandedWins[expId];
+
+          if (window.win[expId]) {
+            const expBtn = window.win[expId].el.querySelector('.expand-btn');
+            if (expBtn) {
+              expBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
+              expBtn.title = 'Agrandar (2 espacios)';
+            }
+          }
+        }
+        window._origAbrir(id);
+      };
+    }
+
+    // 3. Observer para inyectar botones
     const deskEl = document.getElementById('desktop');
     if (!deskEl) return;
 
@@ -205,7 +246,7 @@
             const titleSpan = titlebar.querySelector('span');
             let appId = null;
             const _registro = typeof registro !== 'undefined' ? registro : window.registro;
-            
+
             if (_registro && titleSpan) {
               const title = titleSpan.textContent;
               _registro.forEach((app, id) => { if (app.titulo === title) appId = id; });
@@ -241,34 +282,44 @@
             expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
             expandBtn.onclick = (e) => {
               e.stopPropagation();
-              
-              const _win = typeof win !== 'undefined' ? win : window.win;
-              const _slots = typeof slots !== 'undefined' ? slots : window.slots;
-              
+
+              const _win = window.win;
+              const _slots = window.slots;
+
               if (!_win || !_win[appId]) return;
               const appWin = _win[appId];
-              
+
               if (window.expandedWins[appId]) {
+                // Restaurar tamaño normal
+                const blockSlot = window.expandedWins[appId] === 'left' ? 'center' : (window.expandedWins[appId] === 'center' ? 'right' : 'center');
+                if (_slots && _slots[blockSlot] === '__expanded__' + appId) _slots[blockSlot] = null;
+
                 delete window.expandedWins[appId];
                 window.acomodar();
                 expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
                 expandBtn.title = 'Agrandar (2 espacios)';
               } else {
+                // Agrandar a 2 espacios
                 window.expandedWins[appId] = appWin.slot;
-                
-                if (_slots) {
-                  if (appWin.slot === 'left' && _slots.center) window.MyHub.minimizar(_slots.center);
-                  if (appWin.slot === 'center' && _slots.right) window.MyHub.minimizar(_slots.right);
-                  if (appWin.slot === 'right' && _slots.center) window.MyHub.minimizar(_slots.center);
-                  if (appWin.slot === 'center' && !_slots.right && _slots.left) window.MyHub.minimizar(_slots.left);
-                }
-
                 window.acomodar();
                 expandBtn.innerHTML = '<i data-lucide="minimize-2"></i>';
                 expandBtn.title = 'Restaurar tamaño';
               }
               if (window.lucide) window.lucide.createIcons();
             };
+
+            // Escuchar arrastre para des-expandir automáticamente y evitar bugs visuales
+            titlebar.addEventListener('pointerdown', (e) => {
+              if (e.target.closest('.close')) return;
+              if (window.expandedWins[appId]) {
+                const blockSlot = window.expandedWins[appId] === 'left' ? 'center' : (window.expandedWins[appId] === 'center' ? 'right' : 'center');
+                if (window.slots[blockSlot] === '__expanded__' + appId) window.slots[blockSlot] = null;
+                delete window.expandedWins[appId];
+                expandBtn.innerHTML = '<i data-lucide="maximize-2"></i>';
+                expandBtn.title = 'Agrandar (2 espacios)';
+                window.acomodar();
+              }
+            });
 
             const minimizeBtn = titlebar.querySelector('.minimize');
             titlebar.insertBefore(expandBtn, minimizeBtn);
@@ -277,11 +328,16 @@
             if (window.lucide) window.lucide.createIcons();
           }
         });
-        
-        const _win = typeof win !== 'undefined' ? win : window.win;
+
+        // Limpieza por si se cerró alguna ventana de golpe
+        const _win = window.win;
         if (_win) {
           for (const id in window.expandedWins) {
-            if (!_win[id]) delete window.expandedWins[id];
+            if (!_win[id]) {
+              const blockSlot = window.expandedWins[id] === 'left' ? 'center' : (window.expandedWins[id] === 'center' ? 'right' : 'center');
+              if (window.slots[blockSlot] === '__expanded__' + id) window.slots[blockSlot] = null;
+              delete window.expandedWins[id];
+            }
           }
         }
       });
