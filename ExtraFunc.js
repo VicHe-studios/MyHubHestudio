@@ -1,5 +1,5 @@
 // ============================================================================
-// ExtraFunc.js - Motor de Widgets para MyHub
+// ExtraFunc.js - Motor de Widgets y DocWidgets para MyHub
 // ============================================================================
 
 (function() {
@@ -8,22 +8,18 @@
   const getReg = () => window.registro || (typeof registro !== 'undefined' ? registro : null);
   const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
 
-  // Inyectar estilos base para el modal y FIX del Toast
+  // 1. Inyectar estilos base para el modal y FIX del Toast
   const inyectarEstilosWidgets = () => {
     if (document.getElementById('widgets-style')) return;
     const style = document.createElement('style');
     style.id = 'widgets-style';
     style.textContent = `
-      /* FIX DEL TOAST: Evita el salto al centrar */
       @keyframes dropInFixed {
         0% { opacity: 0; transform: translate(-50%, -10px); }
         100% { opacity: 1; transform: translate(-50%, 0); }
       }
-      .toast {
-        animation: dropInFixed .3s var(--ease-out) !important;
-      }
+      .toast { animation: dropInFixed .3s var(--ease-out) !important; }
 
-      /* ESTILOS DEL MODAL DE WIDGETS */
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
@@ -43,7 +39,7 @@
 
   let widgetsActivos = []; // Guarda { id, file, size, pos: {left, top} }
   
-  // 1. Cargar posiciones guardadas
+  // 2. Motor de Widgets
   const cargarWidgets = async () => {
     const data = await kvGet('widgets_activos') || [];
     widgetsActivos = data;
@@ -54,13 +50,12 @@
     await kvSet('widgets_activos', widgetsActivos);
   };
 
-  // 2. Renderizar en el escritorio
   const renderWidgets = () => {
     let layer = document.getElementById('widgets-layer');
     if (!layer) {
       layer = document.createElement('div');
       layer.id = 'widgets-layer';
-      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:0;'; // Z-index 0 para estar debajo de los iconos (z-index 1)
+      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none; z-index:0;';
       document.getElementById('desktop').appendChild(layer);
     }
     layer.innerHTML = '';
@@ -68,7 +63,6 @@
     widgetsActivos.forEach(w => {
       const el = document.createElement('div');
       el.className = 'widget-container';
-      // Asignamos tamaño según 'size' (1x1, 2x1, 2x2)
       const wSize = w.size === '2x2' ? '200px' : (w.size === '2x1' ? '200px' : '100px');
       const hSize = w.size === '2x2' ? '220px' : (w.size === '2x1' ? '110px' : '110px');
       
@@ -81,17 +75,14 @@
         cursor: grab;
       `;
       
-      // Crear iframe para aislar el HTML/JS del widget
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent;';
       
-      // Buscar la app y el archivo del widget
       const app = getReg().get(w.id);
       if (app && app.archivos && app.archivos[w.file]) {
         const blob = app.archivos[w.file];
         const reader = new FileReader();
         reader.onload = (e) => {
-          // Inyectar el tema al widget
           let html = e.target.result;
           const themeInjection = `
             <script>
@@ -99,7 +90,6 @@
               document.documentElement.style.setProperty('--accent', '${getComputedStyle(document.documentElement).getPropertyValue('--accent')}');
             </script>
           `;
-          // Si es HTML, lo inyectamos directo. Si es JS, lo envolvemos.
           if (w.file.endsWith('.js')) {
              html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style></head><body><script>${html}<\/script></body></html>`;
           } else {
@@ -113,18 +103,15 @@
       }
 
       el.appendChild(iframe);
-      
-      // Lógica de arrastre de Widgets
       hacerArrastrableWidget(el, w);
       layer.appendChild(el);
     });
   };
 
-  // 3. Lógica de arrastre (Snap al grid de 100x110)
   const hacerArrastrableWidget = (el, widgetData) => {
     let isDragging = false, startX, startY, startLeft, startTop;
     el.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('iframe')) { /* Permitir clics en el iframe pero no arrastrar desde ahí */ }
+      if (e.target.closest('iframe')) { /* Permitir clics en el iframe */ }
       isDragging = false;
       el.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
@@ -141,7 +128,6 @@
         window.removeEventListener('pointermove', mover);
         window.removeEventListener('pointerup', soltar);
         if (isDragging) {
-          // Snap a la cuadrícula (MARGEN 16, GX 100, GY 110)
           const snapX = Math.round((parseFloat(el.style.left) - 16) / 100) * 100 + 16;
           const snapY = Math.round((parseFloat(el.style.top) - 16) / 110) * 110 + 16;
           el.style.left = snapX + 'px';
@@ -156,9 +142,7 @@
     });
   };
 
-  // 4. Panel para elegir qué widgets añadir
   const abrirPanelWidgets = () => {
-    // Buscar todas las apps que tengan widgets en su manifest
     const appsConWidgets = [];
     getReg().forEach((app, id) => {
       if (app.manifest && app.manifest.widgets) {
@@ -173,7 +157,6 @@
       return;
     }
 
-    // Crear modal (SIN la clase active de entrada)
     const overlay = document.createElement('div');
     overlay.className = 'extrafunc-modal-overlay';
     const modal = document.createElement('div');
@@ -198,15 +181,10 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
-    
-    // EL TRUCO: Forzar un reflow para que el navegador pinte el estado inicial
-    void overlay.offsetWidth; 
-    
-    // Ahora sí, activamos la animación
+    void overlay.offsetWidth; // FIX del reflow
     overlay.classList.add('active');
     refrescarIconos();
 
-    // Función unificada para cerrar con animación de salida
     const cerrarPanel = () => {
       overlay.classList.remove('active');
       setTimeout(() => overlay.remove(), 200);
@@ -226,9 +204,8 @@
     });
   };
 
-  // 5. Inyectar opción en el menú contextual (clic derecho en escritorio)
+  // 3. Inyectar menú contextual en el escritorio
   document.addEventListener('contextmenu', (e) => {
-    // Solo en el escritorio, no en iconos ni ventanas
     if (e.target.closest('.icon') || e.target.closest('.win') || e.target.closest('#taskbar')) return;
     
     setTimeout(() => {
@@ -253,6 +230,95 @@
     }, 20);
   }, true);
 
+  // 4. DocWidgets (Generador de archivo TXT)
+  const descargarDocWidgets = () => {
+    const doc = `
+==================================================
+MYHUBHESTUDIO - GUÍA DE WIDGETS
+==================================================
+
+Los widgets son pequeñas piezas de información que viven en el escritorio.
+A diferencia de las apps, no se abren en ventanas, sino que se quedan fijas.
+
+1. ¿CÓMO CREAR UN WIDGET?
+Debes añadir una carpeta "Widgets" dentro de tu app (junto al index.html).
+Dentro de esa carpeta, coloca un archivo .html o .js.
+
+2. EL MANIFEST.JSON
+Añade el array "widgets" a tu manifest para declararlos:
+{
+  "id": "clim-he",
+  "titulo": "Clim-He",
+  "icono": "cloud-sun",
+  "main": "index.html",
+  "widgets": [
+    { "file": "Widgets/Clim-He.html", "size": "2x2" }
+  ]
+}
+Tamaños permitidos: "1x1", "2x1", "2x2".
+
+3. CREANDO EL WIDGET (HTML)
+Puedes usar HTML, CSS y JS. El sistema inyectará automáticamente las variables
+CSS (--accent, --text, etc.) y el modo oscuro.
+
+Ejemplo de Widget/Clim-He.html:
+<div style="padding:20px; text-align:center;">
+  <h2 id="temp">--°C</h2>
+  <p id="desc">Cargando clima...</p>
+</div>
+<script>
+  // Tu lógica aquí
+</script>
+
+4. CREANDO EL WIDGET (JS)
+Si usas un archivo .js, el sistema lo envolverá en un HTML básico.
+Asegúrate de que tu JS inyecte elementos en el DOM (body).
+
+5. CONSEJOS DE DISEÑO
+- Usa colores transparentes o hereda las variables CSS.
+- No pongas fondos sólidos (el sistema ya añade el efecto cristal).
+- Sé conciso. Un widget no es una app completa.
+
+==================================================
+¡Feliz creación!
+==================================================
+`;
+    const blob = new Blob([doc], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'DocWidgets.txt';
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+  };
+
+  const setupMenuWidgetsDocs = () => {
+    const menuOps = document.getElementById('menuOps');
+    if (!menuOps) return;
+
+    const injectButton = () => {
+      if (document.getElementById('menu-doc-widgets')) return;
+      const docBtn = Array.from(menuOps.children).find(el => el.textContent.includes('DocApps'));
+      if (!docBtn) return;
+
+      const btn = document.createElement('button');
+      btn.id = 'menu-doc-widgets';
+      btn.className = 'menu-op';
+      btn.innerHTML = `<i data-lucide="layout-dashboard"></i><span>DocWidgets</span>`;
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const menu = document.getElementById('menu');
+        if (menu) menu.classList.add('hidden');
+        descargarDocWidgets();
+      };
+      menuOps.insertBefore(btn, docBtn.nextSibling);
+      refrescarIconos();
+    };
+
+    injectButton();
+    const observer = new MutationObserver(injectButton);
+    observer.observe(menuOps, { childList: true });
+  };
+
   // ================= INICIALIZACIÓN =================
   const init = () => {
     if (!window.MyHub || !getReg()) {
@@ -261,7 +327,8 @@
     }
     inyectarEstilosWidgets();
     cargarWidgets();
-    console.log('%c[ExtraFunc] Motor de Widgets cargado', '%c');
+    setupMenuWidgetsDocs();
+    console.log('%c[ExtraFunc] Motor de Widgets cargado', 'color: #16a34a; font-weight: bold;');
   };
 
   if (document.readyState === 'loading') {
