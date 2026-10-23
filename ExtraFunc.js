@@ -12,7 +12,7 @@
   const getWin = () => window.win || (typeof win !== 'undefined' ? win : null);
 
   // ================= ESTADO Y CONFIGURACIÓN =================
-  let sonidosActivos = localStorage.getItem('myhub_sounds') !== 'false'; // Por defecto ON
+  let sonidosActivos = localStorage.getItem('myhub_sounds') !== 'false';
   let hotkeys = JSON.parse(localStorage.getItem('myhub_hotkeys') || '{}');
   const defaultHotkeys = {
     'Digit1': 'papelera',
@@ -41,37 +41,46 @@
       osc.connect(gain);
       gain.connect(ctx.destination);
       
-      if (type === 'click') {
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now); // Empezar en 0 para evitar clics fuertes
+
+      if (type === 'open') {
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-        osc.start(); osc.stop(ctx.currentTime + 0.1);
-      } else if (type === 'open') {
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(400, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(600, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        osc.start(); osc.stop(ctx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(350, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now); osc.stop(now + 0.15);
       } else if (type === 'close') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+        gain.gain.linearRampToValueAtTime(0.08, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        osc.start(now); osc.stop(now + 0.15);
+      } else if (type === 'minimize') {
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(600, ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(300, ctx.currentTime + 0.15);
-        gain.gain.setValueAtTime(0.1, ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-        osc.start(); osc.stop(ctx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.linearRampToValueAtTime(400, now + 0.1);
+        gain.gain.linearRampToValueAtTime(0.05, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'start') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(250, now);
+        osc.frequency.linearRampToValueAtTime(350, now + 0.12);
+        gain.gain.linearRampToValueAtTime(0.1, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+        osc.start(now); osc.stop(now + 0.12);
+      } else if (type === 'move') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(200, now);
+        gain.gain.linearRampToValueAtTime(0.02, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        osc.start(now); osc.stop(now + 0.05);
       }
     } catch(e) {}
   };
-
-  // Enganchar sonidos a clicks globales (solo en botones y elementos interactivos)
-  document.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.btn') || e.target.closest('.icon') || e.target.closest('.task') || e.target.closest('.menu-op')) {
-      playSound('click');
-    }
-  }, true);
 
   // ================= INYECCIÓN DE ESTILOS =================
   const inyectarEstilos = () => {
@@ -114,13 +123,17 @@
       .extrafunc-modal-btn.confirm { background: #ef4444; color: #fff; }
       .extrafunc-modal-btn.confirm:hover { filter: brightness(1.1); }
 
-      /* --- CONFIGURACIÓN EXTRA --- */
+      /* --- CONFIGURACIÓN EXTRA (Hotkeys simétricos) --- */
       .cfg-toggle { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); }
       .cfg-toggle span { font-size: 13px; font-weight: 500; }
       .cfg-toggle input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
-      .hotkey-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
-      .hotkey-key { background: var(--field); border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; transition: 0.2s; }
-      .hotkey-key:focus { border-color: var(--accent); outline: none; background: var(--card); }
+      
+      .hotkey-list { max-height: 180px; overflow-y: auto; padding-right: 8px; margin-top: 8px; }
+      .hotkey-row { display: grid; grid-template-columns: 1fr 110px; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+      .hotkey-row:last-child { border-bottom: none; }
+      .hotkey-label { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+      .hotkey-key { width: 100%; text-align: center; background: var(--field); border: 1px solid var(--line); padding: 6px; border-radius: 6px; font-family: monospace; font-size: 12px; cursor: pointer; transition: 0.2s; outline: none; color: var(--text); }
+      .hotkey-key:focus { border-color: var(--accent); background: var(--card); box-shadow: 0 0 0 3px var(--accent-soft); }
     `;
     document.head.appendChild(style);
   };
@@ -335,7 +348,6 @@
     if (!modal || !mBody) return;
 
     const observer = new MutationObserver(() => {
-      // Verificamos si la ventana de Configuración está abierta y si ya inyectamos
       if (mTitulo.textContent === 'Configuración' && !document.getElementById('extrafunc-config-injected')) {
         const container = document.createElement('div');
         container.id = 'extrafunc-config-injected';
@@ -345,30 +357,43 @@
         const swatches = mBody.querySelector('.swatches');
         if (swatches) {
           const nuevosColores = { 'cafe': '#8b4513', 'rosado': '#ec4899', 'morado': '#7c3aed' };
+          
+          // Usamos eval para inyectar los colores en el objeto COLORES de JsLobby
+          try {
+            for (const [nombre, hex] of Object.entries(nuevosColores)) {
+              eval(`COLORES['${nombre}'] = '${hex}';`);
+            }
+          } catch(e) {}
+
           for (const [nombre, hex] of Object.entries(nuevosColores)) {
-            // Si no existe el color en el contenedor original
             if (!Array.from(swatches.children).some(c => c.style.background.includes(hex) || c.style.backgroundColor.includes(hex))) {
               const b = document.createElement('div');
               b.className = 'swatch';
               b.style.background = hex;
               b.title = nombre;
-              // Comprobamos si es el actual
               if (window.ajustes && window.ajustes.color === nombre) b.classList.add('on');
               
-              b.onclick = () => {
-                // Actualizamos la variable global COLORES si existe
-                if (window.COLORES) window.COLORES[nombre] = hex;
-                if (window.ajustes) {
-                  window.ajustes.color = nombre;
-                  if (typeof window.guardarAjustes === 'function') window.guardarAjustes();
-                  if (typeof window.aplicarAjustes === 'function') window.aplicarAjustes();
+              b.onclick = async () => {
+                // Guardamos directamente en la DB y actualizamos la UI
+                try {
+                  const db = await new Promise(res => { const req = indexedDB.open('myhub-lobby', 1); req.onsuccess = () => res(req.result); });
+                  const tx = db.transaction('kv', 'readwrite');
+                  const store = tx.objectStore('kv');
+                  const getReq = store.get('ajustes');
+                  getReq.onsuccess = () => {
+                    const a = getReq.result || {};
+                    a.color = nombre;
+                    store.put(a, 'ajustes');
+                  };
+                  tx.oncomplete = () => {
+                    document.documentElement.style.setProperty('--accent', hex);
+                    swatches.querySelectorAll('.swatch').forEach(s => s.classList.remove('on'));
+                    b.classList.add('on');
+                    if (window.MyHub) window.MyHub.toast('Color actualizado');
+                  };
+                } catch(e) {
+                  if (window.MyHub) window.MyHub.toast('Error al guardar color');
                 }
-                // Recargamos la vista de config
-                const recargar = () => {
-                  const configBtn = Array.from(document.getElementById('menuOps').children).find(el => el.textContent.includes('Configuración'));
-                  if(configBtn) configBtn.click();
-                };
-                recargar();
               };
               swatches.appendChild(b);
             }
@@ -396,12 +421,18 @@
         `;
 
         // --- 4. ATAJOS DE TECLADO ---
+        const labels = {
+          'papelera': 'Abrir Papelera', 'forge': 'Abrir Forge', 'storhe': 'Abrir Stor-He', 'cmdhe': 'Abrir CMD-HE',
+          'minimize': 'Minimizar Ventanas', 'close': 'Cerrar Ventanas', 'theme': 'Alternar Tema',
+          'reload': 'Recargar Escritorio', 'newfolder': 'Nueva Carpeta', 'settings': 'Configuración', 'fullscreen': 'Pantalla Completa'
+        };
+
         const hotkeysHTML = Object.entries(defaultHotkeys).map(([code, action]) => {
           const currentCode = Object.keys(hotkeys).find(k => hotkeys[k] === action) || code;
           const displayKey = currentCode.replace('Digit', '').replace('Key', '');
           return `
             <div class="hotkey-row">
-              <span>${action === 'minimize' ? 'Minimizar todo' : action === 'close' ? 'Cerrar todo' : action === 'theme' ? 'Modo oscuro' : action === 'newfolder' ? 'Nueva carpeta' : action === 'settings' ? 'Ajustes' : action === 'fullscreen' ? 'Pantalla completa' : 'Abrir ' + action}</span>
+              <span class="hotkey-label">${labels[action] || action}</span>
               <input type="text" class="hotkey-key" data-action="${action}" value="Shift + ${displayKey}" readonly>
             </div>
           `;
@@ -410,7 +441,7 @@
         container.innerHTML += `
           <div class="sec" style="margin-top: 20px;">Atajos de Teclado</div>
           <p class="nota" style="margin-bottom: 10px;">Haz clic en un atajo y presiona la nueva combinación (Shift + Tecla).</p>
-          <div style="max-height: 150px; overflow-y: auto; padding-right: 8px;">
+          <div class="hotkey-list">
             ${hotkeysHTML}
           </div>
         `;
@@ -424,7 +455,7 @@
         soundToggle.onchange = (e) => {
           sonidosActivos = e.target.checked;
           localStorage.setItem('myhub_sounds', sonidosActivos);
-          if (sonidosActivos) playSound('open'); // Feedback
+          if (sonidosActivos) playSound('open');
         };
 
         // Exportar
@@ -476,15 +507,11 @@
             e.preventDefault();
             if (e.key === 'Escape') { input.blur(); return; }
             
-            // Solo aceptamos combinaciones con Shift
             if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && e.code !== 'ShiftLeft' && e.code !== 'ShiftRight') {
               const newCode = e.code;
               const action = input.dataset.action;
               
-              // Limpiar si otra tecla tenía esa acción
               for (let k in hotkeys) { if (hotkeys[k] === action) delete hotkeys[k]; }
-              
-              // Guardar nuevo
               hotkeys[newCode] = action;
               localStorage.setItem('myhub_hotkeys', JSON.stringify(hotkeys));
               
@@ -518,6 +545,41 @@
     setupMiniaturas();
     setupContextMenuExtendido();
     setupConfigInjection();
+
+    // --- ENGANCHE DE SONIDOS A ACCIONES ---
+    // 1. Sonido al abrir app
+    const origAbrir = window.MyHub.abrir;
+    window.MyHub.abrir = function(id) {
+      playSound('open');
+      return origAbrir.apply(this, arguments);
+    };
+
+    // 2. Sonido al cerrar app
+    const origCerrar = window.MyHub.cerrar;
+    window.MyHub.cerrar = function(id) {
+      playSound('close');
+      return origCerrar.apply(this, arguments);
+    };
+
+    // 3. Sonido al minimizar
+    const origMinimizar = window.MyHub.minimizar;
+    window.MyHub.minimizar = function(id) {
+      playSound('minimize');
+      return origMinimizar.apply(this, arguments);
+    };
+
+    // 4. Sonido del botón de Inicio
+    const btnInicio = document.getElementById('inicio');
+    if (btnInicio) {
+      btnInicio.addEventListener('pointerdown', () => playSound('start'));
+    }
+
+    // 5. Sonido al mover ventana (se activa cuando haces clic en la barra de título)
+    document.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('.titlebar') && !e.target.closest('.close')) {
+        playSound('move');
+      }
+    }, true);
     
     console.log('%c[ExtraFunc] Extensiones cargadas correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
