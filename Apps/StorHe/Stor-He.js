@@ -3,7 +3,7 @@
   const paginationEl = document.getElementById('pagination');
   const btnRefresh = document.getElementById('btn-refresh');
   const searchInput = document.getElementById('search-input');
-  const authorFilter = document.getElementById('author-filter'); // NUEVO
+  const authorFilter = document.getElementById('author-filter');
 
   const REPO_OWNER = 'VicHe-studios';
   const REPO_NAME = 'MyHubHestudio-StorHe';
@@ -75,6 +75,7 @@
         let icono = 'box';
         let autor = null;
         let descripcion = null;
+        let tieneWidget = false;
         
         try {
           const manifestUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${folder.name}/manifest.json?t=${Date.now()}`;
@@ -85,10 +86,11 @@
             icono = manifest.icono || 'box';
             autor = manifest.autor || null;
             descripcion = manifest.descripcion || null;
+            tieneWidget = manifest.widgets && manifest.widgets.length > 0;
           }
         } catch (e) {}
 
-        const appData = { id: folder.name, titulo, icono, autor, descripcion };
+        const appData = { id: folder.name, titulo, icono, autor, descripcion, tieneWidget };
         manifestCache[folder.name] = appData;
         cacheModificado = true;
         return appData;
@@ -99,10 +101,7 @@
       }
 
       allAppsData = appsData;
-      
-      // Llenar el select de autores
       populateAuthorFilter();
-
       applyFilter(); 
 
     } catch (err) {
@@ -112,10 +111,7 @@
   };
 
   const populateAuthorFilter = () => {
-    // Extraer autores únicos y no nulos
     const authors = [...new Set(allAppsData.map(app => app.autor).filter(Boolean))];
-    
-    // Guardar el valor actual para no perderlo si se refresca
     const currentVal = authorFilter.value;
 
     authorFilter.innerHTML = '<option value="">Todos los creadores</option>';
@@ -126,7 +122,6 @@
       authorFilter.appendChild(opt);
     });
 
-    // Restaurar valor si aún existe
     if (authors.includes(currentVal)) authorFilter.value = currentVal;
   };
 
@@ -135,13 +130,11 @@
     const selectedAuthor = authorFilter.value;
     
     filteredAppsData = allAppsData.filter(app => {
-      // 1. Coincidencia de texto (Título, ID, Autor o Descripción)
       const matchText = app.titulo.toLowerCase().includes(query) || 
                         app.id.toLowerCase().includes(query) ||
                         (app.autor && app.autor.toLowerCase().includes(query)) ||
                         (app.descripcion && app.descripcion.toLowerCase().includes(query));
       
-      // 2. Coincidencia de creador seleccionado
       const matchAuthor = selectedAuthor ? app.autor === selectedAuthor : true;
 
       return matchText && matchAuthor;
@@ -171,11 +164,14 @@
       card.className = 'app-card';
       const autorHtml = app.autor ? `<span class="app-author">Por ${app.autor}</span>` : '';
       const descHtml = app.descripcion ? `<span class="app-desc">${app.descripcion}</span>` : '';
+      
+      // BADGE DE WIDGET
+      const widgetBadge = app.tieneWidget ? `<span style="background: var(--accent); color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: bold; vertical-align: middle;">Widget incluido</span>` : '';
 
       card.innerHTML = `
         <div class="app-icon"><i data-lucide="${app.icono}"></i></div>
         <div class="app-info">
-          <h3 class="app-title">${app.titulo}</h3>
+          <h3 class="app-title">${app.titulo} ${widgetBadge}</h3>
           <div class="app-meta">
             <span class="app-id">ID: ${app.id}</span>
             ${autorHtml}
@@ -225,6 +221,7 @@
       if (!res.ok) throw new Error('No se pudo leer la carpeta');
       const fileList = await res.json();
 
+      // Descarga recursiva simple (solo nivel 1 por ahora, por si tienen carpetas)
       for (const file of fileList) {
         if (file.type === 'file') {
           const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${file.path}?t=${Date.now()}`;
@@ -233,6 +230,21 @@
           const blob = await fileRes.blob();
           archivos[file.name] = blob;
           if (file.name === 'manifest.json') manifest = JSON.parse(await blob.text());
+        } else if (file.type === 'dir') {
+            // Soporte para carpeta Widgets
+            const subRes = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${appId}/${file.name}?t=${Date.now()}`);
+            if (subRes.ok) {
+                const subFileList = await subRes.json();
+                for (const subFile of subFileList) {
+                    if (subFile.type === 'file') {
+                        const rawUrl = `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${BRANCH}/${subFile.path}?t=${Date.now()}`;
+                        const subFileRes = await fetch(rawUrl);
+                        if (subFileRes.ok) {
+                            archivos[subFile.path] = await subFileRes.blob();
+                        }
+                    }
+                }
+            }
         }
       }
 
@@ -261,14 +273,13 @@
     }
   };
 
-  // Event Listeners
   btnRefresh.onclick = () => {
     localStorage.removeItem('storhe_manifest_cache');
     fetchApps(true);
   };
   
   searchInput.addEventListener('input', () => { currentPage = 1; applyFilter(); });
-  authorFilter.addEventListener('change', () => { currentPage = 1; applyFilter(); }); // NUEVO
+  authorFilter.addEventListener('change', () => { currentPage = 1; applyFilter(); });
 
   fetchApps();
 })();
