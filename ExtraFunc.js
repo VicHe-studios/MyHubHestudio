@@ -109,9 +109,7 @@
   // ================= 1. ATAJOS DE TECLADO (Shift + Tecla) =================
   const setupAtajosTeclado = () => {
     document.addEventListener('keydown', (e) => {
-      // Solo Shift (sin Ctrl, Alt, ni Meta/Windows)
       if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-        // Usamos e.code para detectar la tecla física (evita el problema de Shift+1 que da '!')
         const code = e.code;
         const winObj = getWin();
 
@@ -150,7 +148,7 @@
             break;
         }
       }
-    }, true); // Usamos 'true' para que se ejecute antes de que algún iframe lo bloquee
+    }, true);
   };
 
   // ================= 2. MINIATURAS EN LA TASKBAR =================
@@ -248,6 +246,7 @@
               return btn;
             };
 
+            // Botón Eliminar
             const btnDelete = createBtn('trash-2', 'Eliminar App', true, async () => {
               const ok = await showConfirm('Eliminar Aplicación', `¿Estás seguro que deseas eliminar "${app.titulo}" del sistema?`);
               if (ok) {
@@ -256,13 +255,36 @@
               }
             });
 
+            // Botón Limpiar Datos (VERSIÓN MEJORADA Y PROFUNDA)
             const btnClear = createBtn('database', 'Limpiar Datos', true, async () => {
-              const ok = await showConfirm('Limpiar Datos', `¿Borrar TODA la caché, notas y configuraciones de "${app.titulo}"?`);
+              const ok = await showConfirm('Limpiar Datos', `¿Borrar TODOS los datos guardados de "${app.titulo}"? La app se cerrará para aplicar los cambios.`);
               if (ok) {
-                Object.keys(localStorage).forEach(k => { if (k.includes(targetAppId)) localStorage.removeItem(k); });
+                // Normalizamos el nombre para buscar variaciones
+                const idLower = targetAppId.toLowerCase();
+                const titleLower = app.titulo.toLowerCase().replace(/[\s-]/g, ''); // Ej: "playlistsoc"
+
+                // 1. Intentar borrar claves específicas en localStorage
+                Object.keys(localStorage).forEach(k => {
+                  const keyLower = k.toLowerCase();
+                  if (keyLower.includes(idLower) || keyLower.includes(titleLower)) {
+                    localStorage.removeItem(k);
+                  }
+                });
+
+                // 2. Limpieza profunda en IndexedDB (Borramos todas las DBs excepto la del sistema)
                 const dbs = await indexedDB.databases();
-                for (let db of dbs) { if (db.name && db.name.includes(targetAppId)) indexedDB.deleteDatabase(db.name); }
-                window.MyHub.toast(`Datos de "${app.titulo}" eliminados`);
+                for (let db of dbs) {
+                  if (db.name && db.name !== 'myhub-lobby') {
+                    indexedDB.deleteDatabase(db.name);
+                  }
+                }
+
+                // 3. Si la app está abierta, la cerramos para forzar recarga limpia
+                if (getWin() && getWin()[targetAppId]) {
+                  window.MyHub.cerrar(targetAppId);
+                }
+
+                window.MyHub.toast(`Datos de "${app.titulo}" eliminados por completo`);
               }
             });
 
