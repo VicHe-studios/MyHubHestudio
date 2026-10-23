@@ -4,8 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MyHubHestudio</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MyHub">
+
 <!-- Favicon morado -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c3aed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M9 11v6M15 11v6M9 14h6'/%3E%3C/svg%3E">
+
 <link rel="stylesheet" href="LobbyStyle.css">
 <script src="vendor/lucide.min.js"></script>
 <script src="vendor/snd.js"></script>
@@ -29,7 +37,6 @@
 
 <div id="menu" class="menu hidden">
   <div class="menu-cab">
-    <!-- Logo morado forzado directamente en el SVG -->
     <div class="logo-icon" style="color: #7c3aed; background: color-mix(in srgb, #7c3aed 15%, transparent);">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
