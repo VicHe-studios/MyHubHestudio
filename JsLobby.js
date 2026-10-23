@@ -341,13 +341,44 @@ function registrarApp(app) {
   renderIconos();
 }
 
-function eliminarApp(id) {
+async function eliminarApp(id) {
   if (!registro.has(id)) return;
+
+  // 1. Cerrar ventana si está abierta
   cerrar(id);
+
+  // 2. Eliminar del registro en memoria
   registro.delete(id);
   const idx = orden.indexOf(id);
   if (idx > -1) orden.splice(idx, 1);
+
+  // 3. Eliminar posición guardada (evita basura acumulada)
+  if (posicionesIconos[id]) {
+    delete posicionesIconos[id];
+    kvSet('posiciones_iconos', posicionesIconos);
+  }
+
+  // 4. Eliminar de Quick Launch si estaba pinneada
+  const idxPinned = pinnedApps.indexOf(id);
+  if (idxPinned > -1) {
+    pinnedApps.splice(idxPinned, 1);
+    guardarPinned();
+  }
+
+  // 5. Eliminar de IndexedDB
+  try {
+    const appsInstaladas = await kvGet('apps_instaladas') || {};
+    if (appsInstaladas[id]) {
+      delete appsInstaladas[id];
+      await kvSet('apps_instaladas', appsInstaladas);
+    }
+  } catch (err) {
+    console.error('[eliminarApp] Error al borrar de IndexedDB:', err);
+  }
+
+  // 6. Refrescar UI
   renderIconos();
+  if (typeof renderQuickLaunch === 'function') renderQuickLaunch();
 }
 
 // ================= Carpetas helpers =================
