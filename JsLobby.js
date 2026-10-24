@@ -3080,12 +3080,36 @@ reloj(); setInterval(reloj, 15000);
     return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
   };
 
+  // Busca el archivo del widget: ruta exacta, o por nombre si el ZIP guardó otra carpeta raíz
+  const buscarArchivo = (archivos, ruta) => {
+    if (!archivos) return null;
+    if (archivos[ruta] !== undefined) return archivos[ruta];
+    const norm = s => String(s).split(String.fromCharCode(92)).join('/').replace(/^[.]?[/]/, '').toLowerCase();
+    const objetivo = norm(ruta);
+    const base = objetivo.split('/').pop();
+    const claves = Object.keys(archivos);
+    const exacta = claves.find(k => norm(k) === objetivo);
+    if (exacta) return archivos[exacta];
+    const porNombre = claves.find(k => norm(k).split('/').pop() === base);
+    return porNombre ? archivos[porNombre] : null;
+  };
+
   // Un archivo de widget puede llegar como Blob, ArrayBuffer o texto; si se perdió (p. ej. backup en JSON), devuelve null
   const toBlobSeguro = (v) => {
     if (v instanceof Blob) return v;
     if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return new Blob([v], { type: 'text/html' });
     if (typeof v === 'string') return new Blob([v], { type: 'text/html' });
     return null;
+  };
+
+  // Si los archivos en memoria no sirven (p. ej. app recién instalada), los vuelve a leer de IndexedDB
+  const refrescarArchivosApp = async (id) => {
+    const apps = (await kvGet('apps_instaladas')) || {};
+    const guardada = apps[id];
+    const app = registro.get(id);
+    if (!guardada || !guardada.archivos || !app) return false;
+    app.archivos = guardada.archivos;
+    return true;
   };
 
   window.renderWidgets = () => {
@@ -3138,7 +3162,7 @@ reloj(); setInterval(reloj, 15000);
       iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
 
       const app = registro.get(w.id);
-      const blobWidget = app && app.archivos ? toBlobSeguro(app.archivos[w.file]) : null;
+      const blobWidget = app && app.archivos ? toBlobSeguro(buscarArchivo(app.archivos, w.file)) : null;
       if (blobWidget) {
         const blob = blobWidget;
         const reader = new FileReader();
@@ -3183,6 +3207,13 @@ reloj(); setInterval(reloj, 15000);
         };
         reader.readAsText(blob);
       } else {
+        if (app && app.instalada) {
+          window._reintentoWidget = window._reintentoWidget || {};
+          if (!window._reintentoWidget[w.id]) {
+            window._reintentoWidget[w.id] = true;
+            refrescarArchivosApp(w.id).then(ok => { if (ok) window.renderWidgets(); });
+          }
+        }
         iframe.srcdoc = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444; font-size:12px; text-align:center; padding:10px; box-sizing:border-box;"><b>Error: Widget no encontrado</b><br><small style="opacity:0.7">${w.file}</small></div>`;
       }
 
@@ -3352,8 +3383,9 @@ reloj(); setInterval(reloj, 15000);
     m.querySelector('.cancel').onclick = cerrarPanel;
 
     m.querySelectorAll('.widget-list-item').forEach(btn => {
-      btn.onclick = () => {
+      btn.onclick = async () => {
         const w = appsConWidgets[btn.dataset.index];
+        await refrescarArchivosApp(w.appId);
         const pos = findClosestFreeSpot(w.size, 116, 16, null);
         window.widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
         guardarWidgets();
