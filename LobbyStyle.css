@@ -354,7 +354,9 @@ body.con-fondo #desktop::before { opacity: 0; }
 
 /* ================= Menú ================= */
 .menu {
-  position: absolute; bottom: 62px; left: max(12px, calc(50% - 380px));
+  position: absolute; 
+  bottom: 62px; 
+  left: 28px; /* Alineado con el botón Inicio */
   width: 280px; z-index: 100;
   padding: 8px; border-radius: var(--radius-lg);
   background: var(--glass); color: var(--text);
@@ -581,3 +583,142 @@ h4 { margin: 14px 0 6px; }
     transition-duration: .01ms !important;
   }
 }
+
+/* ============================================================
+   NUEVOS ELEMENTOS DE LA TASKBAR (Buscador, Volumen, Previews)
+   ============================================================ */
+
+/* --- Buscador de la Taskbar --- */
+.taskbar-search-wrap {
+  display: flex;
+  align-items: center;
+  background: var(--field);
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  padding: 0 8px;
+  height: 34px;
+  margin-left: 4px;
+  transition: width .25s var(--ease-out), border-color .2s;
+  width: 140px;
+  position: relative;
+  flex-shrink: 0;
+}
+.taskbar-search-wrap:focus-within {
+  width: 240px;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.taskbar-search-wrap svg {
+  width: 16px; height: 16px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+#taskbar-search {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  width: 100%;
+  margin-left: 6px;
+  padding: 0;
+}
+#taskbar-search::placeholder { color: var(--muted); }
+
+/* Dropdown de resultados de búsqueda */
+#search-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: 280px;
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(1.5);
+  border: 1.5px solid var(--accent-line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xl);
+  display: none;
+  flex-direction: column;
+  padding: 6px;
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+#search-results.active { display: flex; }
+.search-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: 8px;
+  cursor: pointer; transition: background 0.15s;
+  color: var(--text);
+}
+.search-item:hover { background: var(--accent-soft); }
+.search-item svg { width: 16px; height: 16px; color: var(--accent); }
+.search-item span { font-size: 13px; font-weight: 600; }
+
+/* --- Control de Volumen --- */
+.vol-popup {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 50%;
+  transform: translateX(50%);
+  background: var(--glass);
+  backdrop-filter: blur(20px);
+  border: 1.5px solid var(--accent-line);
+  border-radius: 12px;
+  padding: 12px;
+  display: none;
+  align-items: center;
+  gap: 8px;
+  box-shadow: var(--shadow-xl);
+  z-index: 100;
+}
+.vol-popup.active { display: flex; }
+.vol-popup input[type="range"] {
+  width: 100px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.vol-popup svg { width: 18px; height: 18px; color: var(--accent); }
+
+/* --- Miniatura mejorada (Taskbar Preview) --- */
+#task-preview {
+  position: fixed; z-index: 1000; width: 240px;
+  background: var(--glass);
+  border: 1.5px solid var(--accent-line);
+  border-radius: 12px;
+  box-shadow: var(--shadow-xl);
+  backdrop-filter: blur(20px) saturate(1.5);
+  display: none; flex-direction: column;
+  color: var(--text); opacity: 0; transform: translateY(10px);
+  transition: opacity 0.15s, transform 0.15s;
+  pointer-events: auto; overflow: hidden;
+}
+#task-preview.active { display: flex; opacity: 1; transform: translateY(0); }
+
+.preview-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--titlebar);
+}
+.preview-title { flex: 1; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.preview-close {
+  background: transparent; border: none; color: var(--muted);
+  cursor: pointer; padding: 4px; border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+.preview-close:hover { background: #ef4444; color: #fff; }
+.preview-close svg { width: 14px; height: 14px; }
+
+/* La "falsa" miniatura visual */
+.preview-body {
+  height: 120px;
+  background: var(--field);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px;
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+.preview-body svg { width: 42px; height: 42px; color: var(--accent); opacity: 0.8; }
+.preview-hint { font-size: 11px; color: var(--muted); padding: 8px; text-align: center; border-top: 1px solid var(--line); background: var(--card); }
