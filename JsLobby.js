@@ -514,10 +514,10 @@ function injectStyles() {
 
     .close.minimize:hover { background: #f59e0b; color: #fff; }
 
-    .task.minimized {
+      .task.minimized {
       opacity: 0.7; padding: 0 !important;
-      width: 42px !important; min-width: 42px; height: 42px;
-      justify-content: center; border-radius: 10px;
+      width: 34px !important; min-width: 34px; height: 34px; /* 👈 Igualado a 34px */
+      justify-content: center; border-radius: 9px;
       background: transparent; border: 1.5px dashed var(--muted);
       color: var(--muted);
     }
