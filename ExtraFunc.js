@@ -141,6 +141,26 @@
     observer.observe(deskEl, { childList: true });
   };
 
+  // ================= Ocultar botón de Cerrar Sesión =================
+  // Como el sistema hace auto-login al recargar, el botón de cerrar sesión
+  // no tiene sentido y confunde al usuario. Lo ocultamos.
+  const ocultarCerrarSesion = () => {
+    const modalEl = document.getElementById('modal');
+    const mTitulo = document.getElementById('mTitulo');
+    if (!modalEl || !mTitulo) return;
+    
+    const observer = new MutationObserver(() => {
+      if (mTitulo.textContent === 'Mi cuenta') {
+        const perfil = modalEl.querySelector('.perfil');
+        if (perfil) {
+          const btnSalir = Array.from(perfil.querySelectorAll('button')).find(b => b.textContent.includes('Cerrar sesión'));
+          if (btnSalir) btnSalir.style.display = 'none';
+        }
+      }
+    });
+    observer.observe(modalEl, { subtree: true, childList: true, characterData: true });
+  };
+
   // ================= Reparador de contraseña (Salt) =================
   const repararSalt = () => {
     if (typeof cuentaActual !== 'undefined' && cuentaActual && cuentaActual.salt) {
@@ -232,6 +252,7 @@
     inyectarEstilosStorage();
     setupStoragePanel();
     setupWindowControls();
+    ocultarCerrarSesion();
 
     iniciarAnimacion();
 
@@ -247,7 +268,7 @@
 
 
 // ============================================================================
-// ExtraFunc v7.0 — Snap Preview y Sistema de Backup
+// ExtraFunc v9.0 — Snap Preview y Sistema de Backup
 // ============================================================================
 (function() {
   'use strict';
@@ -261,9 +282,9 @@
   const refrescar = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const inyectarEstilos = () => {
-    if (document.getElementById('extrafunc-v7-style')) return;
+    if (document.getElementById('extrafunc-v9-style')) return;
     const style = document.createElement('style');
-    style.id = 'extrafunc-v7-style';
+    style.id = 'extrafunc-v9-style';
     style.textContent = `
       /* Snap preview */
       .extrafunc-snap-preview {
@@ -610,221 +631,7 @@
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v7.0] Snap Preview y Sistema de Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
-  };
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
-  } else {
-    setTimeout(init, 100);
-  }
-})();
-
-
-// ============================================================================
-// ExtraFunc v8.0 — MODO BLOQUEO (Lock Screen)
-// ----------------------------------------------------------------------------
-// Cuando el usuario cierra sesión (o recarga la página con la sesión cerrada),
-// en lugar de mostrar un simple cartel de "Iniciar sesión", el sistema se
-// transforma en una auténtica Pantalla de Bloqueo (estilo Windows/macOS).
-// Muestra el avatar, el nombre y permite desbloquear sin abrir ventanas modales.
-// ============================================================================
-(function() {
-  'use strict';
-
-  const notify = (m) => { if (window.MyHub?.toast) window.MyHub.toast(m); };
-  const refrescar = () => { if (window.lucide) window.lucide.createIcons(); };
-
-  const inyectarEstilosLock = () => {
-    if (document.getElementById('extrafunc-lock-style')) return;
-    const style = document.createElement('style');
-    style.id = 'extrafunc-lock-style';
-    style.textContent = `
-      /* Estilos para la Pantalla de Bloqueo */
-      .bloqueo-caja.lock-mode {
-        background: var(--glass);
-        border: 2px solid var(--accent);
-        border-radius: 26px;
-        padding: 38px 40px 34px;
-        box-shadow: var(--shadow-xl);
-        backdrop-filter: blur(24px) saturate(1.6);
-        -webkit-backdrop-filter: blur(24px) saturate(1.6);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 12px;
-        width: 340px;
-        max-width: 90vw;
-        animation: scaleIn .3s var(--ease-out);
-      }
-      .lock-avatar {
-        width: 86px; height: 86px; border-radius: 50%;
-        object-fit: cover;
-        border: 3px solid var(--accent);
-        box-shadow: 0 8px 24px color-mix(in srgb, var(--accent) 40%, transparent);
-        margin-bottom: 6px;
-        background: var(--field);
-        display: flex; align-items: center; justify-content: center;
-        color: var(--muted);
-      }
-      .lock-avatar svg { width: 36px; height: 36px; }
-      .lock-input-wrap {
-        display: flex; gap: 8px; width: 100%; margin-top: 10px;
-      }
-      .lock-input-wrap input {
-        flex: 1; margin: 0 !important;
-        padding: 10px 14px !important;
-        border-radius: 10px !important;
-        border: 1.5px solid var(--line) !important;
-        background: var(--field) !important;
-        color: var(--text) !important;
-        font-size: 14px !important;
-      }
-      .lock-input-wrap input:focus {
-        border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px var(--accent-soft) !important;
-      }
-      .lock-input-wrap button {
-        padding: 0 16px; border-radius: 10px; border: none;
-        background: var(--accent); color: #fff;
-        cursor: pointer; font-weight: 600; font-size: 13px;
-        transition: filter 0.2s, transform 0.1s;
-        display: flex; align-items: center; justify-content: center;
-      }
-      .lock-input-wrap button:hover { filter: brightness(1.1); }
-      .lock-input-wrap button:active { transform: scale(0.95); }
-      .lock-error {
-        color: #ef4444; font-size: 12px; font-weight: 600;
-        margin-top: 4px; min-height: 18px;
-        opacity: 0; transition: opacity 0.2s;
-      }
-      .lock-error.show { opacity: 1; }
-      @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
-        20%, 40%, 60%, 80% { transform: translateX(4px); }
-      }
-      .shake { animation: shake 0.4s ease; }
-    `;
-    document.head.appendChild(style);
-  };
-
-  const setupLockScreen = () => {
-    const bloqueo = document.getElementById('bloqueo');
-    if (!bloqueo) return;
-
-    const checkAndInject = () => {
-      if (bloqueo.classList.contains('hidden')) return;
-      
-      const hasAccount = typeof cuentaActual !== 'undefined' && !!cuentaActual;
-      if (!hasAccount) return; // Es un "Crear cuenta", no hacemos nada.
-
-      const caja = bloqueo.querySelector('.bloqueo-caja');
-      if (!caja) return;
-
-      // Si ya está inyectado, solo enfocamos
-      if (document.getElementById('lock-pass')) {
-        document.getElementById('lock-pass').focus();
-        return;
-      }
-
-      caja.classList.add('lock-mode');
-
-      const iconoDefault = caja.querySelector('.bloqueo-icono');
-      if (iconoDefault) iconoDefault.style.display = 'none';
-
-      const titulo = caja.querySelector('#bloqueoTitulo');
-      const texto = caja.querySelector('#bloqueoTexto');
-      const btnDefault = caja.querySelector('#bloqueoBtn');
-
-      if (btnDefault) btnDefault.style.display = 'none';
-
-      if (titulo) titulo.textContent = 'Pantalla Bloqueada';
-      if (texto) texto.innerHTML = `Hola, <b>${cuentaActual.nombre}</b>.<br>Introduce tu contraseña para desbloquear.`;
-
-      let avatarHTML = `<div class="lock-avatar"><i data-lucide="user-round"></i></div>`;
-      if (cuentaActual.foto instanceof Blob) {
-        const url = URL.createObjectURL(cuentaActual.foto);
-        avatarHTML = `<img src="${url}" class="lock-avatar" alt="Avatar">`;
-      }
-
-      const avatarWrap = document.createElement('div');
-      avatarWrap.innerHTML = avatarHTML;
-      const avatarEl = avatarWrap.firstElementChild;
-      if (titulo) caja.insertBefore(avatarEl, titulo);
-      else caja.insertBefore(avatarEl, caja.firstChild);
-
-      const inputWrap = document.createElement('div');
-      inputWrap.className = 'lock-input-wrap';
-      inputWrap.innerHTML = `
-        <input type="password" id="lock-pass" placeholder="Contraseña" autocomplete="current-password">
-        <button id="lock-btn"><i data-lucide="unlock"></i></button>
-      `;
-      caja.appendChild(inputWrap);
-
-      const errorEl = document.createElement('div');
-      errorEl.className = 'lock-error';
-      errorEl.id = 'lock-error';
-      errorEl.textContent = 'Contraseña incorrecta';
-      caja.appendChild(errorEl);
-
-      refrescar();
-
-      const passInput = inputWrap.querySelector('#lock-pass');
-      const unlockBtn = inputWrap.querySelector('#lock-btn');
-
-      const intentarDesbloquear = async () => {
-        const pass = passInput.value;
-        if (!pass) return;
-
-        unlockBtn.innerHTML = '<i data-lucide="loader-2" style="animation: spin 1s linear infinite;"></i>';
-        refrescar();
-
-        const fnIniciar = window.iniciarSesion || iniciarSesion;
-        const ok = await fnIniciar(pass);
-
-        if (ok) {
-          caja.classList.remove('lock-mode');
-          bloqueo.classList.add('hidden');
-          if (typeof refrescarEstado === 'function') refrescarEstado();
-          notify('Sesión desbloqueada');
-          passInput.value = '';
-        } else {
-          errorEl.classList.add('show');
-          inputWrap.classList.add('shake');
-          setTimeout(() => inputWrap.classList.remove('shake'), 400);
-          unlockBtn.innerHTML = '<i data-lucide="unlock"></i>';
-          refrescar();
-          passInput.value = '';
-          passInput.focus();
-        }
-      };
-
-      unlockBtn.addEventListener('click', intentarDesbloquear);
-      passInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') intentarDesbloquear();
-      });
-
-      setTimeout(() => passInput.focus(), 100);
-    };
-
-    checkAndInject();
-    const observer = new MutationObserver(checkAndInject);
-    observer.observe(bloqueo, { attributes: true, attributeFilter: ['class'] });
-  };
-
-  const init = () => {
-    if (!window.MyHub) { setTimeout(init, 100); return; }
-    
-    inyectarEstilosLock();
-    
-    const interval = setInterval(() => {
-      if (typeof cuentaActual !== 'undefined' && typeof sesionActiva !== 'undefined') {
-        clearInterval(interval);
-        setupLockScreen();
-        console.log('%c[ExtraFunc v8.0] Modo Bloqueo (Lock Screen) inyectado correctamente', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
-      }
-    }, 100);
+    console.log('%c[ExtraFunc v9.0] Snap Preview y Sistema de Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
