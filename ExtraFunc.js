@@ -116,7 +116,7 @@
               window.MyHub.toast('Ventana recargada');
             };
 
-            // Botón Agrandar: el sistema de ventanas decide el espacio (2 columnas)
+            // Botón Agrandar
             const expandBtn = document.createElement('button');
             expandBtn.className = 'close expand-btn';
             expandBtn.title = 'Agrandar (2 espacios)';
@@ -143,7 +143,7 @@
     observer.observe(deskEl, { childList: true });
   };
 
-  // ================= Animación de inicio (al abrir y al recargar) =================
+  // ================= Animación de inicio =================
   const prepararPantalla = (tema) => {
     const root = document.documentElement;
     const oscuro = tema.modo === 'oscuro';
@@ -213,7 +213,7 @@
 
     iniciarAnimacion();
 
-    console.log('%c[ExtraFunc] Extensiones cargadas al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] Extensiones base cargadas', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
@@ -225,13 +225,7 @@
 
 
 // ============================================================================
-// ExtraFunc v5 — Snap Preview · Status Buttons (volumen + captura) · Restore
-// ----------------------------------------------------------------------------
-// - Snap preview: al arrastrar una ventana, muestra dónde va a caer.
-// - Botones de Volumen y Captura inyectados en el #status-pill de la taskbar.
-// - Botón "Restaurar desde backup" en la pantalla de bloqueo SOLO si NO hay
-//   cuenta creada. Restaura TODO el backup, incluida la cuenta.
-// No toca JsLobby: reutiliza kvGet/kvSet/MyHub/registro/ajustes existentes.
+// ExtraFunc v5.1 — Snap Preview, Volumen, Captura (html2canvas) y Backup
 // ============================================================================
 (function() {
   'use strict';
@@ -244,24 +238,18 @@
 
   const refrescar = () => { if (window.lucide) window.lucide.createIcons(); };
 
-  // ==================== ESTILOS ====================
   const inyectarEstilos = () => {
     if (document.getElementById('extrafunc-v5-style')) return;
     const style = document.createElement('style');
     style.id = 'extrafunc-v5-style';
     style.textContent = `
-      /* Snap preview: rectángulo fantasma donde caerá la ventana */
+      /* Snap preview */
       .extrafunc-snap-preview {
-        position: absolute;
-        z-index: 4;
-        border-radius: 16px;
+        position: absolute; z-index: 4; border-radius: 16px;
         background: color-mix(in srgb, var(--accent) 14%, transparent);
-        border: 2px dashed var(--accent);
-        pointer-events: none;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.15s ease, visibility 0.15s ease,
-                    background 0.2s, border-color 0.2s;
+        border: 2px dashed var(--accent); pointer-events: none;
+        opacity: 0; visibility: hidden;
+        transition: opacity 0.15s ease, visibility 0.15s ease, background 0.2s, border-color 0.2s;
         box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
       }
       .extrafunc-snap-preview.visible { opacity: 1; visibility: visible; }
@@ -273,14 +261,9 @@
 
       /* Botones en el status-pill */
       .status-item.status-btn {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        cursor: pointer;
-        padding: 3px 5px;
-        border-radius: 7px;
-        transition: background 0.15s, transform 0.12s;
-        user-select: none;
+        display: flex; align-items: center; justify-content: center;
+        cursor: pointer; padding: 3px 5px; border-radius: 7px;
+        transition: background 0.15s, transform 0.12s; user-select: none;
       }
       .status-item.status-btn:hover { background: rgba(255,255,255,0.18); }
       .status-item.status-btn:active { transform: scale(0.92); }
@@ -288,26 +271,16 @@
 
       /* Popover de volumen */
       .extrafunc-status-popover {
-        position: fixed;
-        z-index: 1001;
-        min-width: 230px;
+        position: fixed; z-index: 1001; min-width: 230px;
         background: var(--glass, rgba(255,255,255,0.95));
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border: 1.5px solid var(--accent-line);
-        border-radius: 14px;
-        padding: 14px 16px;
-        box-shadow: 0 12px 36px rgba(0,0,0,0.25);
-        color: var(--text);
-        animation: extrafuncFade 0.15s ease;
+        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+        border: 1.5px solid var(--accent-line); border-radius: 14px;
+        padding: 14px 16px; box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+        color: var(--text); animation: extrafuncFade 0.15s ease;
       }
       .extrafunc-popover-title {
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: var(--muted);
-        margin-bottom: 10px;
+        font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+        text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
       }
       @keyframes extrafuncFade { from { opacity: 0; } to { opacity: 1; } }
     `;
@@ -329,7 +302,6 @@
     return snapGhost;
   };
 
-  // Replica rectCol/inicioDestino de JsLobby (3 columnas, G=18)
   const updateSnapPreview = (cursorX, winEl) => {
     const deskEl = document.getElementById('desktop');
     if (!deskEl) return;
@@ -339,9 +311,7 @@
     const H = deskEl.clientHeight;
     const oneColW = (W - G * 4) / 3;
 
-    // Span = 1 o 2 según ancho medido (evita depender de data-lucide)
     const span = winEl.offsetWidth > oneColW * 1.5 ? 2 : 1;
-
     const dr = deskEl.getBoundingClientRect();
     const relX = cursorX - dr.left;
 
@@ -354,11 +324,10 @@
     const top = G;
     const height = H - G * 2;
 
-    // ¿Las columnas destino están ocupadas por otra ventana visible?
     const colsDestino = span === 2 ? [start, start + 1] : [start];
     let ocupado = false;
     document.querySelectorAll('.win:not(.dragging)').forEach(w => {
-      if (w.style.display === 'none') return; // minimizada
+      if (w.style.display === 'none') return;
       const wLeft = parseFloat(w.style.left);
       if (isNaN(wLeft)) return;
       const wSpan = w.offsetWidth > oneColW * 1.5 ? 2 : 1;
@@ -391,23 +360,15 @@
     document.addEventListener('pointermove', (e) => {
       const dragging = document.querySelector('.win.dragging');
       if (!dragging || !dragStartPt) { hideSnapPreview(); return; }
-      // No mostrar hasta que el usuario realmente empiece a mover
       if (Math.abs(e.clientX - dragStartPt.x) < 5 && Math.abs(e.clientY - dragStartPt.y) < 5) return;
       updateSnapPreview(e.clientX, dragging);
     }, true);
 
-    document.addEventListener('pointerup', () => {
-      hideSnapPreview();
-      dragStartPt = null;
-    }, true);
-
-    document.addEventListener('pointercancel', () => {
-      hideSnapPreview();
-      dragStartPt = null;
-    }, true);
+    document.addEventListener('pointerup', () => { hideSnapPreview(); dragStartPt = null; }, true);
+    document.addEventListener('pointercancel', () => { hideSnapPreview(); dragStartPt = null; }, true);
   };
 
-  // ==================== STATUS BUTTONS ====================
+  // ==================== STATUS BUTTONS (Volumen y Captura) ====================
   let volumePopover = null;
 
   const getVolume = () => {
@@ -462,9 +423,19 @@
     volumePopover = pop;
     refrescar();
 
+    // Posicionamiento preciso
+    const popH = pop.offsetHeight;
+    const popW = pop.offsetWidth;
     const rect = btn.getBoundingClientRect();
-    pop.style.left = Math.max(10, Math.min(window.innerWidth - 250, rect.right - 230)) + 'px';
-    pop.style.top = Math.max(10, rect.top - pop.offsetHeight - 8) + 'px';
+    
+    let left = rect.left + (rect.width / 2) - (popW / 2);
+    left = Math.max(10, Math.min(window.innerWidth - popW - 10, left));
+    
+    let top = rect.top - popH - 10;
+    if (top < 10) top = rect.bottom + 10;
+    
+    pop.style.left = left + 'px';
+    pop.style.top = top + 'px';
     pop.style.visibility = '';
 
     const slider = pop.querySelector('#extrafunc-vol-slider');
@@ -501,46 +472,48 @@
 
   const tomarCaptura = async () => {
     flashScreen();
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
-      setTimeout(() => notify('Captura simulada (requiere HTTPS)'), 300);
-      return;
+    
+    // Cargar html2canvas dinámicamente si no está
+    if (!window.html2canvas) {
+      notify('Preparando captura...');
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      } catch (e) {
+        notify('Error al cargar la herramienta de captura');
+        return;
+      }
     }
 
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser' },
-        audio: false
+      const canvas = await window.html2canvas(document.body, {
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: null,
+        scale: window.devicePixelRatio || 1,
+        ignoreElements: (el) => el.id === 'toast' || el.classList.contains('extrafunc-snap-preview') || el.id === 'extrafunc-volume-popover'
       });
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.muted = true;
-      await video.play();
-      await new Promise(r => setTimeout(r, 150));
-
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
-      stream.getTracks().forEach(t => t.stop());
-
+      
       canvas.toBlob(blob => {
-        if (!blob) { notify('No se pudo generar la captura'); return; }
+        if (!blob) { notify('Error al generar captura'); return; }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'MyHub_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
+        a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(url), 1000);
         notify('Captura descargada');
       }, 'image/png');
-    } catch (e) {
-      // NotAllowedError / AbortError = el usuario canceló el selector
-      if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') {
-        notify('Captura no soportada en este navegador');
-      }
+    } catch (err) {
+      console.error('[Captura]', err);
+      notify('No se pudo capturar la pantalla');
     }
   };
 
@@ -570,7 +543,6 @@
       tomarCaptura();
     });
 
-    // Orden final dentro del pill: [battery] [date] [vol] [shot] [clock]
     pill.insertBefore(volBtn, clock);
     pill.insertBefore(shotBtn, clock);
 
@@ -582,15 +554,160 @@
     injectStatusButtons();
     const taskbar = document.getElementById('taskbar');
     if (!taskbar) return;
-    // El #status-pill lo crea JsLobby; observamos para inyectar en cuanto exista
     const obs = new MutationObserver(injectStatusButtons);
     obs.observe(taskbar, { childList: true, subtree: true });
   };
 
-  // ==================== RESTORE (solo si NO hay cuenta) ====================
-  // Se muestra como botón secundario en la pantalla de bloqueo cuando
-  // cuentaActual === null. Restaura TODO, incluida la cuenta del backup.
+  // ==================== BACKUP INTERCEPTOR ====================
+  // Convierte los Blobs a Base64 para que el JSON guarde los archivos reales
+  const serializeBlobs = async (obj) => {
+    if (obj === null || obj === undefined) return obj;
+    if (obj instanceof Blob) {
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.readAsDataURL(obj);
+      });
+      return { __type: 'blob', data: base64, mime: obj.type };
+    }
+    if (Array.isArray(obj)) {
+      const arr = [];
+      for (const item of obj) arr.push(await serializeBlobs(item));
+      return arr;
+    }
+    if (typeof obj === 'object') {
+      const newObj = {};
+      for (const [k, v] of Object.entries(obj)) {
+        newObj[k] = await serializeBlobs(v);
+      }
+      return newObj;
+    }
+    return obj;
+  };
 
+  const deserializeBlobs = async (obj) => {
+    if (obj === null || obj === undefined) return obj;
+    if (obj.__type === 'blob' && obj.data) {
+      try {
+        const res = await fetch(obj.data);
+        return await res.blob();
+      } catch (e) { return null; }
+    }
+    if (Array.isArray(obj)) {
+      const arr = [];
+      for (const item of obj) arr.push(await deserializeBlobs(item));
+      return arr;
+    }
+    if (typeof obj === 'object') {
+      const newObj = {};
+      for (const [k, v] of Object.entries(obj)) {
+        newObj[k] = await deserializeBlobs(v);
+      }
+      return newObj;
+    }
+    return obj;
+  };
+
+  const procesarBackup = async (rawData) => {
+    const data = await deserializeBlobs(rawData);
+    const imports = [
+      ['apps_instaladas',   data.apps_instaladas],
+      ['carpetas',          data.carpetas],
+      ['ajustes',           data.ajustes],
+      ['cuenta',            data.cuenta],
+      ['posiciones_iconos', data.posiciones_iconos],
+      ['widgets_activos',   data.widgets_activos],
+      ['pinned_apps',       data.pinned_apps]
+    ];
+
+    for (const [key, value] of imports) {
+      if (value !== undefined && value !== null) {
+        await window.kvSet(key, value);
+      }
+    }
+  };
+
+  const setupBackupIntercept = () => {
+    const modalEl = document.getElementById('modal');
+    if (!modalEl) return;
+
+    const intercept = () => {
+      // Interceptar Exportar
+      const btnExport = document.getElementById('cfg-btn-export');
+      if (btnExport && !btnExport.dataset.intercepted) {
+        btnExport.dataset.intercepted = 'true';
+        btnExport.onclick = async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          notify('Empaquetando datos (esto puede tardar)...');
+          
+          try {
+            const apps = await window.kvGet('apps_instaladas') || {};
+            const carpetas = await window.kvGet('carpetas') || {};
+            const ajustes = await window.kvGet('ajustes') || {};
+            const cuenta = await window.kvGet('cuenta') || null;
+            const posiciones = await window.kvGet('posiciones_iconos') || {};
+            const widgets = window.widgetsActivos || [];
+            const pinned = await window.kvGet('pinned_apps') || [];
+
+            const backup = {
+              _myhub_version: 2,
+              apps_instaladas: await serializeBlobs(apps),
+              carpetas: await serializeBlobs(carpetas),
+              ajustes: await serializeBlobs(ajustes),
+              cuenta: await serializeBlobs(cuenta),
+              posiciones_iconos: await serializeBlobs(posiciones),
+              widgets_activos: await serializeBlobs(widgets),
+              pinned_apps: await serializeBlobs(pinned)
+            };
+
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `MyHub_Backup_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            notify('Copia de seguridad guardada');
+          } catch (err) {
+            console.error('[Export]', err);
+            notify('Error al exportar');
+          }
+        };
+      }
+
+      // Interceptar Importar
+      const fileInputImport = document.getElementById('cfg-input-import');
+      if (fileInputImport && !fileInputImport.dataset.intercepted) {
+        fileInputImport.dataset.intercepted = 'true';
+        fileInputImport.onchange = (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async (ev) => {
+            try {
+              notify('Restaurando...');
+              const rawData = JSON.parse(ev.target.result);
+              await procesarBackup(rawData);
+              notify('Datos importados. Recargando...');
+              setTimeout(() => location.reload(), 1500);
+            } catch (err) {
+              console.error('[Import]', err);
+              notify('Error al importar: Archivo inválido');
+            }
+          };
+          reader.readAsText(file);
+        };
+      }
+    };
+
+    const obs = new MutationObserver(intercept);
+    obs.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+  };
+
+  // ==================== RESTORE (Sin cuenta) ====================
   const abrirRestaurar = () => {
     const input = document.createElement('input');
     input.type = 'file';
@@ -601,31 +718,7 @@
       try {
         const text = await file.text();
         const data = JSON.parse(text);
-        if (!data || typeof data !== 'object') throw new Error('Formato inválido');
-        if (!window.kvSet) throw new Error('kvSet no disponible');
-
-        // Restauramos TODO (incluida la cuenta, porque no hay una)
-        const imports = [
-          ['apps_instaladas',   data.apps_instaladas],
-          ['carpetas',          data.carpetas],
-          ['ajustes',           data.ajustes],
-          ['cuenta',            data.cuenta],
-          ['posiciones_iconos', data.posiciones_iconos],
-          ['widgets_activos',   data.widgets_activos],
-          ['pinned_apps',       data.pinned_apps]
-        ];
-
-        for (const [key, value] of imports) {
-          if (value !== undefined && value !== null) {
-            await window.kvSet(key, value);
-          }
-        }
-
-        if (!data.cuenta) {
-          notify('Datos cargados, pero el backup no incluye una cuenta. Crea una para continuar.');
-          return;
-        }
-
+        await procesarBackup(data);
         notify('Datos restaurados. Reiniciando...');
         setTimeout(() => location.reload(), 1000);
       } catch (err) {
@@ -640,20 +733,17 @@
     const bloqueo = document.getElementById('bloqueo');
     if (!bloqueo) return;
 
-    // Si el bloqueo está oculto, limpiamos y salimos
     if (bloqueo.classList.contains('hidden')) {
       document.getElementById('extrafunc-restore-btn')?.remove();
       return;
     }
 
-    // Si YA hay cuenta, no ofrecer restaurar (esto es "empezar de cero")
     const hayCuenta = typeof cuentaActual !== 'undefined' && !!cuentaActual;
     if (hayCuenta) {
       document.getElementById('extrafunc-restore-btn')?.remove();
       return;
     }
 
-    // Evitar duplicar
     if (document.getElementById('extrafunc-restore-btn')) return;
 
     const caja = bloqueo.querySelector('.bloqueo-caja');
@@ -677,13 +767,8 @@
 
     inyectarBotonRestaurar();
 
-    // refrescarEstado() en JsLobby cambia la clase 'hidden' del bloqueo
-    // y el título según haya/no haya cuenta. Observamos ambos.
     const obs = new MutationObserver(() => inyectarBotonRestaurar());
-    obs.observe(bloqueo, {
-      attributes: true,
-      attributeFilter: ['class']
-    });
+    obs.observe(bloqueo, { attributes: true, attributeFilter: ['class'] });
 
     const btn = document.getElementById('bloqueoBtn');
     if (btn) {
@@ -698,11 +783,12 @@
 
     inyectarEstilos();
 
-    try { setupSnapPreview(); }   catch (e) { console.error('[ExtraFunc v5] SnapPreview:', e); }
-    try { setupStatusButtons(); } catch (e) { console.error('[ExtraFunc v5] StatusButtons:', e); }
-    try { setupRestoreOption(); } catch (e) { console.error('[ExtraFunc v5] RestoreOption:', e); }
+    try { setupSnapPreview(); }       catch (e) { console.error(e); }
+    try { setupStatusButtons(); }     catch (e) { console.error(e); }
+    try { setupRestoreOption(); }     catch (e) { console.error(e); }
+    try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v5] Snap preview + volumen/captura + restaurar backup cargados', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc v5.1] Captura DOM, Volumen, Snap y Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
