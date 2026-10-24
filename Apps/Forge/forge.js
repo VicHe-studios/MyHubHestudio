@@ -1,10 +1,11 @@
+// forge.js — Instalador de apps (canonicaliza widgets al formato oficial)
 (async function() {
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
   const btnFile = document.getElementById('btn-file');
   const appsList = document.getElementById('apps-list');
 
-  // Tema
+  // ================= Tema =================
   if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
   window.addEventListener('message', (e) => {
     if (e.data?.type === 'myhub:tema:res') {
@@ -13,7 +14,7 @@
     }
   });
 
-  // IndexedDB
+  // ================= IndexedDB =================
   const dbP = new Promise((resolve) => {
     const req = indexedDB.open('myhub-lobby', 1);
     req.onsuccess = () => resolve(req.result);
@@ -34,72 +35,95 @@
     });
   };
 
-  // ---------- Helpers de widgets ----------
-  // Mismo criterio que la tienda: solo consideramos array válido.
+  // ================= Widgets: normalización =================
+  // Formato CANÓNICO final: { file: "Widgets/X.html", size: "1x1"|"2x1"|"2x2" }
+  // Formatos aceptados en ENTRADA (compatibilidad):
+  //   - "Widgets/X.html"  (string suelto)
+  //   - { file: "...", size?: "..." }       ← formato oficial Stor-He / ExtraFunc
+  //   - { archivo: "...", size?: "..." }    ← formato legacy
+  //   - { id: "X", size?: "..." }           ← busca Widgets/X.html | X/index.html
+  //   - { nombre: "X", size?: "..." }       ← igual que id
+  const SIZES_VALIDOS = new Set(['1x1', '2x1', '2x2']);
+  const normalizarSize = (s) =>
+    (typeof s === 'string' && SIZES_VALIDOS.has(s.toLowerCase())) ? s.toLowerCase() : '1x1';
+
+  // Índice case-insensitive del ZIP (path normalizado → path real)
+  const indexarZip = (zip) => {
+    const idx = new Map();
+    const norm = (p) => String(p).replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();
+    zip.forEach((path, entry) => {
+      if (!entry.dir) idx.set(norm(path), path);
+    });
+    return { idx, norm };
+  };
+
+  const buscarArchivoWidget = (indexado, candidatos) => {
+    for (const c of candidatos) {
+      const hit = indexado.idx.get(indexado.norm(c));
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  // Devuelve { file, size } o null si no se puede resolver
+  const canonicalizarWidget = (w, zip, indexado) => {
+    let file = null;
+    let size = '1x1';
+
+    if (typeof w === 'string') {
+      file = w;
+    } else if (w && typeof w === 'object') {
+      size = normalizarSize(w.size);
+      if (typeof w.file === 'string') file = w.file;
+      else if (typeof w.archivo === 'string') file = w.archivo;
+      else if (typeof w.id === 'string' || typeof w.nombre === 'string') {
+        const id = w.id || w.nombre;
+        const encontrado = buscarArchivoWidget(indexado, [
+          `Widgets/${id}.html`,
+          `Widgets/${id}.js`,
+          `Widgets/${id}/index.html`,
+          `Widgets/${id}/index.js`,
+          `Widgets/${id}/manifest.json`
+        ]);
+        if (encontrado) file = encontrado;
+      }
+    }
+
+    if (!file) return null;
+    const real = buscarArchivoWidget(indexado, [file]);
+    if (!real) return null;
+    return { file: real, size };
+  };
+
+  const getWidgetsCrudos = (manifest) => {
+    if (!manifest || !manifest.widgets) return [];
+    if (Array.isArray(manifest.widgets)) return manifest.widgets;
+    // Tolerancia: si es un objeto suelto, lo tratamos como array de 1
+    if (typeof manifest.widgets === 'object') return [manifest.widgets];
+    return [];
+  };
+
+  // Devuelve { validos: [{file,size}, ...], descartados: [string, ...] }
+  const procesarWidgets = (manifest, zip) => {
+    const crudos = getWidgetsCrudos(manifest);
+    if (crudos.length === 0) return { validos: [], descartados: [] };
+    const indexado = indexarZip(zip);
+    const validos = [];
+    const descartados = [];
+    for (const w of crudos) {
+      const canon = canonicalizarWidget(w, zip, indexado);
+      if (canon) validos.push(canon);
+      else descartados.push(typeof w === 'string' ? w : JSON.stringify(w));
+    }
+    return { validos, descartados };
+  };
+
   const getWidgets = (manifest) => {
     if (!manifest || !manifest.widgets) return [];
     return Array.isArray(manifest.widgets) ? manifest.widgets : [];
   };
 
-  // Valida que los widgets declarados existan físicamente en el ZIP.
-  // Soporta los tres formatos: string (id), { file, size } (oficial del Lobby), { id, archivo }.
-  const validarWidgets = (manifest, zip) => {
-    const issues = [];
-    const widgets = getWidgets(manifest);
-    if (widgets.length === 0) return issues;
-
-    // Acepta "widgets/" y "Widgets/" (case-insensitive)
-    let tieneCarpeta = false;
-    zip.forEach((path, entry) => {
-      if (!entry.dir && /^widgets\//i.test(path)) tieneCarpeta = true;
-    });
-    if (!tieneCarpeta) {
-      issues.push('El manifest declara "widgets" pero el ZIP no contiene la carpeta "widgets/".');
-      return issues;
-    }
-
-    for (const w of widgets) {
-      let label = '';
-      let encontrado = false;
-
-      if (typeof w === 'string') {
-        label = w;
-        encontrado = !!(
-          zip.file(`widgets/${w}/index.html`) ||
-          zip.file(`widgets/${w}.html`) ||
-          zip.file(`widgets/${w}/manifest.json`)
-        );
-      } else if (w && typeof w === 'object') {
-        // Formato oficial del Lobby: { file, size }
-        if (w.file) {
-          label = w.file;
-          encontrado = !!zip.file(w.file);
-        } else if (w.archivo) {
-          label = w.archivo;
-          encontrado = !!(zip.file(w.archivo) || zip.file(`widgets/${w.archivo}`));
-        } else if (w.id || w.nombre) {
-          const id = w.id || w.nombre;
-          label = id;
-          encontrado = !!(
-            zip.file(`widgets/${id}/index.html`) ||
-            zip.file(`widgets/${id}.html`) ||
-            zip.file(`widgets/${id}/manifest.json`)
-          );
-        }
-      }
-
-      if (!label) {
-        issues.push(`Widget inválido en el manifest: ${JSON.stringify(w)}`);
-        continue;
-      }
-      if (!encontrado) {
-        issues.push(`Widget "${label}" declarado pero no se encontró su archivo en el ZIP.`);
-      }
-    }
-    return issues;
-  };
-
-  // ---------- Render de instaladas ----------
+  // ================= Render de instaladas =================
   const renderInstaladas = async () => {
     const apps = await kvGet('apps_instaladas') || {};
     appsList.innerHTML = '';
@@ -129,7 +153,7 @@
     if (window.lucide) lucide.createIcons();
   };
 
-  // ---------- Procesar ZIP ----------
+  // ================= Procesar ZIP =================
   const procesarZIP = async (file) => {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -141,10 +165,15 @@
 
       if (!manifest.id || !manifest.titulo) return alert('El manifest.json debe tener id y titulo.');
 
-      const tieneWidgets = getWidgets(manifest).length > 0;
-      const widgetIssues = tieneWidgets ? validarWidgets(manifest, zip) : [];
+      // ── Canonicalizar widgets ANTES de guardar ──
+      const { validos, descartados } = procesarWidgets(manifest, zip);
+      if (validos.length > 0) {
+        manifest.widgets = validos;              // { file, size } — listo para ExtraFunc
+      } else if (descartados.length > 0 || manifest.widgets) {
+        delete manifest.widgets;                 // nada válido → limpiamos el campo
+      }
 
-      // Extraer TODOS los archivos (incluye la carpeta widgets/ recursivamente)
+      // Extraer TODOS los archivos (widgets incluidos, recursivo)
       const archivos = {};
       const promises = [];
       zip.forEach((relativePath, zipEntry) => {
@@ -161,7 +190,7 @@
       apps[manifest.id] = { manifest, archivos };
       await kvSet('apps_instaladas', apps);
 
-      // Avisar al Lobby (mismo contrato que la tienda)
+      // Avisar al Lobby
       if (window.parent && window.parent.MyHub) {
         window.parent.MyHub.registrarApp({
           id: manifest.id,
@@ -178,15 +207,14 @@
 
       await renderInstaladas();
 
-      // Mensajes de resultado
+      // Reporte final
       const total = getWidgets(manifest).length;
-      if (widgetIssues.length > 0) {
-        alert(`¡Instalación exitosa!\n\nAdvertencias sobre widgets:\n• ${widgetIssues.join('\n• ')}`);
-      } else if (total > 0) {
-        alert(`¡Instalación exitosa!\nSe instalaron ${total} widget(s).`);
-      } else {
-        alert('¡Instalación exitosa!');
+      const partes = [];
+      if (total > 0) partes.push(`Se instalaron ${total} widget(s).`);
+      if (descartados.length > 0) {
+        partes.push(`\n⚠ Se descartaron ${descartados.length} widget(s) inválido(s):\n• ${descartados.join('\n• ')}`);
       }
+      alert(`¡Instalación exitosa!${partes.length ? '\n\n' + partes.join('\n') : ''}`);
 
     } catch (err) {
       console.error(err);
