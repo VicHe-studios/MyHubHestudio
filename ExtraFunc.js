@@ -142,7 +142,6 @@
   };
 
   // ================= Reparador de contraseña (Salt) =================
-  // Arregla el bug de "contraseña incorrecta" si se importó un backup viejo
   const repararSalt = () => {
     if (typeof cuentaActual !== 'undefined' && cuentaActual && cuentaActual.salt) {
       if (!(cuentaActual.salt instanceof Uint8Array)) {
@@ -248,7 +247,7 @@
 
 
 // ============================================================================
-// ExtraFunc v5.5 — Snap, Volumen, Captura (SnapDOM) y Backup
+// ExtraFunc v7.0 — Snap Preview y Sistema de Backup
 // ============================================================================
 (function() {
   'use strict';
@@ -262,9 +261,9 @@
   const refrescar = () => { if (window.lucide) window.lucide.createIcons(); };
 
   const inyectarEstilos = () => {
-    if (document.getElementById('extrafunc-v5-style')) return;
+    if (document.getElementById('extrafunc-v7-style')) return;
     const style = document.createElement('style');
-    style.id = 'extrafunc-v5-style';
+    style.id = 'extrafunc-v7-style';
     style.textContent = `
       /* Snap preview */
       .extrafunc-snap-preview {
@@ -280,53 +279,6 @@
         background: color-mix(in srgb, #ef4444 14%, transparent);
         border-color: #ef4444;
         box-shadow: 0 0 0 1px color-mix(in srgb, #ef4444 22%, transparent);
-      }
-
-      /* Botones en el status-pill */
-      .status-item.status-btn {
-        display: flex; align-items: center; justify-content: center;
-        cursor: pointer; padding: 3px 5px; border-radius: 7px;
-        transition: background 0.15s, transform 0.12s; user-select: none;
-      }
-      .status-item.status-btn:hover { background: rgba(255,255,255,0.18); }
-      .status-item.status-btn:active { transform: scale(0.92); }
-      .status-item.status-btn svg { pointer-events: none; }
-
-      /* Popover de volumen */
-      .extrafunc-status-popover {
-        position: fixed; z-index: 1001; min-width: 230px;
-        background: var(--glass, rgba(255,255,255,0.95));
-        backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-        border: 1.5px solid var(--accent-line); border-radius: 14px;
-        padding: 14px 16px; box-shadow: 0 12px 36px rgba(0,0,0,0.25);
-        color: var(--text); animation: extrafuncFade 0.15s ease;
-      }
-      .extrafunc-popover-title {
-        font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
-        text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
-      }
-      @keyframes extrafuncFade { from { opacity: 0; } to { opacity: 1; } }
-
-      /* Slider de Volumen Personalizado */
-      .extrafunc-status-popover input[type="range"] {
-        -webkit-appearance: none; appearance: none;
-        background: transparent; outline: none; border: none;
-        width: 100%; height: 20px; margin: 0; display: flex; align-items: center;
-      }
-      .extrafunc-status-popover input[type="range"]::-webkit-slider-runnable-track {
-        width: 100%; height: 6px; background: var(--line);
-        border-radius: 3px; border: none;
-      }
-      .extrafunc-status-popover input[type="range"]::-webkit-slider-thumb {
-        -webkit-appearance: none; appearance: none;
-        width: 16px; height: 16px; border-radius: 50%;
-        background: var(--accent); cursor: pointer;
-        margin-top: -5px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: none;
-        transition: transform 0.1s;
-      }
-      .extrafunc-status-popover input[type="range"]::-webkit-slider-thumb:hover {
-        transform: scale(1.15);
       }
     `;
     document.head.appendChild(style);
@@ -411,194 +363,6 @@
 
     document.addEventListener('pointerup', () => { hideSnapPreview(); dragStartPt = null; }, true);
     document.addEventListener('pointercancel', () => { hideSnapPreview(); dragStartPt = null; }, true);
-  };
-
-  // ==================== STATUS BUTTONS ====================
-  let volumePopover = null;
-
-  const getVolume = () => {
-    const v = parseFloat(localStorage.getItem('myhub_volume'));
-    return isNaN(v) ? 1 : Math.max(0, Math.min(1, v));
-  };
-
-  const updateVolumeIcon = () => {
-    const btn = document.getElementById('status-volume-btn');
-    if (!btn) return;
-    const v = getVolume();
-    const icon = v === 0 ? 'volume-x' : v < 0.5 ? 'volume-1' : 'volume-2';
-    btn.innerHTML = `<i data-lucide="${icon}"></i>`;
-    refrescar();
-  };
-
-  const closeVolumeOnOutside = (e) => {
-    if (!volumePopover) return;
-    if (volumePopover.contains(e.target)) return;
-    if (e.target.closest('#status-volume-btn')) return;
-    closeVolumePopover();
-  };
-
-  const closeVolumePopover = () => {
-    if (volumePopover) {
-      volumePopover.remove();
-      volumePopover = null;
-      document.removeEventListener('pointerdown', closeVolumeOnOutside, true);
-    }
-  };
-
-  const toggleVolumePopover = (btn) => {
-    if (volumePopover) { closeVolumePopover(); return; }
-
-    const vol = getVolume();
-    const pct = Math.round(vol * 100);
-    const icon = vol === 0 ? 'volume-x' : vol < 0.5 ? 'volume-1' : 'volume-2';
-
-    const pop = document.createElement('div');
-    pop.className = 'extrafunc-status-popover';
-    pop.id = 'extrafunc-volume-popover';
-    pop.style.visibility = 'hidden';
-    pop.innerHTML = `
-      <div class="extrafunc-popover-title">Volumen</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <i data-lucide="${icon}" id="extrafunc-vol-icon" style="width:20px;height:20px;color:var(--accent);flex-shrink:0;"></i>
-        <input type="range" id="extrafunc-vol-slider" min="0" max="100" value="${pct}">
-        <span id="extrafunc-vol-value" style="font-size:12px;font-weight:600;min-width:36px;text-align:right;font-variant-numeric:tabular-nums;">${pct}%</span>
-      </div>
-    `;
-    document.body.appendChild(pop);
-    volumePopover = pop;
-    refrescar();
-
-    const popH = pop.offsetHeight;
-    const popW = pop.offsetWidth;
-    const rect = btn.getBoundingClientRect();
-    
-    let left = rect.left + (rect.width / 2) - (popW / 2);
-    left = Math.max(10, Math.min(window.innerWidth - popW - 10, left));
-    
-    let top = rect.top - popH - 20;
-    if (top < 10) top = rect.bottom + 20;
-    
-    pop.style.left = left + 'px';
-    pop.style.top = top + 'px';
-    pop.style.visibility = '';
-
-    const slider = pop.querySelector('#extrafunc-vol-slider');
-    const value = pop.querySelector('#extrafunc-vol-value');
-    const iconEl = pop.querySelector('#extrafunc-vol-icon');
-
-    slider.oninput = (e) => {
-      const v = parseInt(e.target.value, 10);
-      localStorage.setItem('myhub_volume', String(v / 100));
-      value.textContent = v + '%';
-      const ico = v === 0 ? 'volume-x' : v < 50 ? 'volume-1' : 'volume-2';
-      if (iconEl) iconEl.setAttribute('data-lucide', ico);
-      refrescar();
-      updateVolumeIcon();
-    };
-
-    setTimeout(() => {
-      document.addEventListener('pointerdown', closeVolumeOnOutside, true);
-    }, 0);
-  };
-
-  const flashScreen = () => {
-    const flash = document.createElement('div');
-    flash.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:2147483646;pointer-events:none;opacity:0;transition:opacity 0.08s;';
-    document.body.appendChild(flash);
-    requestAnimationFrame(() => {
-      flash.style.opacity = '0.7';
-      setTimeout(() => {
-        flash.style.opacity = '0';
-        setTimeout(() => flash.remove(), 300);
-      }, 80);
-    });
-  };
-
-  const tomarCaptura = async () => {
-    flashScreen();
-    notify('Generando captura...');
-    
-    // Cargar SnapDOM dinámicamente si no está
-    if (!window.snapdom) {
-      try {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = 'https://unpkg.com/@zumer/snapdom@latest/dist/snapdom.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      } catch (e) {
-        notify('Error al cargar herramienta de captura');
-        return;
-      }
-    }
-
-    try {
-      // SnapDOM captura el DOM usando el motor del navegador, por lo que soporta 
-      // perfectamente backdrop-filter y iframes sin fallar.
-      const snapResult = await window.snapdom(document.body, {
-        exclude: ['#toast', '.extrafunc-snap-preview', '#extrafunc-volume-popover', '#myhub-inicio']
-      });
-      
-      const blob = await snapResult.toBlob();
-      if (!blob) { notify('No se pudo generar la imagen'); return; }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      
-      notify('Captura descargada');
-    } catch (err) {
-      console.warn('[Captura SnapDOM Falló]', err);
-      notify('No se pudo capturar el escritorio');
-    }
-  };
-
-  const injectStatusButtons = () => {
-    const pill = document.getElementById('status-pill');
-    const clock = document.getElementById('clock');
-    if (!pill || !clock || !pill.contains(clock)) return;
-    if (pill.querySelector('#status-volume-btn')) return;
-
-    const volBtn = document.createElement('div');
-    volBtn.className = 'status-item status-btn';
-    volBtn.id = 'status-volume-btn';
-    volBtn.title = 'Volumen';
-    volBtn.innerHTML = '<i data-lucide="volume-2"></i>';
-    volBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      toggleVolumePopover(volBtn);
-    });
-
-    const shotBtn = document.createElement('div');
-    shotBtn.className = 'status-item status-btn';
-    shotBtn.id = 'status-screenshot-btn';
-    shotBtn.title = 'Captura de pantalla';
-    shotBtn.innerHTML = '<i data-lucide="camera"></i>';
-    shotBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      tomarCaptura();
-    });
-
-    pill.insertBefore(volBtn, clock);
-    pill.insertBefore(shotBtn, clock);
-
-    refrescar();
-    updateVolumeIcon();
-  };
-
-  const setupStatusButtons = () => {
-    injectStatusButtons();
-    const taskbar = document.getElementById('taskbar');
-    if (!taskbar) return;
-    const obs = new MutationObserver(injectStatusButtons);
-    obs.observe(taskbar, { childList: true, subtree: true });
   };
 
   // ==================== BACKUP INTERCEPTOR ====================
@@ -844,11 +608,10 @@
     inyectarEstilos();
 
     try { setupSnapPreview(); }       catch (e) { console.error(e); }
-    try { setupStatusButtons(); }     catch (e) { console.error(e); }
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v5.5] Todo listo: Snap, Volumen, Captura (SnapDOM) y Backup', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc v7.0] Snap Preview y Sistema de Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
