@@ -146,60 +146,18 @@
   // ================= Animación de inicio (al abrir y al recargar) =================
   // Totalmente opaca: se tapa el escritorio mientras se reinician los widgets.
 
-  const inyectarEstilosInicio = () => {
-    if (document.getElementById('myhub-inicio-style')) return;
-    const style = document.createElement('style');
-    style.id = 'myhub-inicio-style';
-    style.textContent = `
-      @keyframes mhPop { 0% { transform: scale(.3) rotate(-14deg); opacity: 0; } 60% { transform: scale(1.08) rotate(3deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
-      @keyframes mhSpin { to { transform: rotate(360deg); } }
-      @keyframes mhFadeUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
-      @keyframes mhFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-      @keyframes mhBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-    `;
-    document.head.appendChild(style);
-  };
-
-  const crearPantallaInicio = (tema) => {
+  // La pantalla de inicio vive en index.html (se pinta antes que todo).
+  // Aquí solo se aplican los colores actuales y se guardan para la próxima carga.
+  const prepararPantalla = (tema) => {
+    const root = document.documentElement;
     const oscuro = tema.modo === 'oscuro';
-    const acc = tema.color || '#2563eb';
-    const fondo = oscuro ? '#0b0b10' : '#f4f6fb';
-    const texto = oscuro ? '#f4f4f6' : '#0b1220';
-    // Todo opaco: color-mix mezcla el acento con el fondo sin transparencias
-    const centro = `color-mix(in srgb, ${acc} ${oscuro ? '45%' : '28%'}, ${fondo})`;
-    const pista = oscuro ? '#ffffff1f' : '#00000014';
-
-    const ov = document.createElement('div');
-    ov.id = 'myhub-inicio';
-    ov.style.cssText = `
-      position: fixed; inset: 0; z-index: 100000;
-      display: flex; align-items: center; justify-content: center;
-      background-color: ${fondo};
-      background-image: radial-gradient(circle at 50% 42%, ${centro} 0%, ${fondo} 62%);
-      color: ${texto};
-      font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-      transition: opacity .7s ease;
-    `;
-    ov.innerHTML = `
-      <div class="mh-nucleo" style="display:flex;flex-direction:column;align-items:center;gap:22px;transition:transform .7s ease;">
-        <div style="position:relative;width:128px;height:128px;display:flex;align-items:center;justify-content:center;">
-          <svg viewBox="0 0 128 128" style="position:absolute;inset:0;width:128px;height:128px;animation:mhSpin 1.6s linear infinite;">
-            <circle cx="64" cy="64" r="60" fill="none" stroke-width="3" stroke-linecap="round"
-              stroke-dasharray="95 282" style="stroke:${acc};"/>
-          </svg>
-          <div style="width:88px;height:88px;border-radius:28px;background:${acc};display:flex;align-items:center;justify-content:center;box-shadow:0 18px 40px ${acc}66;animation:mhPop .8s cubic-bezier(.2,.9,.3,1.15) both, mhBreath 2.4s 1s ease-in-out infinite;">
-            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 11 12 3l9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 17v-5M15 17v-5M9 14.5h6"/>
-            </svg>
-          </div>
-        </div>
-        <div style="font-size:22px;font-weight:700;letter-spacing:.02em;animation:mhFadeUp .7s .35s both;">MyHubHestudio</div>
-        <div style="width:240px;height:4px;border-radius:4px;overflow:hidden;background:${pista};animation:mhFadeUp .5s .5s both;">
-          <div style="height:100%;width:100%;background:${acc};transform-origin:left center;animation:mhFill ${DURACION_INICIO}ms cubic-bezier(.4,0,.2,1) both;"></div>
-        </div>
-      </div>
-    `;
-    return ov;
+    root.style.setProperty('--mh-acc', tema.color || '#2563eb');
+    root.style.setProperty('--mh-fondo', oscuro ? '#0b0b10' : '#f4f6fb');
+    root.style.setProperty('--mh-texto', oscuro ? '#f4f4f6' : '#0b1220');
+    root.style.setProperty('--mh-pista', oscuro ? '#ffffff1f' : '#00000014');
+    root.style.setProperty('--mh-pct', oscuro ? '45%' : '28%');
+    try { localStorage.setItem('myhub_tema', JSON.stringify({ color: tema.color, modo: tema.modo })); } catch (e) {}
+    return document.getElementById('myhub-inicio');
   };
 
   // Espera a que los widgets terminen de cargar (con tope de tiempo)
@@ -233,16 +191,8 @@
     }
     if (typeof refrescarEstado === 'function') refrescarEstado();
 
-    inyectarEstilosInicio();
-
-    // Ocultar el escritorio y la barra mientras dura la animación
-    const escritorio = document.getElementById('desktop');
-    const barra = document.getElementById('taskbar');
-    if (escritorio) escritorio.style.visibility = 'hidden';
-    if (barra) barra.style.visibility = 'hidden';
-
-    const pantalla = crearPantallaInicio(window.MyHub.tema());
-    document.body.appendChild(pantalla);
+    const pantalla = prepararPantalla(window.MyHub.tema());
+    if (!pantalla) { document.body.classList.remove('cargando'); return; }
 
     const inicio = Date.now();
 
@@ -253,11 +203,9 @@
     const transcurrido = Date.now() - inicio;
     if (transcurrido < DURACION_INICIO) await esperar(DURACION_INICIO - transcurrido);
 
-    if (escritorio) escritorio.style.visibility = '';
-    if (barra) barra.style.visibility = '';
+    document.body.classList.remove('cargando');
 
-    pantalla.style.opacity = '0';
-    pantalla.querySelector('.mh-nucleo').style.transform = 'scale(1.05)';
+    pantalla.classList.add('salir');
     await esperar(700);
     pantalla.remove();
   };
