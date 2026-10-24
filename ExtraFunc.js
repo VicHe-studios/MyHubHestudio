@@ -188,6 +188,7 @@
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
       transition: opacity .6s ease; --mh-acc: ${acc};
       color: ${oscuro ? '#f4f4f6' : '#0b1220'};
+      background-color: ${oscuro ? '#0b0b10' : '#f4f6fb'};
       background: ${oscuro
         ? `radial-gradient(ellipse at 30% 20%, ${acc}66, #0b0b10 70%)`
         : `radial-gradient(ellipse at 30% 20%, ${acc}40, #f4f6fb 70%)`};
@@ -200,8 +201,8 @@
         </svg>
       </div>
       <div style="font-size:22px;font-weight:700;letter-spacing:-.01em;animation:mhFadeUp .6s .3s both;">MyHubHestudio</div>
-      <div style="font-size:13px;opacity:.7;animation:mhFadeUp .6s .45s both;">Iniciando…</div>
-      <div style="width:220px;height:4px;border-radius:4px;overflow:hidden;background:${oscuro ? '#ffffff22' : '#00000018'};animation:mhFadeUp .4s .5s both;">
+      <div class="mh-sub" style="font-size:13px;opacity:.7;animation:mhFadeUp .6s .45s both;">Iniciando…</div>
+      <div class="mh-barra" style="width:220px;height:4px;border-radius:4px;overflow:hidden;background:${oscuro ? '#ffffff22' : '#00000018'};animation:mhFadeUp .4s .5s both;">
         <div style="height:100%;background:var(--mh-acc);animation:mhBar 1.2s .5s ease-in-out both;"></div>
       </div>
       <div class="mh-gate" style="display:none;flex-direction:column;align-items:center;gap:12px;width:280px;margin-top:8px;"></div>
@@ -221,6 +222,8 @@
         style="width:100%;padding:11px;border:none;border-radius:10px;background:var(--mh-acc);color:#fff;font:inherit;font-weight:600;cursor:pointer;">Entrar</button>
       <div id="mh-error" style="min-height:18px;font-size:12px;color:#ef4444;"></div>
     `;
+    const sub = ov.querySelector('.mh-sub'); if (sub) sub.style.display = 'none';
+    const barra = ov.querySelector('.mh-barra'); if (barra) barra.style.display = 'none';
     gate.style.display = 'flex';
     gate.style.animation = 'mhFadeUp .5s both';
 
