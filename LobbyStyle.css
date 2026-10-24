@@ -148,7 +148,7 @@ body.con-fondo #desktop::before { opacity: 0; }
   pointer-events: none;
 }
 
-/* ================= Iconos ================= */
+/* ================= Iconos (Ajustados) ================= */
 #icons {
   position: absolute; top: 0; bottom: 0; z-index: 1;
   left: 50%; transform: translateX(-50%);
@@ -162,7 +162,8 @@ body.con-fondo #desktop::before { opacity: 0; }
   pointer-events: auto;
   width: calc(var(--cell-w) - 2px);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
-  padding: 8px 4px; border-radius: var(--radius-md);
+  padding: 10px 4px; /* Más espacio interno */
+  border-radius: var(--radius-md);
   cursor: grab; user-select: none; color: #fff; text-align: center;
   touch-action: none;
   animation: fadeIn .3s var(--ease-out) backwards;
@@ -173,7 +174,8 @@ body.con-fondo #desktop::before { opacity: 0; }
 .icon.dragging { z-index: 100 !important; opacity: 0.8; transform: scale(1.05); }
 
 .icon .ico {
-  width: 50px; height: 50px; border-radius: 15px;
+  width: 44px; height: 44px; /* Más chico (antes 50px) */
+  border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   background: var(--card);
   border: 1.5px solid var(--accent-line);
@@ -182,13 +184,13 @@ body.con-fondo #desktop::before { opacity: 0; }
   transition: transform .2s var(--ease-spring), box-shadow .2s var(--ease-out), border-color .2s;
 }
 .icon:hover .ico {
-  transform: scale(1.05);
+  transform: scale(1.08);
   border-color: var(--accent);
   box-shadow: var(--shadow-md);
 }
 .icon:active .ico { transform: scale(.95); }
-.icon .ico svg { width: 24px; height: 24px; }
-.icon span { font-size: 12px; font-weight: 600; line-height: 1.2; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
+.icon .ico svg { width: 20px; height: 20px; } /* Más chico (antes 24px) */
+.icon span { font-size: 11px; font-weight: 600; line-height: 1.2; text-shadow: 0 1px 4px rgba(0,0,0,.6); }
 
 /* ================= Bloqueo ================= */
 .bloqueo {
@@ -273,7 +275,7 @@ body.con-fondo #desktop::before { opacity: 0; }
 .close:active { transform: scale(.95); }
 .close svg { width: 18px; height: 18px; pointer-events: none; }
 
-/* ================= Taskbar ================= */
+/* ================= Taskbar (Estirada) ================= */
 #taskbar {
   position: absolute; 
   left: 18px; 
@@ -352,7 +354,7 @@ body.con-fondo #desktop::before { opacity: 0; }
   color: var(--accent);
 }
 
-/* ================= Menú ================= */
+/* ================= Menú (Alineado a la izquierda) ================= */
 .menu {
   position: absolute; 
   bottom: 62px; 
@@ -595,18 +597,17 @@ h4 { margin: 14px 0 6px; }
   background: var(--field);
   border: 1.5px solid var(--line);
   border-radius: 10px;
-  padding: 0 8px;
+  padding: 0 10px;
   height: 34px;
-  margin-left: 4px;
-  transition: width .25s var(--ease-out), border-color .2s;
-  width: 140px;
-  position: relative;
+  margin-left: 6px;
+  transition: border-color .2s, background .2s;
+  width: 200px; /* Fijo, ya no se estira raro */
   flex-shrink: 0;
+  position: relative;
 }
 .taskbar-search-wrap:focus-within {
-  width: 240px;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--accent-line);
+  background: var(--card);
 }
 .taskbar-search-wrap svg {
   width: 16px; height: 16px;
@@ -614,14 +615,15 @@ h4 { margin: 14px 0 6px; }
   flex-shrink: 0;
 }
 #taskbar-search {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important; /* Adiós borde chillón */
   color: var(--text);
   font: inherit;
   font-size: 13px;
   outline: none;
   width: 100%;
-  margin-left: 6px;
+  margin-left: 8px;
   padding: 0;
 }
 #taskbar-search::placeholder { color: var(--muted); }
@@ -658,27 +660,26 @@ h4 { margin: 14px 0 6px; }
 /* --- Control de Volumen --- */
 .vol-popup {
   position: absolute;
-  bottom: calc(100% + 12px);
-  right: 50%;
-  transform: translateX(50%);
+  bottom: calc(100% + 12px); /* Justo arriba de la píldora de estado */
+  right: 0; /* Alineado a la derecha de la píldora */
   background: var(--glass);
   backdrop-filter: blur(20px);
   border: 1.5px solid var(--accent-line);
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px 14px;
   display: none;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   box-shadow: var(--shadow-xl);
   z-index: 100;
 }
 .vol-popup.active { display: flex; }
 .vol-popup input[type="range"] {
-  width: 100px;
+  width: 90px;
   accent-color: var(--accent);
   cursor: pointer;
 }
-.vol-popup svg { width: 18px; height: 18px; color: var(--accent); }
+.vol-popup svg { width: 16px; height: 16px; color: var(--accent); }
 
 /* --- Miniatura mejorada (Taskbar Preview) --- */
 #task-preview {
