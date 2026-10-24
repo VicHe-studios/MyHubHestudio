@@ -141,6 +141,30 @@
     observer.observe(deskEl, { childList: true });
   };
 
+  // ================= Reparador de contraseña (Salt) =================
+  // Arregla el bug de "contraseña incorrecta" si se importó un backup viejo
+  const repararSalt = () => {
+    if (typeof cuentaActual !== 'undefined' && cuentaActual && cuentaActual.salt) {
+      if (!(cuentaActual.salt instanceof Uint8Array)) {
+        try {
+          let values = [];
+          if (Array.isArray(cuentaActual.salt)) {
+            values = cuentaActual.salt;
+          } else if (typeof cuentaActual.salt === 'object') {
+            values = Object.values(cuentaActual.salt);
+          }
+          if (values.length > 0) {
+            cuentaActual.salt = new Uint8Array(values);
+            if (typeof kvSet === 'function') kvSet('cuenta', cuentaActual);
+            console.log('%c[ExtraFunc] Salt reparado automáticamente', 'color: #f59e0b; font-weight: bold;');
+          }
+        } catch (e) {
+          console.error('[ExtraFunc] Error reparando salt:', e);
+        }
+      }
+    }
+  };
+
   // ================= Animación de inicio =================
   const prepararPantalla = (tema) => {
     const root = document.documentElement;
@@ -176,6 +200,7 @@
 
   const iniciarAnimacion = async () => {
     await esperarLobby();
+    repararSalt();
 
     if (typeof cuentaActual !== 'undefined' && cuentaActual && !sesionActiva) {
       sesionActiva = true;
@@ -223,7 +248,7 @@
 
 
 // ============================================================================
-// ExtraFunc v5.3 — Snap, Volumen, Captura y Backup (Login arreglado)
+// ExtraFunc v5.5 — Snap, Volumen, Captura (SnapDOM) y Backup
 // ============================================================================
 (function() {
   'use strict';
@@ -493,11 +518,12 @@
     flashScreen();
     notify('Generando captura...');
     
-    if (!window.html2canvas) {
+    // Cargar SnapDOM dinámicamente si no está
+    if (!window.snapdom) {
       try {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          script.src = 'https://unpkg.com/@zumer/snapdom@latest/dist/snapdom.js';
           script.onload = resolve;
           script.onerror = reject;
           document.head.appendChild(script);
@@ -508,60 +534,29 @@
       }
     }
 
-    // Parche temporal para que html2canvas no se rompa con estilos modernos
-    const styleFix = document.createElement('style');
-    styleFix.id = 'extrafunc-capture-fix';
-    styleFix.textContent = `
-      * { 
-        backdrop-filter: none !important; 
-        -webkit-backdrop-filter: none !important; 
-        animation: none !important;
-        transition: none !important;
-      }
-      .win, .menu, #taskbar, .card, .extrafunc-status-popover { 
-        background: var(--card) !important; 
-        border: 1px solid var(--line) !important;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
-      }
-    `;
-    document.head.appendChild(styleFix);
-
     try {
-      await new Promise(r => setTimeout(r, 150)); // Dar tiempo al navegador a aplicar el CSS
-
-      const canvas = await window.html2canvas(document.body, {
-        useCORS: true,
-        allowTaint: false,
-        backgroundColor: '#000',
-        scale: window.devicePixelRatio || 1,
-        logging: false,
-        ignoreElements: (el) => {
-          return el.tagName === 'IFRAME' || 
-                 el.id === 'toast' || 
-                 el.classList.contains('extrafunc-snap-preview') || 
-                 el.id === 'extrafunc-volume-popover' ||
-                 el.id === 'myhub-inicio';
-        }
+      // SnapDOM captura el DOM usando el motor del navegador, por lo que soporta 
+      // perfectamente backdrop-filter y iframes sin fallar.
+      const snapResult = await window.snapdom(document.body, {
+        exclude: ['#toast', '.extrafunc-snap-preview', '#extrafunc-volume-popover', '#myhub-inicio']
       });
       
-      styleFix.remove();
+      const blob = await snapResult.toBlob();
+      if (!blob) { notify('No se pudo generar la imagen'); return; }
 
-      canvas.toBlob(blob => {
-        if (!blob) { notify('No se pudo generar la imagen'); return; }
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        notify('Captura descargada');
-      }, 'image/png');
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      
+      notify('Captura descargada');
     } catch (err) {
-      if (styleFix.parentNode) styleFix.remove();
-      console.warn('[Captura DOM Falló]', err);
-      notify('No se pudo capturar el escritorio en este navegador');
+      console.warn('[Captura SnapDOM Falló]', err);
+      notify('No se pudo capturar el escritorio');
     }
   };
 
@@ -664,12 +659,16 @@
   const procesarBackup = async (rawData) => {
     const data = await deserializeBlobs(rawData);
     
-    // FIX: Compatibilidad con backups antiguos (Convierte el salt a Uint8Array si se guardó como objeto)
-    if (data.cuenta && data.cuenta.salt && !(data.cuenta.salt instanceof Uint8Array)) {
+    // Compatibilidad estricta: Convierte el salt (viejo o nuevo) a Uint8Array SIEMPRE
+    if (data.cuenta && data.cuenta.salt) {
       try {
-        data.cuenta.salt = new Uint8Array(Object.values(data.cuenta.salt));
+        if (Array.isArray(data.cuenta.salt)) {
+          data.cuenta.salt = new Uint8Array(data.cuenta.salt);
+        } else if (typeof data.cuenta.salt === 'object' && !(data.cuenta.salt instanceof Uint8Array)) {
+          data.cuenta.salt = new Uint8Array(Object.values(data.cuenta.salt));
+        }
       } catch (e) {
-        console.error('Error convirtiendo salt:', e);
+        console.error('Error al reparar salt en importación:', e);
       }
     }
 
@@ -849,7 +848,7 @@
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v5.3] Todo listo: Snap, Volumen, Captura (Directa) y Backup', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc v5.5] Todo listo: Snap, Volumen, Captura (SnapDOM) y Backup', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
