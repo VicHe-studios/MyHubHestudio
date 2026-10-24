@@ -223,7 +223,7 @@
 
 
 // ============================================================================
-// ExtraFunc v5.2 — Snap, Volumen (UI Arreglada), Captura (Fallback) y Backup
+// ExtraFunc v5.3 — Snap, Volumen, Captura y Backup (Login arreglado)
 // ============================================================================
 (function() {
   'use strict';
@@ -282,7 +282,7 @@
       }
       @keyframes extrafuncFade { from { opacity: 0; } to { opacity: 1; } }
 
-      /* Slider de Volumen Personalizado (Elimina el cuadro feo por defecto) */
+      /* Slider de Volumen Personalizado */
       .extrafunc-status-popover input[type="range"] {
         -webkit-appearance: none; appearance: none;
         background: transparent; outline: none; border: none;
@@ -443,7 +443,6 @@
     volumePopover = pop;
     refrescar();
 
-    // Posicionamiento: subirlo 20px más para que no quede pegado
     const popH = pop.offsetHeight;
     const popW = pop.offsetWidth;
     const rect = btn.getBoundingClientRect();
@@ -509,23 +508,44 @@
       }
     }
 
+    // Parche temporal para que html2canvas no se rompa con estilos modernos
+    const styleFix = document.createElement('style');
+    styleFix.id = 'extrafunc-capture-fix';
+    styleFix.textContent = `
+      * { 
+        backdrop-filter: none !important; 
+        -webkit-backdrop-filter: none !important; 
+        animation: none !important;
+        transition: none !important;
+      }
+      .win, .menu, #taskbar, .card, .extrafunc-status-popover { 
+        background: var(--card) !important; 
+        border: 1px solid var(--line) !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1) !important;
+      }
+    `;
+    document.head.appendChild(styleFix);
+
     try {
-      // html2canvas no puede procesar backdrop-filter ni color-mix nativos en algunos navegadores.
-      // Si falla, usamos el fallback de getDisplayMedia.
+      await new Promise(r => setTimeout(r, 150)); // Dar tiempo al navegador a aplicar el CSS
+
       const canvas = await window.html2canvas(document.body, {
         useCORS: true,
         allowTaint: false,
-        backgroundColor: null,
-        scale: 1,
+        backgroundColor: '#000',
+        scale: window.devicePixelRatio || 1,
         logging: false,
         ignoreElements: (el) => {
           return el.tagName === 'IFRAME' || 
                  el.id === 'toast' || 
                  el.classList.contains('extrafunc-snap-preview') || 
-                 el.id === 'extrafunc-volume-popover';
+                 el.id === 'extrafunc-volume-popover' ||
+                 el.id === 'myhub-inicio';
         }
       });
       
+      styleFix.remove();
+
       canvas.toBlob(blob => {
         if (!blob) { notify('No se pudo generar la imagen'); return; }
         const url = URL.createObjectURL(blob);
@@ -539,39 +559,9 @@
         notify('Captura descargada');
       }, 'image/png');
     } catch (err) {
-      console.warn('[Captura DOM Falló] Usando método alternativo', err);
-      // FALLBACK: Si html2canvas falla por los estilos del sistema (como backdrop-filter)
-      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
-        try {
-          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-          const video = document.createElement('video');
-          video.srcObject = stream;
-          video.muted = true;
-          await video.play();
-          await new Promise(r => setTimeout(r, 150));
-          
-          const canvas2 = document.createElement('canvas');
-          canvas2.width = video.videoWidth;
-          canvas2.height = video.videoHeight;
-          canvas2.getContext('2d').drawImage(video, 0, 0);
-          stream.getTracks().forEach(t => t.stop());
-          
-          canvas2.toBlob(blob => {
-            if(!blob) return;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
-            notify('Captura del sistema descargada');
-          }, 'image/png');
-        } catch (e) {
-          notify('No se pudo capturar la pantalla');
-        }
-      } else {
-        notify('Captura no soportada en este navegador');
-      }
+      if (styleFix.parentNode) styleFix.remove();
+      console.warn('[Captura DOM Falló]', err);
+      notify('No se pudo capturar el escritorio en este navegador');
     }
   };
 
@@ -627,6 +617,9 @@
       });
       return { __type: 'blob', data: base64, mime: obj.type };
     }
+    if (obj instanceof Uint8Array) {
+      return { __type: 'uint8array', data: Array.from(obj) };
+    }
     if (Array.isArray(obj)) {
       const arr = [];
       for (const item of obj) arr.push(await serializeBlobs(item));
@@ -650,6 +643,9 @@
         return await res.blob();
       } catch (e) { return null; }
     }
+    if (obj.__type === 'uint8array' && obj.data) {
+      return new Uint8Array(obj.data);
+    }
     if (Array.isArray(obj)) {
       const arr = [];
       for (const item of obj) arr.push(await deserializeBlobs(item));
@@ -667,6 +663,16 @@
 
   const procesarBackup = async (rawData) => {
     const data = await deserializeBlobs(rawData);
+    
+    // FIX: Compatibilidad con backups antiguos (Convierte el salt a Uint8Array si se guardó como objeto)
+    if (data.cuenta && data.cuenta.salt && !(data.cuenta.salt instanceof Uint8Array)) {
+      try {
+        data.cuenta.salt = new Uint8Array(Object.values(data.cuenta.salt));
+      } catch (e) {
+        console.error('Error convirtiendo salt:', e);
+      }
+    }
+
     const imports = [
       ['apps_instaladas',   data.apps_instaladas],
       ['carpetas',          data.carpetas],
@@ -843,7 +849,7 @@
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v5.2] Captura DOM, Volumen, Snap y Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc v5.3] Todo listo: Snap, Volumen, Captura (Directa) y Backup', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
