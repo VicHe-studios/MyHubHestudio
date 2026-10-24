@@ -1,13 +1,12 @@
 // ============================================================================
-// ExtraFunc.js — Almacenamiento, controles de ventana y pantalla de entrada
+// ExtraFunc.js — Almacenamiento, controles de ventana y animación de inicio
 // ============================================================================
 
 (function() {
   'use strict';
 
-  const escHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+  const DURACION_INICIO = 2200; // ms: duración mínima de la animación
 
   // ================= Panel de almacenamiento en Configuración =================
   const inyectarEstilosStorage = () => {
@@ -144,16 +143,75 @@
     observer.observe(deskEl, { childList: true });
   };
 
-  // ================= Pantalla de entrada: animación + contraseña =================
-  // Solo aparece al ABRIR la página. Si es una recarga (F5, Ctrl+R o el atajo
-  // de recargar), no hay animación ni contraseña.
+  // ================= Animación de inicio (al abrir y al recargar) =================
+  // Totalmente opaca: se tapa el escritorio mientras se reinician los widgets.
 
-  const esRecarga = () => {
-    const nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
-    return !!nav && nav.type === 'reload';
+  const inyectarEstilosInicio = () => {
+    if (document.getElementById('myhub-inicio-style')) return;
+    const style = document.createElement('style');
+    style.id = 'myhub-inicio-style';
+    style.textContent = `
+      @keyframes mhPop { 0% { transform: scale(.3) rotate(-14deg); opacity: 0; } 60% { transform: scale(1.08) rotate(3deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+      @keyframes mhSpin { to { transform: rotate(360deg); } }
+      @keyframes mhFadeUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+      @keyframes mhFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      @keyframes mhBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+    `;
+    document.head.appendChild(style);
   };
 
-  // Espera a que el lobby termine de arrancar (ya existe el botón de "Nueva carpeta" del menú)
+  const crearPantallaInicio = (tema) => {
+    const oscuro = tema.modo === 'oscuro';
+    const acc = tema.color || '#2563eb';
+    const fondo = oscuro ? '#0b0b10' : '#f4f6fb';
+    const texto = oscuro ? '#f4f4f6' : '#0b1220';
+    // Todo opaco: color-mix mezcla el acento con el fondo sin transparencias
+    const centro = `color-mix(in srgb, ${acc} ${oscuro ? '45%' : '28%'}, ${fondo})`;
+    const pista = oscuro ? '#ffffff1f' : '#00000014';
+
+    const ov = document.createElement('div');
+    ov.id = 'myhub-inicio';
+    ov.style.cssText = `
+      position: fixed; inset: 0; z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
+      background-color: ${fondo};
+      background-image: radial-gradient(circle at 50% 42%, ${centro} 0%, ${fondo} 62%);
+      color: ${texto};
+      font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+      transition: opacity .7s ease;
+    `;
+    ov.innerHTML = `
+      <div class="mh-nucleo" style="display:flex;flex-direction:column;align-items:center;gap:22px;transition:transform .7s ease;">
+        <div style="position:relative;width:128px;height:128px;display:flex;align-items:center;justify-content:center;">
+          <svg viewBox="0 0 128 128" style="position:absolute;inset:0;width:128px;height:128px;animation:mhSpin 1.6s linear infinite;">
+            <circle cx="64" cy="64" r="60" fill="none" stroke-width="3" stroke-linecap="round"
+              stroke-dasharray="95 282" style="stroke:${acc};"/>
+          </svg>
+          <div style="width:88px;height:88px;border-radius:28px;background:${acc};display:flex;align-items:center;justify-content:center;box-shadow:0 18px 40px ${acc}66;animation:mhPop .8s cubic-bezier(.2,.9,.3,1.15) both, mhBreath 2.4s 1s ease-in-out infinite;">
+            <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 11 12 3l9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 17v-5M15 17v-5M9 14.5h6"/>
+            </svg>
+          </div>
+        </div>
+        <div style="font-size:22px;font-weight:700;letter-spacing:.02em;animation:mhFadeUp .7s .35s both;">MyHubHestudio</div>
+        <div style="width:240px;height:4px;border-radius:4px;overflow:hidden;background:${pista};animation:mhFadeUp .5s .5s both;">
+          <div style="height:100%;width:100%;background:${acc};transform-origin:left center;animation:mhFill ${DURACION_INICIO}ms cubic-bezier(.4,0,.2,1) both;"></div>
+        </div>
+      </div>
+    `;
+    return ov;
+  };
+
+  // Espera a que los widgets terminen de cargar (con tope de tiempo)
+  const esperarWidgets = () => new Promise(resolve => {
+    const frames = [...document.querySelectorAll('.widget-container iframe')];
+    if (frames.length === 0) return resolve();
+    let pendientes = frames.length;
+    const hecho = () => { if (--pendientes <= 0) resolve(); };
+    frames.forEach(f => f.addEventListener('load', hecho, { once: true }));
+    setTimeout(resolve, 2000);
+  });
+
   const esperarLobby = () => new Promise(resolve => {
     let intentos = 0;
     const t = setInterval(() => {
@@ -165,123 +223,43 @@
     }, 50);
   });
 
-  const inyectarEstilosEntrada = () => {
-    if (document.getElementById('myhub-entrada-style')) return;
-    const style = document.createElement('style');
-    style.id = 'myhub-entrada-style';
-    style.textContent = `
-      @keyframes mhLogo { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-      @keyframes mhFadeUp { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
-      @keyframes mhBar { from { width: 0; } to { width: 100%; } }
-      @keyframes mhShake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-8px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(6px); } }
-    `;
-    document.head.appendChild(style);
-  };
-
-  const crearOverlay = (tema, nombre) => {
-    const oscuro = tema.modo === 'oscuro';
-    const acc = tema.color || '#2563eb';
-    const ov = document.createElement('div');
-    ov.id = 'myhub-entrada';
-    ov.style.cssText = `
-      position: fixed; inset: 0; z-index: 100000;
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      transition: opacity .6s ease; --mh-acc: ${acc};
-      color: ${oscuro ? '#f4f4f6' : '#0b1220'};
-      background-color: ${oscuro ? '#0b0b10' : '#f4f6fb'};
-      background: ${oscuro
-        ? `radial-gradient(ellipse at 30% 20%, ${acc}66, #0b0b10 70%)`
-        : `radial-gradient(ellipse at 30% 20%, ${acc}40, #f4f6fb 70%)`};
-      font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
-    `;
-    ov.innerHTML = `
-      <div style="width:84px;height:84px;border-radius:24px;display:flex;align-items:center;justify-content:center;background:var(--mh-acc);box-shadow:0 18px 40px ${acc}66;animation:mhLogo .7s cubic-bezier(.2,.9,.3,1.15) both;">
-        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 11 12 3l9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 17v-5M15 17v-5M9 14.5h6"/>
-        </svg>
-      </div>
-      <div style="font-size:22px;font-weight:700;letter-spacing:-.01em;animation:mhFadeUp .6s .3s both;">MyHubHestudio</div>
-      <div class="mh-sub" style="font-size:13px;opacity:.7;animation:mhFadeUp .6s .45s both;">Iniciando…</div>
-      <div class="mh-barra" style="width:220px;height:4px;border-radius:4px;overflow:hidden;background:${oscuro ? '#ffffff22' : '#00000018'};animation:mhFadeUp .4s .5s both;">
-        <div style="height:100%;background:var(--mh-acc);animation:mhBar 1.2s .5s ease-in-out both;"></div>
-      </div>
-      <div class="mh-gate" style="display:none;flex-direction:column;align-items:center;gap:12px;width:280px;margin-top:8px;"></div>
-    `;
-    return ov;
-  };
-
-  const pedirContrasena = (ov, nombre) => new Promise(resolve => {
-    const gate = ov.querySelector('.mh-gate');
-    const inicial = (nombre || '?').trim().charAt(0).toUpperCase();
-    gate.innerHTML = `
-      <div style="width:64px;height:64px;border-radius:50%;background:var(--mh-acc);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;">${escHtml(inicial)}</div>
-      <div style="font-size:15px;font-weight:600;">${escHtml(nombre)}</div>
-      <input id="mh-pass" type="password" placeholder="Contraseña" autocomplete="current-password"
-        style="width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid #8884;background:#8881;color:inherit;font:inherit;font-size:14px;outline:none;text-align:center;">
-      <button id="mh-entrar"
-        style="width:100%;padding:11px;border:none;border-radius:10px;background:var(--mh-acc);color:#fff;font:inherit;font-weight:600;cursor:pointer;">Entrar</button>
-      <div id="mh-error" style="min-height:18px;font-size:12px;color:#ef4444;"></div>
-    `;
-    const sub = ov.querySelector('.mh-sub'); if (sub) sub.style.display = 'none';
-    const barra = ov.querySelector('.mh-barra'); if (barra) barra.style.display = 'none';
-    gate.style.display = 'flex';
-    gate.style.animation = 'mhFadeUp .5s both';
-
-    const input = gate.querySelector('#mh-pass');
-    const boton = gate.querySelector('#mh-entrar');
-    const err = gate.querySelector('#mh-error');
-    setTimeout(() => input.focus(), 50);
-
-    const intentar = async () => {
-      const pass = input.value;
-      if (!pass) { err.textContent = 'Escribe tu contraseña'; return; }
-      boton.disabled = true;
-      const ok = await iniciarSesion(pass); // función del lobby: valida y reabre la sesión
-      if (ok) { resolve(true); return; }
-      err.textContent = 'Contraseña incorrecta';
-      input.value = '';
-      input.focus();
-      boton.disabled = false;
-      gate.style.animation = 'mhShake .45s';
-      setTimeout(() => { gate.style.animation = ''; }, 500);
-    };
-
-    boton.onclick = intentar;
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') intentar(); });
-  });
-
-  const cerrarOverlay = async (ov) => {
-    ov.style.opacity = '0';
-    await esperar(600);
-    ov.remove();
-  };
-
-  const iniciarEntrada = async () => {
+  const iniciarAnimacion = async () => {
     await esperarLobby();
 
-    const tieneCuenta = typeof cuentaActual !== 'undefined' && !!cuentaActual;
-    const nombre = tieneCuenta ? cuentaActual.nombre : '';
-    const tema = window.MyHub.tema();
-
-    inyectarEstilosEntrada();
-
-    // Con cuenta, el escritorio queda bloqueado hasta validar la contraseña
-    if (tieneCuenta) {
-      sesionActiva = false;
-      refrescarEstado();
+    // Sin pantalla de bloqueo: la sesión se abre sola al arrancar
+    if (typeof cuentaActual !== 'undefined' && cuentaActual && !sesionActiva) {
+      sesionActiva = true;
+      await kvSet('sesion', true);
     }
+    if (typeof refrescarEstado === 'function') refrescarEstado();
 
-    const ov = crearOverlay(tema, nombre);
-    document.body.appendChild(ov);
-    await esperar(1900);
+    inyectarEstilosInicio();
 
-    if (tieneCuenta) await pedirContrasena(ov, nombre);
+    // Ocultar el escritorio y la barra mientras dura la animación
+    const escritorio = document.getElementById('desktop');
+    const barra = document.getElementById('taskbar');
+    if (escritorio) escritorio.style.visibility = 'hidden';
+    if (barra) barra.style.visibility = 'hidden';
 
-    // Escritorio listo: se reconstruyen los widgets para que sus iframes carguen limpios
+    const pantalla = crearPantallaInicio(window.MyHub.tema());
+    document.body.appendChild(pantalla);
+
+    const inicio = Date.now();
+
+    // Reiniciar los widgets para que sus iframes carguen siempre limpios
     if (window.renderWidgets) window.renderWidgets();
-    refrescarEstado();
-    await cerrarOverlay(ov);
-    window.MyHub.toast(tieneCuenta ? `Bienvenido, ${nombre}` : 'Bienvenido a MyHubHestudio');
+    await esperarWidgets();
+
+    const transcurrido = Date.now() - inicio;
+    if (transcurrido < DURACION_INICIO) await esperar(DURACION_INICIO - transcurrido);
+
+    if (escritorio) escritorio.style.visibility = '';
+    if (barra) barra.style.visibility = '';
+
+    pantalla.style.opacity = '0';
+    pantalla.querySelector('.mh-nucleo').style.transform = 'scale(1.05)';
+    await esperar(700);
+    pantalla.remove();
   };
 
   // ================= Init =================
@@ -292,7 +270,7 @@
     setupStoragePanel();
     setupWindowControls();
 
-    if (!esRecarga()) iniciarEntrada();
+    iniciarAnimacion();
 
     console.log('%c[ExtraFunc] Extensiones cargadas al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
