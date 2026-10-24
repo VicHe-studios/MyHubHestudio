@@ -220,14 +220,16 @@
     });
   };
 
-  // ================= NUEVO: Control de Volumen =================
+  // ================= NUEVO: Control de Volumen (Arreglado) =================
   const setupVolume = () => {
-    // Esperar a que JsLobby cree el #status-pill
     const checkExist = setInterval(() => {
       const pill = document.getElementById('status-pill');
       if (!pill || document.getElementById('volume-btn')) return;
 
       clearInterval(checkExist);
+
+      // 👇 ARREGLO CLAVE: Hacemos que la píldora sea el "ancla" del popup
+      pill.style.position = 'relative';
 
       // Recuperar volumen guardado
       let vol = parseInt(localStorage.getItem('myhub_volume') || '100', 10);
@@ -235,7 +237,7 @@
       const volBtn = document.createElement('div');
       volBtn.id = 'volume-btn';
       volBtn.className = 'status-item';
-      volBtn.style.cssText = 'cursor:pointer; padding:4px; border-radius:6px; transition:background 0.2s;';
+      volBtn.style.cssText = 'cursor:pointer; padding:4px; border-radius:6px; transition:background 0.2s; display:flex; align-items:center; justify-content:center;';
       volBtn.innerHTML = `<i data-lucide="${vol === 0 ? 'volume-x' : vol < 50 ? 'volume-1' : 'volume-2'}"></i>`;
       
       volBtn.onmouseover = () => volBtn.style.background = 'var(--accent-soft)';
