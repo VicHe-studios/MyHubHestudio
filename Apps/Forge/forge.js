@@ -1,4 +1,4 @@
-// forge.js — Instalador de apps (canonicaliza widgets al formato oficial)
+// forge.js — Instalador (mismo formato de almacenamiento que Stor-He)
 (async function() {
   const dropZone = document.getElementById('drop-zone');
   const fileInput = document.getElementById('file-input');
@@ -35,92 +35,47 @@
     });
   };
 
-  // ================= Widgets: normalización =================
-  // Formato CANÓNICO final: { file: "Widgets/X.html", size: "1x1"|"2x1"|"2x2" }
-  // Formatos aceptados en ENTRADA (compatibilidad):
-  //   - "Widgets/X.html"  (string suelto)
-  //   - { file: "...", size?: "..." }       ← formato oficial Stor-He / ExtraFunc
-  //   - { archivo: "...", size?: "..." }    ← formato legacy
-  //   - { id: "X", size?: "..." }           ← busca Widgets/X.html | X/index.html
-  //   - { nombre: "X", size?: "..." }       ← igual que id
-  const SIZES_VALIDOS = new Set(['1x1', '2x1', '2x2']);
-  const normalizarSize = (s) =>
-    (typeof s === 'string' && SIZES_VALIDOS.has(s.toLowerCase())) ? s.toLowerCase() : '1x1';
-
-  // Índice case-insensitive del ZIP (path normalizado → path real)
-  const indexarZip = (zip) => {
-    const idx = new Map();
-    const norm = (p) => String(p).replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();
-    zip.forEach((path, entry) => {
-      if (!entry.dir) idx.set(norm(path), path);
-    });
-    return { idx, norm };
-  };
-
-  const buscarArchivoWidget = (indexado, candidatos) => {
-    for (const c of candidatos) {
-      const hit = indexado.idx.get(indexado.norm(c));
-      if (hit) return hit;
-    }
-    return null;
-  };
-
-  // Devuelve { file, size } o null si no se puede resolver
-  const canonicalizarWidget = (w, zip, indexado) => {
-    let file = null;
-    let size = '1x1';
-
-    if (typeof w === 'string') {
-      file = w;
-    } else if (w && typeof w === 'object') {
-      size = normalizarSize(w.size);
-      if (typeof w.file === 'string') file = w.file;
-      else if (typeof w.archivo === 'string') file = w.archivo;
-      else if (typeof w.id === 'string' || typeof w.nombre === 'string') {
-        const id = w.id || w.nombre;
-        const encontrado = buscarArchivoWidget(indexado, [
-          `Widgets/${id}.html`,
-          `Widgets/${id}.js`,
-          `Widgets/${id}/index.html`,
-          `Widgets/${id}/index.js`,
-          `Widgets/${id}/manifest.json`
-        ]);
-        if (encontrado) file = encontrado;
-      }
-    }
-
-    if (!file) return null;
-    const real = buscarArchivoWidget(indexado, [file]);
-    if (!real) return null;
-    return { file: real, size };
-  };
-
-  const getWidgetsCrudos = (manifest) => {
-    if (!manifest || !manifest.widgets) return [];
-    if (Array.isArray(manifest.widgets)) return manifest.widgets;
-    // Tolerancia: si es un objeto suelto, lo tratamos como array de 1
-    if (typeof manifest.widgets === 'object') return [manifest.widgets];
-    return [];
-  };
-
-  // Devuelve { validos: [{file,size}, ...], descartados: [string, ...] }
-  const procesarWidgets = (manifest, zip) => {
-    const crudos = getWidgetsCrudos(manifest);
-    if (crudos.length === 0) return { validos: [], descartados: [] };
-    const indexado = indexarZip(zip);
-    const validos = [];
-    const descartados = [];
-    for (const w of crudos) {
-      const canon = canonicalizarWidget(w, zip, indexado);
-      if (canon) validos.push(canon);
-      else descartados.push(typeof w === 'string' ? w : JSON.stringify(w));
-    }
-    return { validos, descartados };
-  };
+  // ================= Widgets: solo diagnóstico =================
+  // Formato OFICIAL (único que ExtraFunc renderiza): { file: "...", size: "1x1"|"2x1"|"2x2" }
+  // NO modificamos el manifest. Stor-He lo guarda tal cual, Forge hace lo mismo.
+  // Solo inspeccionamos para avisar al usuario qué no va a funcionar.
 
   const getWidgets = (manifest) => {
     if (!manifest || !manifest.widgets) return [];
     return Array.isArray(manifest.widgets) ? manifest.widgets : [];
+  };
+
+  const diagnosticarWidgets = (manifest, zip) => {
+    const widgets = getWidgets(manifest);
+    if (widgets.length === 0) return { total: 0, problemas: [] };
+
+    const norm = (p) => String(p).replace(/\\/g, '/').replace(/^\.?\//, '').toLowerCase();
+    const index = new Set();
+    zip.forEach((path, entry) => { if (!entry.dir) index.add(norm(path)); });
+
+    const problemas = [];
+    widgets.forEach((w, i) => {
+      const n = `widget #${i + 1}`;
+      if (typeof w === 'string') {
+        problemas.push(`${n}: formato string (el runtime lee w.file → undefined). Debería ser { "file": "...", "size": "..." }`);
+        return;
+      }
+      if (!w || typeof w !== 'object') {
+        problemas.push(`${n}: entrada inválida (${JSON.stringify(w)})`);
+        return;
+      }
+      if (typeof w.file !== 'string') {
+        problemas.push(`${n}: falta "file" (ExtraFunc solo lee file + size)`);
+        return;
+      }
+      if (!index.has(norm(w.file))) {
+        problemas.push(`${n}: el archivo "${w.file}" no existe en el ZIP`);
+      }
+      if (w.size && !['1x1','2x1','2x2'].includes(w.size)) {
+        problemas.push(`${n}: tamaño inválido "${w.size}" (válidos: 1x1, 2x1, 2x2)`);
+      }
+    });
+    return { total: widgets.length, problemas };
   };
 
   // ================= Render de instaladas =================
@@ -153,7 +108,7 @@
     if (window.lucide) lucide.createIcons();
   };
 
-  // ================= Procesar ZIP =================
+  // ================= Procesar ZIP (mismo formato que Stor-He) =================
   const procesarZIP = async (file) => {
     try {
       const zip = await JSZip.loadAsync(file);
@@ -165,15 +120,10 @@
 
       if (!manifest.id || !manifest.titulo) return alert('El manifest.json debe tener id y titulo.');
 
-      // ── Canonicalizar widgets ANTES de guardar ──
-      const { validos, descartados } = procesarWidgets(manifest, zip);
-      if (validos.length > 0) {
-        manifest.widgets = validos;              // { file, size } — listo para ExtraFunc
-      } else if (descartados.length > 0 || manifest.widgets) {
-        delete manifest.widgets;                 // nada válido → limpiamos el campo
-      }
+      // Diagnóstico (NO modifica nada)
+      const { total, problemas } = diagnosticarWidgets(manifest, zip);
 
-      // Extraer TODOS los archivos (widgets incluidos, recursivo)
+      // Extraer todos los archivos (widgets incluidos, recursivo)
       const archivos = {};
       const promises = [];
       zip.forEach((relativePath, zipEntry) => {
@@ -185,7 +135,7 @@
       });
       await Promise.all(promises);
 
-      // Guardar en IndexedDB
+      // ⚠ MISMO FORMATO QUE STOR-HE: manifest tal cual + archivos relativos
       const apps = await kvGet('apps_instaladas') || {};
       apps[manifest.id] = { manifest, archivos };
       await kvSet('apps_instaladas', apps);
@@ -200,21 +150,25 @@
           archivos: archivos,
           manifest: manifest
         });
-        const total = getWidgets(manifest).length;
         const sufijo = total > 0 ? ` con ${total} widget(s)` : '';
         window.parent.MyHub.toast(`App "${manifest.titulo}" instalada${sufijo}`);
       }
 
       await renderInstaladas();
 
-      // Reporte final
-      const total = getWidgets(manifest).length;
-      const partes = [];
-      if (total > 0) partes.push(`Se instalaron ${total} widget(s).`);
-      if (descartados.length > 0) {
-        partes.push(`\n⚠ Se descartaron ${descartados.length} widget(s) inválido(s):\n• ${descartados.join('\n• ')}`);
+      // Reporte al usuario
+      if (problemas.length > 0) {
+        alert(
+          `¡Instalación exitosa!\n\n` +
+          `La app quedó guardada igual que con Stor-He, pero se detectaron problemas en los widgets que impedirán que se rendericen:\n\n` +
+          `• ${problemas.join('\n• ')}\n\n` +
+          `El autor de la app debe corregir el manifest.json para que funcionen.`
+        );
+      } else if (total > 0) {
+        alert(`¡Instalación exitosa!\nSe instalaron ${total} widget(s) correctamente.`);
+      } else {
+        alert('¡Instalación exitosa!');
       }
-      alert(`¡Instalación exitosa!${partes.length ? '\n\n' + partes.join('\n') : ''}`);
 
     } catch (err) {
       console.error(err);
