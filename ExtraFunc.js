@@ -94,7 +94,6 @@
             }
             if (!appId) return;
 
-            // Botón Recargar
             const reloadBtn = document.createElement('button');
             reloadBtn.className = 'close reload-btn';
             reloadBtn.title = 'Recargar ventana';
@@ -116,7 +115,6 @@
               window.MyHub.toast('Ventana recargada');
             };
 
-            // Botón Agrandar
             const expandBtn = document.createElement('button');
             expandBtn.className = 'close expand-btn';
             expandBtn.title = 'Agrandar (2 espacios)';
@@ -225,7 +223,7 @@
 
 
 // ============================================================================
-// ExtraFunc v5.1 — Snap Preview, Volumen, Captura (html2canvas) y Backup
+// ExtraFunc v5.2 — Snap, Volumen (UI Arreglada), Captura (Fallback) y Backup
 // ============================================================================
 (function() {
   'use strict';
@@ -283,6 +281,28 @@
         text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
       }
       @keyframes extrafuncFade { from { opacity: 0; } to { opacity: 1; } }
+
+      /* Slider de Volumen Personalizado (Elimina el cuadro feo por defecto) */
+      .extrafunc-status-popover input[type="range"] {
+        -webkit-appearance: none; appearance: none;
+        background: transparent; outline: none; border: none;
+        width: 100%; height: 20px; margin: 0; display: flex; align-items: center;
+      }
+      .extrafunc-status-popover input[type="range"]::-webkit-slider-runnable-track {
+        width: 100%; height: 6px; background: var(--line);
+        border-radius: 3px; border: none;
+      }
+      .extrafunc-status-popover input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none; appearance: none;
+        width: 16px; height: 16px; border-radius: 50%;
+        background: var(--accent); cursor: pointer;
+        margin-top: -5px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2); border: none;
+        transition: transform 0.1s;
+      }
+      .extrafunc-status-popover input[type="range"]::-webkit-slider-thumb:hover {
+        transform: scale(1.15);
+      }
     `;
     document.head.appendChild(style);
   };
@@ -368,7 +388,7 @@
     document.addEventListener('pointercancel', () => { hideSnapPreview(); dragStartPt = null; }, true);
   };
 
-  // ==================== STATUS BUTTONS (Volumen y Captura) ====================
+  // ==================== STATUS BUTTONS ====================
   let volumePopover = null;
 
   const getVolume = () => {
@@ -415,7 +435,7 @@
       <div class="extrafunc-popover-title">Volumen</div>
       <div style="display:flex;align-items:center;gap:10px;">
         <i data-lucide="${icon}" id="extrafunc-vol-icon" style="width:20px;height:20px;color:var(--accent);flex-shrink:0;"></i>
-        <input type="range" id="extrafunc-vol-slider" min="0" max="100" value="${pct}" style="flex:1;accent-color:var(--accent);">
+        <input type="range" id="extrafunc-vol-slider" min="0" max="100" value="${pct}">
         <span id="extrafunc-vol-value" style="font-size:12px;font-weight:600;min-width:36px;text-align:right;font-variant-numeric:tabular-nums;">${pct}%</span>
       </div>
     `;
@@ -423,7 +443,7 @@
     volumePopover = pop;
     refrescar();
 
-    // Posicionamiento preciso
+    // Posicionamiento: subirlo 20px más para que no quede pegado
     const popH = pop.offsetHeight;
     const popW = pop.offsetWidth;
     const rect = btn.getBoundingClientRect();
@@ -431,8 +451,8 @@
     let left = rect.left + (rect.width / 2) - (popW / 2);
     left = Math.max(10, Math.min(window.innerWidth - popW - 10, left));
     
-    let top = rect.top - popH - 10;
-    if (top < 10) top = rect.bottom + 10;
+    let top = rect.top - popH - 20;
+    if (top < 10) top = rect.bottom + 20;
     
     pop.style.left = left + 'px';
     pop.style.top = top + 'px';
@@ -472,10 +492,9 @@
 
   const tomarCaptura = async () => {
     flashScreen();
+    notify('Generando captura...');
     
-    // Cargar html2canvas dinámicamente si no está
     if (!window.html2canvas) {
-      notify('Preparando captura...');
       try {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -485,22 +504,30 @@
           document.head.appendChild(script);
         });
       } catch (e) {
-        notify('Error al cargar la herramienta de captura');
+        notify('Error al cargar herramienta de captura');
         return;
       }
     }
 
     try {
+      // html2canvas no puede procesar backdrop-filter ni color-mix nativos en algunos navegadores.
+      // Si falla, usamos el fallback de getDisplayMedia.
       const canvas = await window.html2canvas(document.body, {
         useCORS: true,
         allowTaint: false,
         backgroundColor: null,
-        scale: window.devicePixelRatio || 1,
-        ignoreElements: (el) => el.id === 'toast' || el.classList.contains('extrafunc-snap-preview') || el.id === 'extrafunc-volume-popover'
+        scale: 1,
+        logging: false,
+        ignoreElements: (el) => {
+          return el.tagName === 'IFRAME' || 
+                 el.id === 'toast' || 
+                 el.classList.contains('extrafunc-snap-preview') || 
+                 el.id === 'extrafunc-volume-popover';
+        }
       });
       
       canvas.toBlob(blob => {
-        if (!blob) { notify('Error al generar captura'); return; }
+        if (!blob) { notify('No se pudo generar la imagen'); return; }
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -512,8 +539,39 @@
         notify('Captura descargada');
       }, 'image/png');
     } catch (err) {
-      console.error('[Captura]', err);
-      notify('No se pudo capturar la pantalla');
+      console.warn('[Captura DOM Falló] Usando método alternativo', err);
+      // FALLBACK: Si html2canvas falla por los estilos del sistema (como backdrop-filter)
+      if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+          const video = document.createElement('video');
+          video.srcObject = stream;
+          video.muted = true;
+          await video.play();
+          await new Promise(r => setTimeout(r, 150));
+          
+          const canvas2 = document.createElement('canvas');
+          canvas2.width = video.videoWidth;
+          canvas2.height = video.videoHeight;
+          canvas2.getContext('2d').drawImage(video, 0, 0);
+          stream.getTracks().forEach(t => t.stop());
+          
+          canvas2.toBlob(blob => {
+            if(!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'MyHub_Captura_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.png';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            notify('Captura del sistema descargada');
+          }, 'image/png');
+        } catch (e) {
+          notify('No se pudo capturar la pantalla');
+        }
+      } else {
+        notify('Captura no soportada en este navegador');
+      }
     }
   };
 
@@ -559,7 +617,6 @@
   };
 
   // ==================== BACKUP INTERCEPTOR ====================
-  // Convierte los Blobs a Base64 para que el JSON guarde los archivos reales
   const serializeBlobs = async (obj) => {
     if (obj === null || obj === undefined) return obj;
     if (obj instanceof Blob) {
@@ -632,14 +689,13 @@
     if (!modalEl) return;
 
     const intercept = () => {
-      // Interceptar Exportar
       const btnExport = document.getElementById('cfg-btn-export');
       if (btnExport && !btnExport.dataset.intercepted) {
         btnExport.dataset.intercepted = 'true';
         btnExport.onclick = async (e) => {
           e.preventDefault();
           e.stopPropagation();
-          notify('Empaquetando datos (esto puede tardar)...');
+          notify('Empaquetando datos...');
           
           try {
             const apps = await window.kvGet('apps_instaladas') || {};
@@ -678,7 +734,6 @@
         };
       }
 
-      // Interceptar Importar
       const fileInputImport = document.getElementById('cfg-input-import');
       if (fileInputImport && !fileInputImport.dataset.intercepted) {
         fileInputImport.dataset.intercepted = 'true';
@@ -788,7 +843,7 @@
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
 
-    console.log('%c[ExtraFunc v5.1] Captura DOM, Volumen, Snap y Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc v5.2] Captura DOM, Volumen, Snap y Backup listos', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
