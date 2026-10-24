@@ -1,14 +1,27 @@
 // ============================================================================
-// ExtraFunc.js — Almacenamiento, controles de ventana y animación de inicio
+// ExtraFunc.js — Almacenamiento, Taskbar Extendida y Previews
 // ============================================================================
 
 (function() {
   'use strict';
 
   const esperar = (ms) => new Promise(r => setTimeout(r, ms));
-  const DURACION_INICIO = 2200; // ms: duración mínima de la animación
+  const DURACION_INICIO = 2200;
 
-  // ================= Panel de almacenamiento en Configuración =================
+  // ================= IndexedDB (Para el Buscador) =================
+  const dbP = new Promise((resolve) => {
+    const req = indexedDB.open('myhub-lobby', 1);
+    req.onsuccess = () => resolve(req.result);
+  });
+  const kvGet = async (k) => {
+    const db = await dbP;
+    return new Promise((res) => {
+      const r = db.transaction('kv').objectStore('kv').get(k);
+      r.onsuccess = () => res(r.result ?? null);
+    });
+  };
+
+  // ================= Panel de Almacenamiento =================
   const inyectarEstilosStorage = () => {
     if (document.getElementById('pwa-storage-style')) return;
     const style = document.createElement('style');
@@ -61,7 +74,7 @@
     observer.observe(modalEl, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   };
 
-  // ================= Nuevos botones de ventana (recargar y agrandar) =================
+  // ================= Controles de Ventana =================
   const setupWindowControls = () => {
     if (!document.getElementById('win-controls-style')) {
       const style = document.createElement('style');
@@ -94,7 +107,6 @@
             }
             if (!appId) return;
 
-            // Botón Recargar
             const reloadBtn = document.createElement('button');
             reloadBtn.className = 'close reload-btn';
             reloadBtn.title = 'Recargar ventana';
@@ -104,11 +116,8 @@
               const body = node.querySelector('.body');
               const iframe = body.querySelector('iframe');
               if (iframe) {
-                if (iframe.srcdoc) {
-                  iframe.srcdoc = iframe.srcdoc;
-                } else {
-                  try { iframe.contentWindow.location.reload(); } catch(err) { iframe.src = iframe.src; }
-                }
+                if (iframe.srcdoc) iframe.srcdoc = iframe.srcdoc;
+                else try { iframe.contentWindow.location.reload(); } catch(err) { iframe.src = iframe.src; }
               } else {
                 window.MyHub.cerrar(appId);
                 setTimeout(() => window.MyHub.abrir(appId), 50);
@@ -116,7 +125,6 @@
               window.MyHub.toast('Ventana recargada');
             };
 
-            // Botón Agrandar: el sistema de ventanas decide el espacio (2 columnas)
             const expandBtn = document.createElement('button');
             expandBtn.className = 'close expand-btn';
             expandBtn.title = 'Agrandar (2 espacios)';
@@ -133,21 +141,215 @@
             const minimizeBtn = titlebar.querySelector('.minimize');
             titlebar.insertBefore(expandBtn, minimizeBtn);
             titlebar.insertBefore(reloadBtn, expandBtn);
-
             if (window.lucide) window.lucide.createIcons();
           }
         });
       });
     });
-
     observer.observe(deskEl, { childList: true });
   };
 
-  // ================= Animación de inicio (al abrir y al recargar) =================
-  // Totalmente opaca: se tapa el escritorio mientras se reinician los widgets.
+  // ================= NUEVO: Buscador en la Taskbar =================
+  const setupTaskbarSearch = () => {
+    const taskbar = document.getElementById('taskbar');
+    const inicioBtn = document.getElementById('inicio');
+    if (!taskbar || !inicioBtn || document.querySelector('.taskbar-search-wrap')) return;
 
-  // La pantalla de inicio vive en index.html (se pinta antes que todo).
-  // Aquí solo se aplican los colores actuales y se guardan para la próxima carga.
+    // UI del buscador
+    const wrap = document.createElement('div');
+    wrap.className = 'taskbar-search-wrap';
+    wrap.innerHTML = `
+      <i data-lucide="search"></i>
+      <input type="text" id="taskbar-search" placeholder="Buscar app..." autocomplete="off">
+      <div id="search-results"></div>
+    `;
+    
+    // Insertar a la derecha del botón de Inicio
+    inicioBtn.insertAdjacentElement('afterend', wrap);
+    if (window.lucide) window.lucide.createIcons();
+
+    const input = wrap.querySelector('#taskbar-search');
+    const results = wrap.querySelector('#search-results');
+    let todasLasApps = [];
+
+    // Cargar apps (de IndexedDB + Sistema)
+    const cargarApps = async () => {
+      const appsInst = (await kvGet('apps_instaladas')) || {};
+      const sistema = window.RUTAS_APPS || [];
+      const mapa = new Map();
+      
+      sistema.forEach(a => mapa.set(a.id, { id: a.id, titulo: a.titulo, icono: a.icono }));
+      Object.values(appsInst).forEach(a => mapa.set(a.manifest.id, { 
+        id: a.manifest.id, titulo: a.manifest.titulo, icono: a.manifest.icono || 'box' 
+      }));
+      
+      todasLasApps = Array.from(mapa.values());
+    };
+    cargarApps();
+
+    // Eventos
+    input.addEventListener('input', (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      if (!q) { results.classList.remove('active'); return; }
+
+      const matches = todasLasApps.filter(a => a.titulo.toLowerCase().includes(q) || a.id.includes(q));
+      results.innerHTML = '';
+      
+      if (matches.length === 0) {
+        results.innerHTML = '<div style="padding: 10px; font-size: 13px; color: var(--muted); text-align: center;">No se encontraron apps</div>';
+      } else {
+        matches.forEach(app => {
+          const el = document.createElement('div');
+          el.className = 'search-item';
+          el.innerHTML = `<i data-lucide="${app.icono}"></i><span>${app.titulo}</span>`;
+          el.onclick = () => {
+            if (window.MyHub) window.MyHub.abrir(app.id);
+            input.value = '';
+            results.classList.remove('active');
+          };
+          results.appendChild(el);
+        });
+      }
+      results.classList.add('active');
+      if (window.lucide) window.lucide.createIcons();
+    });
+
+    // Cerrar al hacer clic afuera
+    document.addEventListener('pointerdown', (e) => {
+      if (!wrap.contains(e.target)) results.classList.remove('active');
+    });
+  };
+
+  // ================= NUEVO: Control de Volumen =================
+  const setupVolume = () => {
+    // Esperar a que JsLobby cree el #status-pill
+    const checkExist = setInterval(() => {
+      const pill = document.getElementById('status-pill');
+      if (!pill || document.getElementById('volume-btn')) return;
+
+      clearInterval(checkExist);
+
+      // Recuperar volumen guardado
+      let vol = parseInt(localStorage.getItem('myhub_volume') || '100', 10);
+      
+      const volBtn = document.createElement('div');
+      volBtn.id = 'volume-btn';
+      volBtn.className = 'status-item';
+      volBtn.style.cssText = 'cursor:pointer; padding:4px; border-radius:6px; transition:background 0.2s;';
+      volBtn.innerHTML = `<i data-lucide="${vol === 0 ? 'volume-x' : vol < 50 ? 'volume-1' : 'volume-2'}"></i>`;
+      
+      volBtn.onmouseover = () => volBtn.style.background = 'var(--accent-soft)';
+      volBtn.onmouseout = () => volBtn.style.background = 'transparent';
+
+      // Popup flotante
+      const popup = document.createElement('div');
+      popup.className = 'vol-popup';
+      popup.innerHTML = `
+        <i data-lucide="volume-1"></i>
+        <input type="range" min="0" max="100" value="${vol}">
+        <i data-lucide="volume-2"></i>
+      `;
+
+      const slider = popup.querySelector('input');
+      slider.oninput = (e) => {
+        vol = e.target.value;
+        localStorage.setItem('myhub_volume', vol);
+        volBtn.innerHTML = `<i data-lucide="${vol == 0 ? 'volume-x' : vol < 50 ? 'volume-1' : 'volume-2'}"></i>`;
+        if (window.lucide) window.lucide.createIcons();
+      };
+
+      volBtn.onclick = (e) => {
+        e.stopPropagation();
+        popup.classList.toggle('active');
+      };
+
+      document.addEventListener('pointerdown', (e) => {
+        if (!volBtn.contains(e.target) && !popup.contains(e.target)) {
+          popup.classList.remove('active');
+        }
+      });
+
+      // Insertar antes de la batería (o al principio de la pill)
+      const battery = pill.querySelector('.status-item.battery');
+      if (battery) pill.insertBefore(volBtn, battery);
+      else pill.prepend(volBtn);
+
+      pill.appendChild(popup);
+      if (window.lucide) window.lucide.createIcons();
+    }, 200);
+  };
+
+  // ================= NUEVO: Miniaturas Premium en Hover =================
+  const setupMiniaturas = () => {
+    if (document.getElementById('task-preview')) return;
+    const preview = document.createElement('div');
+    preview.id = 'task-preview';
+    document.body.appendChild(preview);
+
+    let currentTaskId = null, hideTimeout;
+
+    document.addEventListener('mouseover', (e) => {
+      const taskEl = e.target.closest('.task');
+      if (taskEl) {
+        clearTimeout(hideTimeout);
+        const title = taskEl.getAttribute('title');
+        let realId = null;
+        
+        // Buscar ID en el registro de apps
+        const _registro = typeof registro !== 'undefined' ? registro : window.registro;
+        if (_registro) _registro.forEach((app, id) => { if (app.titulo === title) realId = id; });
+        
+        // Si no está en el registro (raro), usar un fallback
+        if (!realId) realId = title; 
+
+        const app = _registro ? _registro.get(realId) : { titulo: title, icono: 'app-window' };
+        
+        currentTaskId = realId;
+        preview.innerHTML = `
+          <div class="preview-header">
+            <span class="preview-title">${app.titulo}</span>
+            <button class="preview-close" id="preview-close-btn"><i data-lucide="x"></i></button>
+          </div>
+          <div class="preview-body">
+            <i data-lucide="${app.icono || 'app-window'}"></i>
+            <span style="font-size:11px; color:var(--muted); font-weight:600;">App en ejecución</span>
+          </div>
+        `;
+
+        const rect = taskEl.getBoundingClientRect();
+        preview.style.left = `${Math.max(10, rect.left + (rect.width / 2) - 120)}px`;
+        preview.style.top = `${rect.top - 200}px`;
+
+        preview.classList.add('active');
+        if (window.lucide) window.lucide.createIcons();
+
+        // Eventos de la miniatura
+        preview.querySelector('#preview-close-btn').onclick = (ev) => {
+          ev.stopPropagation();
+          if (window.MyHub) window.MyHub.cerrar(currentTaskId);
+          preview.classList.remove('active');
+        };
+        
+        preview.onclick = () => {
+          if (window.MyHub) window.MyHub.restaurar(currentTaskId);
+          preview.classList.remove('active');
+        };
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      if (e.target.closest('.task')) {
+        hideTimeout = setTimeout(() => preview.classList.remove('active'), 300);
+      }
+    });
+    
+    preview.addEventListener('mouseenter', () => clearTimeout(hideTimeout));
+    preview.addEventListener('mouseleave', () => {
+      hideTimeout = setTimeout(() => preview.classList.remove('active'), 300);
+    });
+  };
+
+  // ================= Animación de Inicio =================
   const prepararPantalla = (tema) => {
     const root = document.documentElement;
     const oscuro = tema.modo === 'oscuro';
@@ -160,7 +362,6 @@
     return document.getElementById('myhub-inicio');
   };
 
-  // Espera a que los widgets terminen de cargar (con tope de tiempo)
   const esperarWidgets = () => new Promise(resolve => {
     const frames = [...document.querySelectorAll('.widget-container iframe')];
     if (frames.length === 0) return resolve();
@@ -184,7 +385,6 @@
   const iniciarAnimacion = async () => {
     await esperarLobby();
 
-    // Sin pantalla de bloqueo: la sesión se abre sola al arrancar
     if (typeof cuentaActual !== 'undefined' && cuentaActual && !sesionActiva) {
       sesionActiva = true;
       await kvSet('sesion', true);
@@ -195,8 +395,6 @@
     if (!pantalla) { document.body.classList.remove('cargando'); return; }
 
     const inicio = Date.now();
-
-    // Reiniciar los widgets para que sus iframes carguen siempre limpios
     if (window.renderWidgets) window.renderWidgets();
     await esperarWidgets();
 
@@ -204,7 +402,6 @@
     if (transcurrido < DURACION_INICIO) await esperar(DURACION_INICIO - transcurrido);
 
     document.body.classList.remove('cargando');
-
     pantalla.classList.add('salir');
     await esperar(700);
     pantalla.remove();
@@ -217,10 +414,13 @@
     inyectarEstilosStorage();
     setupStoragePanel();
     setupWindowControls();
+    setupTaskbarSearch(); // Nuevo
+    setupVolume();        // Nuevo
+    setupMiniaturas();    // Nuevo mejorado
 
     iniciarAnimacion();
 
-    console.log('%c[ExtraFunc] Extensiones cargadas al 100%', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    console.log('%c[ExtraFunc] Extensiones cargadas (Search, Volume, Previews)', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
