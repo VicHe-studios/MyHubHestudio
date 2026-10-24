@@ -6,11 +6,91 @@
 <title>MyHubHestudio</title>
 <!-- Favicon morado -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c3aed' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/%3E%3Cpath d='M9 11v6M15 11v6M9 14h6'/%3E%3C/svg%3E">
+
+<!-- Estilos críticos de la pantalla de inicio: van en el HTML para pintarse antes que nada -->
+<style>
+  html { background: var(--mh-fondo, #f4f6fb); }
+
+  @keyframes mhSpin { to { transform: rotate(360deg); } }
+  @keyframes mhPop { 0% { transform: scale(.3) rotate(-14deg); opacity: 0; } 60% { transform: scale(1.08) rotate(3deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+  @keyframes mhBreath { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
+  @keyframes mhFadeUp { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes mhFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  /* Pantalla de inicio: totalmente opaca */
+  #myhub-inicio {
+    position: fixed; inset: 0; z-index: 100000;
+    display: flex; align-items: center; justify-content: center;
+    background-color: var(--mh-fondo, #f4f6fb);
+    background-image: radial-gradient(circle at 50% 42%,
+      color-mix(in srgb, var(--mh-acc, #2563eb) var(--mh-pct, 28%), var(--mh-fondo, #f4f6fb)) 0%,
+      var(--mh-fondo, #f4f6fb) 62%);
+    color: var(--mh-texto, #0b1220);
+    font-family: 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+    transition: opacity .7s ease;
+  }
+  #myhub-inicio.salir { opacity: 0; }
+  #myhub-inicio .mh-nucleo { display: flex; flex-direction: column; align-items: center; gap: 22px; transition: transform .7s ease; }
+  #myhub-inicio.salir .mh-nucleo { transform: scale(1.05); }
+  #myhub-inicio .mh-logo-wrap { position: relative; width: 128px; height: 128px; display: flex; align-items: center; justify-content: center; }
+  #myhub-inicio .mh-ring { position: absolute; inset: 0; width: 128px; height: 128px; animation: mhSpin 1.6s linear infinite; }
+  #myhub-inicio .mh-ring circle { fill: none; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 95 282; stroke: var(--mh-acc, #2563eb); }
+  #myhub-inicio .mh-logo {
+    width: 88px; height: 88px; border-radius: 28px;
+    background: var(--mh-acc, #2563eb);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 18px 40px color-mix(in srgb, var(--mh-acc, #2563eb) 40%, transparent);
+    animation: mhPop .8s cubic-bezier(.2,.9,.3,1.15) both, mhBreath 2.4s 1s ease-in-out infinite;
+  }
+  #myhub-inicio .mh-logo svg { width: 46px; height: 46px; stroke: #fff; }
+  #myhub-inicio .mh-titulo { font-size: 22px; font-weight: 700; letter-spacing: .02em; animation: mhFadeUp .7s .35s both; }
+  #myhub-inicio .mh-barra { width: 240px; height: 4px; border-radius: 4px; overflow: hidden; background: var(--mh-pista, #00000014); animation: mhFadeUp .5s .5s both; }
+  #myhub-inicio .mh-relleno { height: 100%; width: 100%; background: var(--mh-acc, #2563eb); transform-origin: left center; animation: mhFill 2.2s cubic-bezier(.4,0,.2,1) both; }
+
+  /* Mientras carga, el escritorio y la barra quedan ocultos */
+  body.cargando #desktop, body.cargando #taskbar { visibility: hidden; }
+</style>
+
+<!-- Antes de pintar: aplica el color y el modo guardados (sincrónico, sin parpadeos) -->
+<script>
+(function () {
+  var r = document.documentElement, t = null;
+  try { t = JSON.parse(localStorage.getItem('myhub_tema') || 'null'); } catch (e) {}
+  var acc = (t && t.color) || '#2563eb';
+  var oscuro = !!(t && t.modo === 'oscuro');
+  r.style.setProperty('--mh-acc', acc);
+  r.style.setProperty('--mh-fondo', oscuro ? '#0b0b10' : '#f4f6fb');
+  r.style.setProperty('--mh-texto', oscuro ? '#f4f4f6' : '#0b1220');
+  r.style.setProperty('--mh-pista', oscuro ? '#ffffff1f' : '#00000014');
+  r.style.setProperty('--mh-pct', oscuro ? '45%' : '28%');
+  // Red de seguridad: si algo falla, el escritorio nunca queda tapado
+  setTimeout(function () {
+    var o = document.getElementById('myhub-inicio');
+    if (o) { o.classList.add('salir'); setTimeout(function () { o.remove(); }, 800); }
+    if (document.body) document.body.classList.remove('cargando');
+  }, 9000);
+})();
+</script>
+
 <link rel="stylesheet" href="LobbyStyle.css">
-<script src="vendor/lucide.min.js"></script>
-<script src="vendor/snd.js"></script>
 </head>
-<body>
+<body class="cargando">
+
+<!-- Pantalla de inicio: está en el HTML para que sea lo primero que se pinta -->
+<div id="myhub-inicio">
+  <div class="mh-nucleo">
+    <div class="mh-logo-wrap">
+      <svg class="mh-ring" viewBox="0 0 128 128"><circle cx="64" cy="64" r="60"/></svg>
+      <div class="mh-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 11 12 3l9 8"/><path d="M5 9.5V21h14V9.5"/><path d="M9 17v-5M15 17v-5M9 14.5h6"/>
+        </svg>
+      </div>
+    </div>
+    <div class="mh-titulo">MyHubHestudio</div>
+    <div class="mh-barra"><div class="mh-relleno"></div></div>
+  </div>
+</div>
 
 <div id="fondo-imagen"></div>
 
@@ -64,7 +144,9 @@
   <span id="clock"></span>
 </div>
 
-<!-- Scripts ordenados correctamente: Rutas -> Lobby -> ExtraFunc -->
+<!-- Scripts al final para no bloquear el pintado de la pantalla de inicio -->
+<script src="vendor/lucide.min.js"></script>
+<script src="vendor/snd.js"></script>
 <script src="JsRutas.js"></script>
 <script src="ExtraFunc.js"></script>
 <script src="JsLobby.js"></script>
