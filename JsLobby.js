@@ -2792,6 +2792,17 @@ reloj(); setInterval(reloj, 15000);
       @keyframes dropInFixed { 0% { opacity: 0; transform: translate(-50%, -10px); } 100% { opacity: 1; transform: translate(-50%, 0); } }
       .toast { animation: dropInFixed .3s var(--ease-out) !important; }
       .widget-container { user-select: none; -webkit-user-select: none; }
+      /* Asa de arrastre: el interior del widget es interactivo, así que se mueve desde aquí */
+      .widget-grip {
+        position: absolute; top: 0; left: 50%; transform: translateX(-50%); z-index: 2;
+        width: 56px; height: 16px; display: flex; align-items: center; justify-content: center;
+        border-radius: 0 0 10px 10px; background: var(--glass); border: 1px solid var(--accent-line); border-top: none;
+        cursor: grab; touch-action: none; opacity: 0; transition: opacity .15s;
+      }
+      .widget-grip::before { content: ''; width: 26px; height: 4px; border-radius: 4px; background: var(--muted); opacity: .75; }
+      .widget-container:hover .widget-grip, .widget-container.arrastrando .widget-grip { opacity: 1; }
+      .widget-grip:active { cursor: grabbing; }
+      @media (hover: none) { .widget-grip { opacity: .7; } }
       .extrafunc-modal-overlay { position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       .extrafunc-modal-overlay.active { opacity: 1; pointer-events: auto; }
       .extrafunc-modal { background: var(--glass, #fff); border: 2px solid var(--accent, #2563eb); border-radius: 16px; padding: 24px; width: 340px; max-width: 90vw; box-shadow: 0 20px 40px rgba(0,0,0,0.3); transform: scale(0.95); transition: transform 0.2s; color: var(--text, #000); }
@@ -3144,6 +3155,23 @@ reloj(); setInterval(reloj, 15000);
     return true;
   };
 
+  // Los iframes de widgets ahora son interactivos: sus eventos ya no llegan al escritorio,
+  // así que reenvían (postMessage) el clic derecho y el pointerdown.
+  window.addEventListener('message', (ev) => {
+    const d = ev.data;
+    if (!d || (d.type !== 'myhub:widget:ctx' && d.type !== 'myhub:widget:down')) return;
+    const iframe = [...document.querySelectorAll('.widget-container iframe')].find(f => f.contentWindow === ev.source);
+    if (!iframe) return;
+    if (d.type === 'myhub:widget:down') {
+      // Cierra menús que se cierran con clic fuera (p. ej. el menú de inicio)
+      document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      return;
+    }
+    const r = iframe.getBoundingClientRect();
+    const wrap = iframe.closest('.widget-container');
+    if (wrap && wrap._abrirMenuWidget) wrap._abrirMenuWidget(r.left + (+d.x || 0), r.top + (+d.y || 0));
+  });
+
   window.renderWidgets = () => {
     let layer = document.getElementById('widgets-layer');
     if (!layer) {
@@ -3172,26 +3200,30 @@ reloj(); setInterval(reloj, 15000);
         border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
         border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
         overflow: hidden; transition: transform .2s, box-shadow .2s;
-        cursor: grab; user-select: none; -webkit-user-select: none;
+        cursor: default; user-select: none; -webkit-user-select: none;
       `;
+
+      const abrirMenuWidget = (x, y) => {
+        if (typeof mostrarContexto !== 'function') return;
+        mostrarContexto(x, y, [
+          { icon: 'trash-2', text: 'Eliminar Widget', danger: true, fn: () => {
+            window.widgetsActivos = window.widgetsActivos.filter(item => item !== w);
+            guardarWidgets();
+            window.renderWidgets();
+            window.MyHub.toast('Widget eliminado');
+          }}
+        ]);
+      };
+      el._abrirMenuWidget = abrirMenuWidget;
 
       el.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (typeof mostrarContexto === 'function') {
-          mostrarContexto(e.clientX, e.clientY, [
-            { icon: 'trash-2', text: 'Eliminar Widget', danger: true, fn: () => {
-              window.widgetsActivos = window.widgetsActivos.filter(item => item !== w);
-              guardarWidgets();
-              window.renderWidgets();
-              window.MyHub.toast('Widget eliminado');
-            }}
-          ]);
-        }
+        abrirMenuWidget(e.clientX, e.clientY);
       });
 
       const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
+      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent;';
 
       const app = registro.get(w.id);
       const blobWidget = app && app.archivos ? toBlobSeguro(buscarArchivo(app.archivos, w.file)) : null;
@@ -3225,6 +3257,13 @@ reloj(); setInterval(reloj, 15000);
                   if (ev.data && ev.data.type === 'myhub:tema:res') {
                     applyTheme(ev.data.color, ev.data.modo);
                   }
+                });
+                document.addEventListener('pointerdown', function() {
+                  try { parent.postMessage({ type: 'myhub:widget:down' }, '*'); } catch (e) {}
+                }, true);
+                document.addEventListener('contextmenu', function(e) {
+                  e.preventDefault();
+                  try { parent.postMessage({ type: 'myhub:widget:ctx', x: e.clientX, y: e.clientY }, '*'); } catch (err) {}
                 });
               })();
             <\/script>
@@ -3261,7 +3300,11 @@ reloj(); setInterval(reloj, 15000);
       });
 
       el.appendChild(iframe);
-      hacerArrastrableWidget(el, w);
+      const grip = document.createElement('div');
+      grip.className = 'widget-grip';
+      grip.title = 'Arrastrar widget';
+      el.appendChild(grip);
+      hacerArrastrableWidget(el, w, grip);
       layer.appendChild(el);
      } catch (err) {
       console.error('[Widget] no se pudo dibujar', w.id, w.file, err);
@@ -3269,15 +3312,16 @@ reloj(); setInterval(reloj, 15000);
     });
   };
 
-  const hacerArrastrableWidget = (el, widgetData) => {
+  const hacerArrastrableWidget = (el, widgetData, handle) => {
     let isDragging = false, startX, startY, startLeft, startTop;
+    const asa = handle || el;
 
-    el.addEventListener('pointerdown', (e) => {
+    asa.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
 
       isDragging = false;
-      el.setPointerCapture(e.pointerId);
+      asa.setPointerCapture(e.pointerId);
       startX = e.clientX; startY = e.clientY;
       startLeft = parseFloat(el.style.left); startTop = parseFloat(el.style.top);
 
@@ -3285,6 +3329,9 @@ reloj(); setInterval(reloj, 15000);
       el.style.zIndex = '999';
       el.style.transform = 'scale(1.02)';
       el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)';
+      el.classList.add('arrastrando');
+      const frameW = el.querySelector('iframe');
+      if (frameW) frameW.style.pointerEvents = 'none'; // que el iframe no robe el arrastre
 
       const mover = (ev) => {
         if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3) isDragging = true;
@@ -3349,6 +3396,8 @@ reloj(); setInterval(reloj, 15000);
         el.style.zIndex = '';
         el.style.transform = '';
         el.style.boxShadow = '';
+        el.classList.remove('arrastrando');
+        if (frameW) frameW.style.pointerEvents = '';
 
         // FIX: resetear transition tras la animación de asentamiento (antes quedaba sticky)
         setTimeout(() => {
