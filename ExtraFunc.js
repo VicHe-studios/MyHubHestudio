@@ -641,7 +641,18 @@
 
     const ocupadas = new Set();
     
-    // FIX 2: Incluir carpetas para que los widgets no se coloquen encima
+    // FIX 2: Leer directamente del DOM las celdas ocupadas por iconos (apps y carpetas)
+    document.querySelectorAll('.icon').forEach(icon => {
+      const l = parseFloat(icon.style.left);
+      const t = parseFloat(icon.style.top);
+      if (!isNaN(l) && !isNaN(t)) {
+        const c = Math.round((l - MARGEN) / GX);
+        const r = Math.round((t - MARGEN) / GY);
+        ocupadas.add(`${c}-${r}`);
+      }
+    });
+
+    // Añadir también las variables globales por si acaso
     if (typeof carpetas !== 'undefined' && carpetas) {
       Object.values(carpetas).forEach(f => {
         if (!f || !f.pos) return;
@@ -901,7 +912,7 @@
           const snapRect = el.getBoundingClientRect();
           let colision = false;
 
-          // El .icon incluye carpetas, por lo que aquí sí detecta si sueltas sobre una
+          // Detección visual de colisión (incluye carpetas)
           document.querySelectorAll('.icon').forEach(icon => {
             if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
           });
@@ -1065,6 +1076,17 @@
   const findFreeCell = (excludeId) => {
     const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
     const ocupadas = new Set();
+
+    // Leer del DOM para máxima precisión con carpetas
+    document.querySelectorAll('.icon').forEach(icon => {
+      const l = parseFloat(icon.style.left);
+      const t = parseFloat(icon.style.top);
+      if (!isNaN(l) && !isNaN(t)) {
+        const c = Math.round((l - MARGEN) / GX);
+        const r = Math.round((t - MARGEN) / GY);
+        ocupadas.add(`${c}-${r}`);
+      }
+    });
 
     if (typeof carpetas !== 'undefined' && carpetas) {
       Object.values(carpetas).forEach(f => {
