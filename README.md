@@ -26,6 +26,9 @@
 - 📌 **Quick Launch**: Fijá tus apps favoritas a la barra de tareas para acceso inmediato.
 - 🔒 **Privacidad Primero**: Todo el ecosistema corre en Local-First. Tus datos, notas y ajustes nunca salen de tu navegador.
 
+<img width="1366" height="609" alt="image" src="https://github.com/user-attachments/assets/73d35012-1617-4806-a7c6-3c3d1454f261" />
+
+
 ## ⚠️ Modelo de confianza
 
 **MyHubHestudio** permite instalar apps desde dos fuentes:
