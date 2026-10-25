@@ -23,7 +23,7 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  // Calcular el peso real de un registro (soporta Blobs, Strings, Objetos)
+  // Calcular el peso real de un registro
   const getItemSize = (value) => {
     if (value instanceof Blob) return value.size;
     if (typeof value === 'string') return new Blob([value]).size;
@@ -66,7 +66,6 @@
     });
   };
 
-  // Calcular el uso total de almacenamiento del navegador
   const updateStorageInfo = async () => {
     if (navigator.storage && navigator.storage.estimate) {
       const { usage, quota } = await navigator.storage.estimate();
@@ -90,12 +89,23 @@
       const group = document.createElement('div');
       group.className = 'db-group';
       
+      // LÓGICA DE ADVERTENCIA: Si no contiene "hub" (ignorando mayúsculas/minúsculas)
+      const dbNameLower = dbInfo.name.toLowerCase();
+      const isLikelyMyHub = dbNameLower.includes('hub');
+      
+      const warningIcon = !isLikelyMyHub 
+        ? `<i data-lucide="alert-triangle" class="warn-icon" title="Se desconoce si esta BD le pertenece a MyHubHestudio, precaución."></i>` 
+        : '';
+
       const dbNameEl = document.createElement('div');
       dbNameEl.className = 'db-name';
-      dbNameEl.innerHTML = `<i data-lucide="database"></i> ${dbInfo.name}`;
+      dbNameEl.innerHTML = `
+        <i data-lucide="database"></i> 
+        <span>${dbInfo.name}</span>
+        ${warningIcon}
+      `;
       group.appendChild(dbNameEl);
 
-      // Abrir la DB temporalmente para leer sus tablas
       const db = await new Promise((resolve) => {
         const req = indexedDB.open(dbInfo.name);
         req.onsuccess = () => resolve(req.result);
@@ -152,15 +162,14 @@
         const size = getItemSize(val);
         totalSize += size;
         
-        let type = 'data';
+        let type = 'json';
         if (val instanceof Blob) type = 'blob';
-        else if (typeof val === 'object' && val !== null) type = 'json';
+        else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') type = 'data';
 
         items.push({ key, size, type, value: val });
       }
       db.close();
 
-      // Renderizar
       fileListEl.innerHTML = '';
       if (items.length === 0) {
         fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="folder-open"></i><p>Esta tabla está vacía.</p></div>';
@@ -168,10 +177,13 @@
         return;
       }
 
-      // Cabecera de la tabla con el total
+      // Cabecera con el total
       const headerTotal = document.createElement('div');
-      headerTotal.style.cssText = 'padding: 8px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); text-align: right; font-weight: 600;';
-      headerTotal.textContent = `Total: ${items.length} registros (${formatBytes(totalSize)})`;
+      headerTotal.className = 'file-list-header';
+      headerTotal.innerHTML = `
+        <span>${items.length} registros</span>
+        <span>Peso total: ${formatBytes(totalSize)}</span>
+      `;
       fileListEl.appendChild(headerTotal);
 
       items.forEach(item => {
@@ -180,30 +192,27 @@
 
         let iconName = 'file-json';
         if (item.type === 'blob') iconName = 'image';
-        if (typeof item.value === 'string') iconName = 'file-text';
-        if (typeof item.value === 'boolean' || typeof item.value === 'number') iconName = 'hash';
+        if (item.type === 'data') iconName = 'file-text';
 
         itemEl.innerHTML = `
           <div class="file-icon ${item.type}"><i data-lucide="${iconName}"></i></div>
           <div class="file-info">
-            <div class="file-name">${String(item.key)}</div>
-            <div class="file-desc">${item.type === 'blob' ? 'Blob / Archivo binario' : item.type === 'json' ? 'Objeto JSON' : 'Texto / Valor simple'}</div>
+            <div class="file-name" title="${String(item.key)}">${String(item.key)}</div>
+            <div class="file-desc">${item.type === 'blob' ? 'Blob / Archivo' : item.type === 'json' ? 'Objeto JSON' : 'Texto / Valor'}</div>
           </div>
           <div class="file-size">${formatBytes(item.size)}</div>
           <button class="btn-delete" title="Eliminar registro"><i data-lucide="trash-2"></i></button>
         `;
 
         itemEl.querySelector('.btn-delete').onclick = async () => {
-          // Advertencia extra para la base de datos del sistema
           const isCritical = dbName === 'myhub-lobby' && ['apps_instaladas', 'carpetas', 'cuenta', 'ajustes', 'posiciones_iconos'].includes(item.key);
           const msg = isCritical 
-            ? `¡ADVERTENCIA! Estás a punto de borrar "${item.key}", que es una clave crítica del sistema MyHub. Podrías perder apps, configuraciones o tu cuenta. ¿Estás totalmente seguro?`
+            ? `¡ADVERTENCIA! Estás a punto de borrar "${item.key}", que es una clave crítica del sistema. Podrías perder apps o configuraciones. ¿Seguro?`
             : `¿Seguro que quieres eliminar el registro "${item.key}"? Esta acción no se puede deshacer.`;
 
           const ok = await showConfirm('Eliminar Registro', msg);
           if (!ok) return;
 
-          // Borrar de la DB
           const db2 = await new Promise((resolve) => {
             const req = indexedDB.open(dbName);
             req.onsuccess = () => resolve(req.result);
@@ -213,7 +222,7 @@
           tx2.oncomplete = () => {
             db2.close();
             if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Registro eliminado');
-            loadStoreContent(dbName, storeName); // Recargar
+            loadStoreContent(dbName, storeName);
             updateStorageInfo();
           };
         };
@@ -226,7 +235,7 @@
 
     } catch (err) {
       console.error(err);
-      fileListEl.innerHTML = `<div class="empty-state" style="color:var(--danger)"><p>Error al leer la tabla: ${err.message}</p></div>`;
+      fileListEl.innerHTML = `<div class="empty-state" style="color:var(--danger)"><p>Error: ${err.message}</p></div>`;
     }
   };
 
