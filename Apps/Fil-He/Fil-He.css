@@ -11,7 +11,6 @@
   --danger: #ef4444;
   --warn: #f59e0b;
   
-  /* ANCHO REDUCIDO: De 190px a 150px para darle aire al panel derecho */
   --sidebar-width: 150px;
 }
 
@@ -25,11 +24,19 @@ html[data-modo="oscuro"] {
 }
 
 * { box-sizing: border-box; }
-body {
-  margin: 0; height: 100vh; display: flex; flex-direction: column;
+
+/* FIX: Forzar altura al 100% en html y body */
+html, body {
+  margin: 0; padding: 0; height: 100%;
   font-family: 'Segoe UI Variable', system-ui, sans-serif;
   background: var(--card); color: var(--text);
   overflow: hidden;
+}
+
+/* FIX: El contenedor principal DEBE ser flex y ocupar el 100% */
+.app-filhe { 
+  display: flex; flex-direction: column; 
+  height: 100%; width: 100%; overflow: hidden;
 }
 
 /* ===== TOPBAR ===== */
@@ -66,16 +73,19 @@ body {
 .btn-refresh:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-refresh svg { width: 14px; height: 14px; }
 
-/* ===== LAYOUT (FIX DEL COLAPSO DE ALTURA) ===== */
+/* ===== LAYOUT ===== */
 .main-layout { 
-  display: flex; flex: 1; overflow: hidden; min-height: 0; 
-  align-items: stretch; /* Fuerza a los hijos a medir lo mismo de alto */
+  display: flex; 
+  flex: 1; /* FIX: Ocupa todo el espacio vertical restante */
+  overflow: hidden; 
+  min-height: 0; 
+  align-items: stretch; /* FIX: Estira a los hijos (sidebar y main-area) al 100% del alto */
 }
 
-/* ===== SIDEBAR IZQUIERDA (Compacta y 100% de alto) ===== */
+/* ===== SIDEBAR IZQUIERDA ===== */
 .sidebar {
   width: var(--sidebar-width);
-  height: 100%; /* FIX: Obliga al fondo y al borde a llegar hasta abajo */
+  /* Ya NO usamos height: 100%, el align-items: stretch del padre lo hace */
   border-right: 1px solid var(--line);
   display: flex; flex-direction: column; flex-shrink: 0;
   background: var(--sidebar-bg); color: var(--text);
@@ -83,9 +93,11 @@ body {
   transition: width 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.15);
 }
 .sidebar.collapsed { width: 0; border-right-width: 0; }
+
 .sidebar-inner {
-  width: var(--sidebar-width);
-  display: flex; flex-direction: column; height: 100%;
+  width: var(--sidebar-width); /* Evita que el contenido se aplaste cuando se colapsa */
+  display: flex; flex-direction: column; 
+  height: 100%; /* Esto ahora sí funciona porque el padre es stretch */
   flex-shrink: 0;
 }
 .sidebar-header {
@@ -122,7 +134,6 @@ body {
 .main-area {
   flex: 1; display: flex; flex-direction: column; 
   background: var(--card); min-width: 0; overflow: hidden;
-  height: 100%; /* Asegura simetría con el sidebar */
 }
 .main-header {
   padding: 12px 12px; border-bottom: 1px solid var(--line); font-weight: 600;
@@ -135,7 +146,7 @@ body {
 
 .file-list-container { flex: 1; overflow-y: auto; padding: 10px; background: var(--card); }
 
-/* ===== LISTA DE ARCHIVOS ===== */
+/* ===== LISTA DE ARCHIVOS (Grid) ===== */
 .file-list-header {
   display: flex; justify-content: space-between; align-items: center;
   padding: 0 4px 8px; font-size: 9.5px; font-weight: 700; color: var(--muted);
@@ -144,7 +155,6 @@ body {
   white-space: nowrap;
 }
 
-/* La magia del Grid: Icono | Texto | Peso | Botón */
 .file-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
