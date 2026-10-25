@@ -112,7 +112,6 @@
       const key = localStorage.key(i);
       const storeEl = document.createElement('div');
       storeEl.className = 'store-item';
-      // FIX: Se envuelve la llave en un <span> para que funcione el ellipsis
       storeEl.innerHTML = `<i data-lucide="file-key"></i> <span>${key}</span>`;
       storeEl.onclick = () => {
         document.querySelectorAll('.store-item').forEach(el => el.classList.remove('active'));
@@ -127,7 +126,8 @@
   };
 
   const loadStoreContent = async (dbName, storeName) => {
-    mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="database"></i> ${dbName} <i data-lucide="chevron-right"></i></span> ${storeName}`;
+    // FIX: Envolver storeName en un span para que el CSS lo recorte
+    mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="database"></i> ${dbName} <i data-lucide="chevron-right"></i></span> <span class="current-table">${storeName}</span>`;
     fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="loader"></i><p>Analizando datos...</p></div>';
     if (window.lucide) window.lucide.createIcons();
 
@@ -189,7 +189,8 @@
   };
 
   const loadLocalStorageContent = (key) => {
-    mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="hard-drive"></i> Local Storage <i data-lucide="chevron-right"></i></span> ${key}`;
+    // FIX: Envolver key en un span
+    mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="hard-drive"></i> Local Storage <i data-lucide="chevron-right"></i></span> <span class="current-table">${key}</span>`;
     fileListEl.innerHTML = '';
     
     const val = localStorage.getItem(key);
@@ -217,6 +218,9 @@
   };
 
   const renderList = (items, totalSize, sourceName, sourceStore, isImageArray = false) => {
+    // FIX CRÍTICO: Borrar el "Analizando datos..." antes de pintar
+    fileListEl.innerHTML = '';
+
     if (items.length === 0) {
       fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="folder-open"></i><p>No hay datos.</p></div>';
       if (window.lucide) window.lucide.createIcons();
