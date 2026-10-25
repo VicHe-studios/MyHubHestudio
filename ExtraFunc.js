@@ -142,8 +142,6 @@
   };
 
   // ================= Ocultar botón de Cerrar Sesión =================
-  // Como el sistema hace auto-login al recargar, el botón de cerrar sesión
-  // no tiene sentido y confunde al usuario. Lo ocultamos.
   const ocultarCerrarSesion = () => {
     const modalEl = document.getElementById('modal');
     const mTitulo = document.getElementById('mTitulo');
@@ -268,7 +266,7 @@
 
 
 // ============================================================================
-// ExtraFunc v9.0 — Snap Preview y Sistema de Backup
+// ExtraFunc v9.0 — Snap Preview y Sistema de Backup (con FIX 2 integrado)
 // ============================================================================
 (function() {
   'use strict';
@@ -621,6 +619,408 @@
     }
   };
 
+  // ==================== MOTOR DE WIDGETS (CON FIX 2) ====================
+  const MARGEN = (typeof MARGEN_ICONOS !== 'undefined') ? MARGEN_ICONOS : 16;
+  const GX = (typeof GRID_X !== 'undefined') ? GRID_X : 82;
+  const GY = (typeof GRID_Y !== 'undefined') ? GRID_Y : 108;
+  const GRID_COLS = (typeof window.GRID_COLS !== 'undefined') ? window.GRID_COLS : 16;
+  const GRID_ROWS = (typeof window.GRID_ROWS !== 'undefined') ? window.GRID_ROWS : 5;
+  const WIDGET_SIZES = (typeof window.WIDGET_SIZES !== 'undefined') ? window.WIDGET_SIZES : {
+    '1x1': { w: GX - 2, h: GY - 8, cols: 1, rows: 1 },
+    '2x1': { w: GX * 2 - 2, h: GY - 8, cols: 2, rows: 1 },
+    '2x2': { w: GX * 2 - 2, h: GY * 2 - 8, cols: 2, rows: 2 }
+  };
+
+  const guardarWidgets = async () => {
+    if (typeof window.kvSet === 'function') await window.kvSet('widgets_activos', window.widgetsActivos);
+  };
+
+  const findClosestFreeSpot = (size, targetLeft, targetTop, excludeWidget) => {
+    const ws = WIDGET_SIZES[size] || WIDGET_SIZES['1x1'];
+    const maxRows = GRID_ROWS, maxCols = GRID_COLS;
+
+    const ocupadas = new Set();
+    
+    // FIX 2: Incluir carpetas para que los widgets no se coloquen encima
+    if (typeof carpetas !== 'undefined' && carpetas) {
+      Object.values(carpetas).forEach(f => {
+        if (!f || !f.pos) return;
+        const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+
+    if (typeof posicionesIconos !== 'undefined') {
+      Object.values(posicionesIconos).forEach(pos => {
+        if (!pos) return;
+        const c = Math.round((parseFloat(pos.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(pos.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+
+    window.widgetsActivos.forEach(w => {
+      if (w === excludeWidget) return;
+      if (!w.pos) return;
+      const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+      const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+      const wsize = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+      for (let i = 0; i < wsize.cols; i++) {
+        for (let j = 0; j < wsize.rows; j++) {
+          ocupadas.add(`${wc + i}-${wr + j}`);
+        }
+      }
+    });
+
+    const targetCol = Math.round((targetLeft - MARGEN) / GX);
+    const targetRow = Math.round((targetTop - MARGEN) / GY);
+
+    let bestSpot = null;
+    let minDist = Infinity;
+
+    for (let r = 0; r + ws.rows <= maxRows; r++) {
+      for (let c = 0; c + ws.cols <= maxCols; c++) {
+        let libre = true;
+        for (let i = 0; i < ws.cols; i++) {
+          for (let j = 0; j < ws.rows; j++) {
+            if (ocupadas.has(`${c + i}-${r + j}`)) { libre = false; break; }
+          }
+          if (!libre) break;
+        }
+        if (libre) {
+          const dist = Math.abs(c - targetCol) + Math.abs(r - targetRow);
+          if (dist < minDist) {
+            minDist = dist;
+            bestSpot = { left: `${c * GX + MARGEN}px`, top: `${r * GY + MARGEN}px` };
+          }
+        }
+      }
+    }
+    return bestSpot || null;
+  };
+
+  const checkCollision = (rect1, rect2) => {
+    return !(rect1.right <= rect2.left || rect1.left >= rect2.right || rect1.bottom <= rect2.top || rect1.top >= rect2.bottom);
+  };
+
+  const buscarArchivo = (archivos, ruta) => {
+    if (!archivos) return null;
+    if (archivos[ruta] !== undefined) return archivos[ruta];
+    const norm = s => String(s).split(String.fromCharCode(92)).join('/').replace(/^[.]?[/]/, '').toLowerCase();
+    const objetivo = norm(ruta);
+    const base = objetivo.split('/').pop();
+    const claves = Object.keys(archivos);
+    const exacta = claves.find(k => norm(k) === objetivo);
+    if (exacta) return archivos[exacta];
+    const porNombre = claves.find(k => norm(k).split('/').pop() === base);
+    return porNombre ? archivos[porNombre] : null;
+  };
+
+  const toBlobSeguro = (v) => {
+    if (v instanceof Blob) return v;
+    if (v instanceof ArrayBuffer || ArrayBuffer.isView(v)) return new Blob([v], { type: 'text/html' });
+    if (typeof v === 'string') return new Blob([v], { type: 'text/html' });
+    return null;
+  };
+
+  const refrescarArchivosApp = async (id) => {
+    const apps = (await window.kvGet('apps_instaladas')) || {};
+    const guardada = apps[id];
+    const app = registro.get(id);
+    if (!guardada || !guardada.archivos || !app) return false;
+    app.archivos = guardada.archivos;
+    return true;
+  };
+
+  window.renderWidgets = () => {
+    let layer = document.getElementById('widgets-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'widgets-layer';
+      layer.style.cssText = 'position:absolute; inset:0; pointer-events:none;';
+      document.getElementById('desktop').prepend(layer);
+    }
+    layer.innerHTML = '';
+
+    window.widgetsActivos.forEach(w => {
+     try {
+      const el = document.createElement('div');
+      el.className = 'widget-container';
+
+      const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+
+      const topeW = MARGEN + (GRID_ROWS - ws.rows) * GY;
+      const topRaw = parseFloat(w.pos?.top);
+      const topFinal = Math.max(MARGEN, Math.min(isNaN(topRaw) ? 16 : topRaw, topeW));
+      el.style.cssText = `
+        position: absolute; left: ${w.pos?.left || '116px'}; top: ${topFinal}px;
+        width: ${ws.w}px; height: ${ws.h}px; pointer-events: auto;
+        border-radius: 16px; background: var(--glass); backdrop-filter: blur(20px);
+        border: 1.5px solid var(--accent-line); box-shadow: var(--shadow-md);
+        overflow: hidden; transition: transform .2s, box-shadow .2s;
+        cursor: grab; user-select: none; -webkit-user-select: none;
+      `;
+
+      el.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (typeof mostrarContexto === 'function') {
+          mostrarContexto(e.clientX, e.clientY, [
+            { icon: 'trash-2', text: 'Eliminar Widget', danger: true, fn: () => {
+              window.widgetsActivos = window.widgetsActivos.filter(item => item !== w);
+              guardarWidgets();
+              window.renderWidgets();
+              window.MyHub.toast('Widget eliminado');
+            }}
+          ]);
+        }
+      });
+
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'width:100%; height:100%; border:none; background:transparent; pointer-events: none; user-select: none; -webkit-user-drag: none;';
+
+      const app = registro.get(w.id);
+      const blobWidget = app && app.archivos ? toBlobSeguro(buscarArchivo(app.archivos, w.file)) : null;
+      if (blobWidget) {
+        const blob = blobWidget;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          let html = e.target.result;
+
+          const themeInjection = `
+            <script src="https://unpkg.com/lucide@latest"><\/script>
+            <script>
+              (function() {
+                function applyTheme(color, modo) {
+                  document.documentElement.dataset.modo = modo || 'claro';
+                  document.documentElement.style.setProperty('--accent', color || '#2563eb');
+                  const hex = (color || '#2563eb').replace('#', '');
+                  if (hex.length === 6) {
+                    const r = parseInt(hex.substring(0, 2), 16);
+                    const g = parseInt(hex.substring(2, 4), 16);
+                    const b = parseInt(hex.substring(4, 6), 16);
+                    document.documentElement.style.setProperty('--accent-soft', 'rgba(' + r + ', ' + g + ', ' + b + ', 0.15)');
+                  }
+                }
+                applyTheme(
+                  '${(typeof COLORES !== 'undefined' && COLORES[ajustes.color]) || '#2563eb'}',
+                  '${ajustes.modo || 'claro'}'
+                );
+                window.addEventListener('message', function(ev) {
+                  if (ev.data && ev.data.type === 'myhub:tema:res') {
+                    applyTheme(ev.data.color, ev.data.modo);
+                  }
+                });
+              })();
+            <\/script>
+          `;
+
+          if (w.file.endsWith('.js')) {
+            html = `<html><head><style>body{margin:0;color:var(--text);font-family:sans-serif;}</style>${themeInjection}</head><body><script>${html}<\/script></body></html>`;
+          } else {
+            html = html.replace('</head>', `${themeInjection}</head>`);
+          }
+          iframe.srcdoc = html;
+        };
+        reader.readAsText(blob);
+      } else {
+        if (app && app.instalada) {
+          window._reintentoWidget = window._reintentoWidget || {};
+          if (!window._reintentoWidget[w.id]) {
+            window._reintentoWidget[w.id] = true;
+            refrescarArchivosApp(w.id).then(ok => { if (ok) window.renderWidgets(); });
+          }
+        }
+        iframe.srcdoc = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; color:#ef4444; font-size:12px; text-align:center; padding:10px; box-sizing:border-box;"><b>Error: Widget no encontrado</b><br><small style="opacity:0.7">${w.file}</small></div>`;
+      }
+
+      iframe.addEventListener('load', () => {
+        try {
+          iframe.contentWindow.postMessage({
+            type: 'myhub:tema:res',
+            color: (typeof COLORES !== 'undefined' && COLORES[ajustes.color]) || '#2563eb',
+            modo: ajustes.modo || 'claro'
+          }, '*');
+        } catch(e) {}
+      });
+
+      el.appendChild(iframe);
+      hacerArrastrableWidget(el, w);
+      layer.appendChild(el);
+     } catch (err) {
+      console.error('[Widget] no se pudo dibujar', w.id, w.file, err);
+     }
+    });
+  };
+
+  const hacerArrastrableWidget = (el, widgetData) => {
+    let isDragging = false, startX, startY, startLeft, startTop;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+
+      isDragging = false;
+      el.setPointerCapture(e.pointerId);
+      startX = e.clientX; startY = e.clientY;
+      startLeft = parseFloat(el.style.left); startTop = parseFloat(el.style.top);
+
+      el.style.transition = 'none';
+      el.style.zIndex = '999';
+      el.style.transform = 'scale(1.02)';
+      el.style.boxShadow = '0 20px 40px rgba(0,0,0,0.3)';
+
+      const mover = (ev) => {
+        if (Math.abs(ev.clientX - startX) > 3 || Math.abs(ev.clientY - startY) > 3) isDragging = true;
+        if (!isDragging) return;
+        el.style.left = (startLeft + ev.clientX - startX) + 'px';
+        el.style.top = (startTop + ev.clientY - startY) + 'px';
+      };
+
+      const soltar = () => {
+        window.removeEventListener('pointermove', mover);
+        window.removeEventListener('pointerup', soltar);
+
+        if (isDragging) {
+          let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
+          let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
+
+          const deskEl = document.getElementById('desktop');
+          const wW = el.offsetWidth;
+          const wH = el.offsetHeight;
+
+          const wsDrop = WIDGET_SIZES[widgetData.size] || WIDGET_SIZES['1x1'];
+          snapX = Math.max(MARGEN, Math.min(snapX, MARGEN + (GRID_COLS - wsDrop.cols) * GX));
+          const topeFila = MARGEN + (GRID_ROWS - wsDrop.rows) * GY;
+          snapY = Math.max(MARGEN, Math.min(snapY, topeFila));
+
+          el.style.left = snapX + 'px';
+          el.style.top = snapY + 'px';
+
+          const snapRect = el.getBoundingClientRect();
+          let colision = false;
+
+          // El .icon incluye carpetas, por lo que aquí sí detecta si sueltas sobre una
+          document.querySelectorAll('.icon').forEach(icon => {
+            if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
+          });
+
+          if (!colision) {
+            document.querySelectorAll('.widget-container').forEach(other => {
+              if (other === el) return;
+              if (checkCollision(snapRect, other.getBoundingClientRect())) colision = true;
+            });
+          }
+
+          if (colision) {
+            const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY, widgetData);
+            if (safeSpot) {
+              el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
+              el.style.left = safeSpot.left;
+              el.style.top = safeSpot.top;
+              widgetData.pos = safeSpot;
+              guardarWidgets();
+              window.MyHub.toast('Espacio ocupado. Reubicando...');
+            } else {
+              // No hay hueco libre
+              el.style.left = startLeft + 'px';
+              el.style.top = startTop + 'px';
+              widgetData.pos = { left: el.style.left, top: el.style.top };
+              guardarWidgets();
+              window.MyHub.toast('No hay espacio libre para el widget');
+            }
+          } else {
+            widgetData.pos = { left: el.style.left, top: el.style.top };
+            guardarWidgets();
+          }
+        }
+
+        el.style.zIndex = '';
+        el.style.transform = '';
+        el.style.boxShadow = '';
+
+        setTimeout(() => {
+          if (el.isConnected) el.style.transition = '';
+        }, 350);
+      };
+
+      window.addEventListener('pointermove', mover);
+      window.addEventListener('pointerup', soltar);
+    });
+  };
+
+  window.abrirPanelWidgets = () => {
+    const appsConWidgets = [];
+    registro.forEach((app, id) => {
+      if (app.manifest && app.manifest.widgets) {
+        app.manifest.widgets.forEach(w => {
+          appsConWidgets.push({ appId: id, titulo: app.titulo, file: w.file, size: w.size || '1x1' });
+        });
+      }
+    });
+
+    if (appsConWidgets.length === 0) {
+      window.MyHub.toast('No hay widgets instalados. ¡Descarga apps de Stor-He!');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'extrafunc-modal-overlay';
+    const m = document.createElement('div');
+    m.className = 'extrafunc-modal';
+    m.style.width = '400px';
+
+    m.innerHTML = `
+      <h3>Añadir Widget</h3>
+      <p>Elige un widget para colocarlo en tu escritorio.</p>
+      <div style="display:flex; flex-direction:column; gap:10px; max-height:240px; overflow-y:auto; padding: 8px; margin: -8px; box-sizing: border-box;">
+        ${appsConWidgets.map((w, i) => `
+          <button class="widget-list-item" data-index="${i}">
+            <i data-lucide="layout-grid"></i>
+            <div class="widget-list-info">
+                <span class="widget-list-title">${String(w.titulo ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span>
+                <span class="widget-list-size">Tamaño: ${w.size}</span>
+            </div>
+          </button>
+        `).join('')}
+      </div>
+      <div class="extrafunc-modal-actions">
+        <button class="extrafunc-modal-btn cancel">Cerrar</button>
+      </div>
+    `;
+
+    overlay.appendChild(m);
+    document.body.appendChild(overlay);
+    void overlay.offsetWidth;
+    overlay.classList.add('active');
+    refrescar();
+
+    const cerrarPanel = () => {
+      overlay.classList.remove('active');
+      setTimeout(() => overlay.remove(), 200);
+    };
+
+    m.querySelector('.cancel').onclick = cerrarPanel;
+
+    m.querySelectorAll('.widget-list-item').forEach(btn => {
+      btn.onclick = async () => {
+        const w = appsConWidgets[btn.dataset.index];
+        await refrescarArchivosApp(w.appId);
+        const pos = findClosestFreeSpot(w.size, 116, 16, null);
+        if (!pos) {
+          window.MyHub.toast('No hay espacio libre en el escritorio para este widget');
+          return;
+        }
+        window.widgetsActivos.push({ id: w.appId, file: w.file, size: w.size, pos });
+        guardarWidgets();
+        window.renderWidgets();
+        cerrarPanel();
+        window.MyHub.toast('Widget añadido al escritorio');
+      };
+    });
+  };
+
   // ==================== INIT ====================
   const init = () => {
     if (!window.MyHub) { setTimeout(init, 100); return; }
@@ -643,14 +1043,11 @@
 
 
 // ============================================================================
-// ExtraFunc v10.0 — Fix: apps nuevas no desplazan carpetas + widgets/carpetas
+// ExtraFunc v10.0 — FIX 1: Presignado de posición para apps nuevas
 // ============================================================================
 (function() {
   'use strict';
 
-  const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
-
-  // Lee la cuadrícula de JsLobby de forma segura (con fallback)
   const getGrid = () => {
     try {
       return {
@@ -665,14 +1062,10 @@
     }
   };
 
-  // Devuelve la primera celda libre evitando:
-  // - carpetas, apps con posición y celdas ocupadas por widgets
-  // - apps en carpetas no cuentan como celdas ocupadas
   const findFreeCell = (excludeId) => {
     const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
     const ocupadas = new Set();
 
-    // Carpetas ocupan su celda
     if (typeof carpetas !== 'undefined' && carpetas) {
       Object.values(carpetas).forEach(f => {
         if (!f || !f.pos) return;
@@ -682,7 +1075,6 @@
       });
     }
 
-    // Apps con posición guardada
     if (typeof posicionesIconos !== 'undefined' && posicionesIconos) {
       Object.entries(posicionesIconos).forEach(([id, p]) => {
         if (id === excludeId || !p) return;
@@ -692,7 +1084,6 @@
       });
     }
 
-    // Widgets ocupan varias celdas
     if (typeof WIDGET_SIZES !== 'undefined' && window.widgetsActivos) {
       window.widgetsActivos.forEach(w => {
         if (!w || !w.pos) return;
@@ -718,8 +1109,6 @@
     return null;
   };
 
-  // FIX 1: presignar posición antes de que renderIconos coloque la app
-  // Así nunca pisa la celda que ocupa una carpeta
   const presignApp = (app) => {
     if (!app || !app.id) return;
     if (typeof posicionesIconos === 'undefined' || !posicionesIconos) return;
@@ -741,7 +1130,6 @@
   };
 
   const instalarWrappers = () => {
-    // Wrap registrarApp
     if (typeof window.registrarApp === 'function' && !window.registrarApp.__mhPresign) {
       const orig = window.registrarApp;
       window.registrarApp = function (app) {
@@ -756,7 +1144,6 @@
       }
     }
 
-    // Wrap renderIconos (defensa extra)
     if (typeof window.renderIconos === 'function' && !window.renderIconos.__mhPresign) {
       const orig = window.renderIconos;
       window.renderIconos = function () {
@@ -768,145 +1155,14 @@
     }
   };
 
-  // FIX 2: findClosestFreeSpot con soporte para carpetas.
-  // Si el motor de widgets de v9 está cargado, reemplazamos su función interna
-  // inyectando una versión parcheada vía window.__mhFindClosestFreeSpot.
-  // Como el IIFE de v9 no expone la función, la reemplazamos exponiendo un
-  // wrapper global que el código de v9 consulta antes de usar la local.
-  // Alternativa limpia: reemplazamos el comportamiento del motor de widgets
-  // parcheando renderWidgets para que use nuestra versión tras cada carga.
-  const patchWidgetFreeSpot = () => {
-    // El motor v9 define su propio findClosestFreeSpot dentro del IIFE,
-    // así que no podemos acceder a él desde fuera. En su lugar, parcheamos
-    // el único punto donde el motor decide colocar un widget: exponemos
-    // una función global que v9 buscará primero si está definida.
-    // Para no modificar v9, interceptamos las operaciones que reubican
-    // widgets vía la API pública renderWidgets.
-    if (typeof window.renderWidgets !== 'function' || window.renderWidgets.__mhFreeSpotPatched) return;
-
-    const origRender = window.renderWidgets;
-    window.renderWidgets = function () {
-      const res = origRender.apply(this, arguments);
-      // Post-render: asegurar que ningún widget quede encima de una carpeta
-      try {
-        const { MARGEN, GX, GY } = getGrid();
-        if (typeof carpetas === 'undefined' || !carpetas) return res;
-        const capCells = new Set();
-        Object.values(carpetas).forEach(f => {
-          if (!f || !f.pos) return;
-          const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
-          const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
-          if (!isNaN(c) && !isNaN(r)) capCells.add(`${c}-${r}`);
-        });
-        if (capCells.size === 0) return res;
-
-        if (!Array.isArray(window.widgetsActivos)) return res;
-        let changed = false;
-        window.widgetsActivos.forEach(w => {
-          if (!w || !w.pos) return;
-          const ws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[w.size]) || { cols: 1, rows: 1 };
-          const c0 = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
-          const r0 = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
-          if (isNaN(c0) || isNaN(r0)) return;
-          let overlaps = false;
-          for (let i = 0; i < ws.cols && !overlaps; i++) {
-            for (let j = 0; j < ws.rows && !overlaps; j++) {
-              if (capCells.has(`${c0 + i}-${r0 + j}`)) overlaps = true;
-            }
-          }
-          if (overlaps) {
-            // Mover el widget a la primera zona libre
-            const spot = findWidgetFreeSpot(w.size, w);
-            if (spot) {
-              w.pos = spot;
-              changed = true;
-            }
-          }
-        });
-
-        if (changed) {
-          if (typeof kvSet === 'function') kvSet('widgets_activos', window.widgetsActivos);
-          // Re-render limpio una sola vez para aplicar cambios
-          if (!window.renderWidgets.__mhFreeSpotReapplied) {
-            window.renderWidgets.__mhFreeSpotReapplied = true;
-            try { origRender.apply(window, arguments); } catch (e) {}
-            setTimeout(() => { window.renderWidgets.__mhFreeSpotReapplied = false; }, 50);
-          }
-        }
-      } catch (e) {
-        console.error('[ExtraFunc v10] post-render widget fix:', e);
-      }
-      return res;
-    };
-    window.renderWidgets.__mhFreeSpotPatched = true;
-  };
-
-  // Busca un hueco para un widget considerando apps, carpetas y otros widgets
-  const findWidgetFreeSpot = (size, excludeWidget) => {
-    const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
-    const ws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[size]) || { cols: 1, rows: 1 };
-    const ocupadas = new Set();
-
-    if (typeof carpetas !== 'undefined' && carpetas) {
-      Object.values(carpetas).forEach(f => {
-        if (!f || !f.pos) return;
-        const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
-        const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
-        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
-      });
-    }
-    if (typeof posicionesIconos !== 'undefined' && posicionesIconos) {
-      Object.values(posicionesIconos).forEach(p => {
-        if (!p) return;
-        const c = Math.round((parseFloat(p.left) - MARGEN) / GX);
-        const r = Math.round((parseFloat(p.top) - MARGEN) / GY);
-        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
-      });
-    }
-    if (window.widgetsActivos) {
-      window.widgetsActivos.forEach(w => {
-        if (w === excludeWidget || !w || !w.pos) return;
-        const wws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[w.size]) || { cols: 1, rows: 1 };
-        const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
-        const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
-        if (isNaN(wc) || isNaN(wr)) return;
-        for (let i = 0; i < wws.cols; i++) {
-          for (let j = 0; j < wws.rows; j++) {
-            ocupadas.add(`${wc + i}-${wr + j}`);
-          }
-        }
-      });
-    }
-
-    for (let r = 0; r + ws.rows <= ROWS; r++) {
-      for (let c = 0; c + ws.cols <= COLS; c++) {
-        let libre = true;
-        for (let i = 0; i < ws.cols && libre; i++) {
-          for (let j = 0; j < ws.rows && libre; j++) {
-            if (ocupadas.has(`${c + i}-${r + j}`)) libre = false;
-          }
-        }
-        if (libre) {
-          return { left: (MARGEN + c * GX) + 'px', top: (MARGEN + r * GY) + 'px' };
-        }
-      }
-    }
-    return null;
-  };
-
-  // Exponer helpers para quien quiera usarlos (opcional)
-  window.__mhFindFreeCell = findFreeCell;
-  window.__mhFindWidgetFreeSpot = findWidgetFreeSpot;
-
   const init = () => {
     if (!window.MyHub || typeof registro === 'undefined') {
       setTimeout(init, 100);
       return;
     }
-    try { instalarWrappers(); } catch (e) { console.error('[ExtraFunc v10] instalarWrappers:', e); }
-    try { patchWidgetFreeSpot(); } catch (e) { console.error('[ExtraFunc v10] patchWidgetFreeSpot:', e); }
-    refrescarIconos();
-    console.log('%c[ExtraFunc v10.0] Fix apps nuevas + widgets/carpetas listo', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+    try { instalarWrappers(); }
+    catch (e) { console.error('[ExtraFunc v10] instalarWrappers:', e); }
+    console.log('%c[ExtraFunc v10.0] Fix apps nuevas listo', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
   };
 
   if (document.readyState === 'loading') {
