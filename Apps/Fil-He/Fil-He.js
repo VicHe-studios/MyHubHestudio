@@ -7,7 +7,6 @@
   const sidebarEl = document.getElementById('sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
 
-  // Sincronización de tema
   if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
   window.addEventListener('message', (e) => {
     if (e.data?.type === 'myhub:tema:res') {
@@ -16,13 +15,11 @@
     }
   });
 
-  // Toggle Sidebar (Igual que Cod-He)
   btnToggleSidebar.onclick = () => {
     sidebarEl.classList.toggle('collapsed');
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // Formatear Bytes
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -31,15 +28,42 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  // Peso del archivo
-  const getItemSize = (value) => {
-    if (value instanceof Blob) return value.size;
-    if (typeof value === 'string') return new Blob([value]).size;
-    if (value instanceof ArrayBuffer) return value.byteLength;
-    try { return new Blob([JSON.stringify(value)]).size; } catch (e) { return 0; }
+  // NUEVA FUNCIÓN: Analiza qué hay dentro del registro para encontrar archivos ocultos
+  const analyzeRecord = (val) => {
+    let blobs = [];
+    let totalSize = 0;
+    let isFile = false;
+
+    // Si es un Blob directo
+    if (val instanceof Blob) {
+      return { type: 'blob', size: val.size, blobs: [{ key: 'file', blob: val }], value: val };
+    }
+
+    // Si es un Objeto (como los de Vid-He o Spoti-vic)
+    if (typeof val === 'object' && val !== null) {
+      for (const [k, v] of Object.entries(val)) {
+        if (v instanceof Blob) {
+          blobs.push({ key: k, blob: v });
+          totalSize += v.size;
+          isFile = true;
+        } else if (typeof v === 'string' && v.startsWith('data:image/')) {
+          // Soporte para Galeria-He si guardara base64 (aunque usa localStorage)
+          const size = v.length * 0.75;
+          totalSize += size;
+          isFile = true;
+        }
+      }
+      
+      if (!isFile) {
+        totalSize = new Blob([JSON.stringify(val)]).size;
+      }
+      return { type: isFile ? 'object_with_blob' : 'json', size: totalSize, blobs, value: val };
+    }
+
+    // Textos o números
+    return { type: 'data', size: new Blob([String(val)]).size, blobs: [], value: val };
   };
 
-  // Modal de confirmación
   const showConfirm = (title, message) => {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
@@ -55,12 +79,7 @@
         </div>
       `;
       document.body.appendChild(overlay);
-
-      const close = (res) => {
-        overlay.remove();
-        resolve(res);
-      };
-
+      const close = (res) => { overlay.remove(); resolve(res); };
       overlay.querySelector('.cancel').onclick = () => close(false);
       overlay.querySelector('.confirm').onclick = () => close(true);
     });
@@ -73,21 +92,15 @@
     }
   };
 
-  // Escanear DBs
   const loadDatabases = async () => {
     dbListEl.innerHTML = '';
-    if (!indexedDB.databases) {
-      dbListEl.innerHTML = '<div style="padding:12px;font-size:12px;color:var(--danger)">Tu navegador no soporta indexedDB.databases()</div>';
-      return;
-    }
-
+    if (!indexedDB.databases) return;
     const dbs = await indexedDB.databases();
     
     for (const dbInfo of dbs) {
       const group = document.createElement('div');
       group.className = 'db-group';
       
-      // Lógica del icono de advertencia
       const dbNameLower = dbInfo.name.toLowerCase();
       const isLikelyMyHub = dbNameLower.includes('hub');
       const warningIcon = !isLikelyMyHub 
@@ -96,11 +109,7 @@
 
       const dbNameEl = document.createElement('div');
       dbNameEl.className = 'db-name';
-      dbNameEl.innerHTML = `
-        <i data-lucide="database"></i> 
-        <span>${dbInfo.name}</span>
-        ${warningIcon}
-      `;
+      dbNameEl.innerHTML = `<i data-lucide="database"></i> <span>${dbInfo.name}</span> ${warningIcon}`;
       group.appendChild(dbNameEl);
 
       const db = await new Promise((resolve) => {
@@ -123,14 +132,12 @@
       db.close();
       dbListEl.appendChild(group);
     }
-    
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // Cargar contenido de tabla
   const loadStoreContent = async (dbName, storeName) => {
     mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="database"></i> ${dbName} <i data-lucide="chevron-right"></i></span> ${storeName}`;
-    fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="loader"></i><p>Cargando datos...</p></div>';
+    fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="loader"></i><p>Analizando datos...</p></div>';
     if (window.lucide) window.lucide.createIcons();
 
     try {
@@ -156,14 +163,9 @@
           r.onsuccess = () => res(r.result);
         });
         
-        const size = getItemSize(val);
-        totalSize += size;
-        
-        let type = 'json';
-        if (val instanceof Blob) type = 'blob';
-        else if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') type = 'data';
-
-        items.push({ key, size, type, value: val });
+        const analysis = analyzeRecord(val);
+        totalSize += analysis.size;
+        items.push({ key, ...analysis });
       }
       db.close();
 
@@ -174,13 +176,9 @@
         return;
       }
 
-      // Cabecera de la lista
       const headerTotal = document.createElement('div');
       headerTotal.className = 'file-list-header';
-      headerTotal.innerHTML = `
-        <span>${items.length} Registros</span>
-        <span>Peso total: ${formatBytes(totalSize)}</span>
-      `;
+      headerTotal.innerHTML = `<span>${items.length} REGISTROS</span><span>PESO TOTAL: ${formatBytes(totalSize)}</span>`;
       fileListEl.appendChild(headerTotal);
 
       items.forEach(item => {
@@ -188,18 +186,62 @@
         itemEl.className = 'file-item';
 
         let iconName = 'file-json';
-        if (item.type === 'blob') iconName = 'image';
-        if (item.type === 'data') iconName = 'file-text';
+        let descText = 'Objeto JSON';
+        
+        if (item.type === 'blob' || item.type === 'object_with_blob') {
+          iconName = 'file-video'; // Icono de archivo
+          descText = 'Archivo multimedia';
+        } else if (item.type === 'data') {
+          iconName = 'file-text';
+          descText = 'Texto / Valor';
+        }
+
+        // Si contiene un Blob, mostrar botón de descarga
+        const downloadBtn = item.blobs.length > 0 
+          ? `<button class="btn-download" title="Descargar archivo"><i data-lucide="download"></i></button>` 
+          : '';
+
+        // Si es un objeto con título (como en Vid-He), mostrarlo
+        let displayName = String(item.key);
+        if (item.value && typeof item.value === 'object' && item.value.title) {
+          displayName = item.value.title;
+        }
 
         itemEl.innerHTML = `
           <div class="file-icon ${item.type}"><i data-lucide="${iconName}"></i></div>
           <div class="file-info">
-            <div class="file-name" title="${String(item.key)}">${String(item.key)}</div>
-            <div class="file-desc">${item.type === 'blob' ? 'Blob / Archivo' : item.type === 'json' ? 'Objeto JSON' : 'Texto / Valor'}</div>
+            <div class="file-name" title="${displayName}">${displayName}</div>
+            <div class="file-desc">${descText}</div>
           </div>
           <div class="file-size">${formatBytes(item.size)}</div>
+          ${downloadBtn}
           <button class="btn-delete" title="Eliminar registro"><i data-lucide="trash-2"></i></button>
         `;
+
+        if (downloadBtn) {
+          itemEl.querySelector('.btn-download').onclick = () => {
+            const mainBlob = item.blobs.find(b => b.key === 'blob' || b.key === 'file') || item.blobs[0];
+            if (!mainBlob) return;
+
+            const blob = mainBlob.blob;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            let ext = '.bin';
+            if (blob.type.includes('video')) ext = '.mp4';
+            else if (blob.type.includes('audio')) ext = '.mp3';
+            else if (blob.type.includes('image')) ext = '.png';
+            else if (blob.type.includes('json')) ext = '.json';
+            else if (blob.type.includes('pdf')) ext = '.pdf';
+
+            a.download = displayName + ext;
+            window.open(url, '_blank'); 
+            a.click();
+            URL.revokeObjectURL(url);
+            if (window.parent && window.parent.MyHub) window.parent.MyHub.toast('Abriendo archivo...');
+          };
+        }
 
         itemEl.querySelector('.btn-delete').onclick = async () => {
           const isCritical = dbName === 'myhub-lobby' && ['apps_instaladas', 'carpetas', 'cuenta', 'ajustes', 'posiciones_iconos'].includes(item.key);
@@ -244,7 +286,6 @@
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // Init
   loadDatabases();
   updateStorageInfo();
   if (window.lucide) window.lucide.createIcons();
