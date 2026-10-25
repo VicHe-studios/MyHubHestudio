@@ -636,30 +636,52 @@ function renderIconos() {
   const celdasWidget = celdasDeWidgets();
   const celdaDe = (x, y) => `${Math.round((x - MARGEN) / GX)}-${Math.round((y - MARGEN) / GY)}`;
 
-  items.forEach((item) => {
-    let savedPos = item.kind === 'app' ? posicionesIconos[item.id] : item.folder.pos;
-    let tx = -1, ty = -1;
+  // FIX: se hace en 2 pasadas. Antes, un icono nuevo (sin posición guardada) buscaba "primera celda libre"
+  //      ANTES de que las carpetas / apps posteriores reservaran la suya, así que les robaba el sitio
+  //      y las empujaba a otra celda. Ahora primero se reservan TODAS las posiciones guardadas y solo
+  //      después se colocan los iconos nuevos en celdas realmente libres.
+  const colocados = new Map();
 
+  // Pasada 1: reservar posiciones guardadas (carpetas primero para que nunca cedan su sitio)
+  const ordenReserva = [
+    ...items.filter(i => i.kind === 'folder'),
+    ...items.filter(i => i.kind === 'app')
+  ];
+  ordenReserva.forEach((item) => {
+    const savedPos = item.kind === 'app' ? posicionesIconos[item.id] : item.folder.pos;
+    if (!savedPos) return;
     // Posición guardada -> celda más cercana de la cuadrícula actual (corrige datos de versiones anteriores)
-    if (savedPos) {
-      const sx = parseFloat(savedPos.left), sy = parseFloat(savedPos.top);
-      if (!isNaN(sx) && !isNaN(sy)) {
-        const c = Math.min(GRID_COLS - 1, Math.max(0, Math.round((sx - MARGEN) / GX)));
-        const r = Math.min(GRID_ROWS - 1, Math.max(0, Math.round((sy - MARGEN) / GY)));
-        const key = `${c}-${r}`;
-        if (!used.has(key) && !celdasWidget.has(key)) { tx = MARGEN + c * GX; ty = MARGEN + r * GY; used.add(key); }
-      }
+    const sx = parseFloat(savedPos.left), sy = parseFloat(savedPos.top);
+    if (isNaN(sx) || isNaN(sy)) return;
+    const c = Math.min(GRID_COLS - 1, Math.max(0, Math.round((sx - MARGEN) / GX)));
+    const r = Math.min(GRID_ROWS - 1, Math.max(0, Math.round((sy - MARGEN) / GY)));
+    const key = `${c}-${r}`;
+    if (!used.has(key) && !celdasWidget.has(key)) {
+      used.add(key);
+      colocados.set(item, { tx: MARGEN + c * GX, ty: MARGEN + r * GY });
     }
-    // Sin posición válida -> primera celda libre
-    if (tx === -1) {
-      let col = 0, row = 0;
-      while (col < GRID_COLS) {
-        const key = `${col}-${row}`;
-        if (!used.has(key) && !celdasWidget.has(key)) { tx = MARGEN + col * GX; ty = MARGEN + row * GY; used.add(key); break; }
-        row++; if (row >= GRID_ROWS) { row = 0; col++; }
+  });
+
+  // Pasada 2: los que no tienen posición válida -> primera celda 100% libre (sin pisar nada reservado)
+  items.forEach((item) => {
+    if (colocados.has(item)) return;
+    let col = 0, row = 0;
+    while (col < GRID_COLS) {
+      const key = `${col}-${row}`;
+      if (!used.has(key) && !celdasWidget.has(key)) {
+        used.add(key);
+        colocados.set(item, { tx: MARGEN + col * GX, ty: MARGEN + row * GY });
+        break;
       }
+      row++; if (row >= GRID_ROWS) { row = 0; col++; }
     }
-    if (tx === -1) return; // sin espacio en la cuadrícula
+  });
+
+  // Pintar en el orden original
+  items.forEach((item) => {
+    const pos = colocados.get(item);
+    if (!pos) return; // sin espacio en la cuadrícula
+    const { tx, ty } = pos;
 
     if (item.kind === 'app') {
       posUpdates[item.id] = { left: tx + 'px', top: ty + 'px' };
@@ -3028,13 +3050,23 @@ reloj(); setInterval(reloj, 15000);
     const maxRows = GRID_ROWS, maxCols = GRID_COLS;
 
     const ocupadas = new Set();
+    const marcarCelda = (pos) => {
+      if (!pos) return;
+      const px = parseFloat(pos.left), py = parseFloat(pos.top);
+      if (isNaN(px) || isNaN(py)) return;
+      ocupadas.add(`${Math.round((px - MARGEN) / GX)}-${Math.round((py - MARGEN) / GY)}`);
+    };
     if (typeof posicionesIconos !== 'undefined') {
-      Object.values(posicionesIconos).forEach(pos => {
-        const c = Math.round((parseFloat(pos.left) - MARGEN) / GX);
-        const r = Math.round((parseFloat(pos.top) - MARGEN) / GY);
-        ocupadas.add(`${c}-${r}`);
-      });
+      Object.values(posicionesIconos).forEach(marcarCelda);
     }
+    // FIX: las CARPETAS también ocupan celda (antes solo se miraban las apps y un widget podía caer encima de una carpeta)
+    if (typeof carpetas !== 'undefined') {
+      Object.values(carpetas).forEach(f => marcarCelda(f && f.pos));
+    }
+    // Red de seguridad: lo que realmente está pintado en el escritorio (apps y carpetas)
+    document.querySelectorAll('#icons .icon').forEach(ic => {
+      marcarCelda({ left: ic.style.left, top: ic.style.top });
+    });
 
     window.widgetsActivos.forEach(w => {
       if (w === excludeWidget) return; // FIX: excluir el que se está reubicando
