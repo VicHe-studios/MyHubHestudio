@@ -10,7 +10,9 @@
   --sidebar-bg: #f1f5f9;
   --danger: #ef4444;
   --warn: #f59e0b;
-  --sidebar-width: 150px;
+  
+  /* AUMENTADO: 180px para mostrar más texto */
+  --sidebar-width: 180px;
 }
 
 html[data-modo="oscuro"] {
@@ -94,7 +96,12 @@ html, body {
   margin-bottom: 2px;
 }
 .db-name svg:first-child { width: 12px; height: 12px; color: var(--accent); flex-shrink: 0; }
-.db-name span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* FIX: El span del nombre de la DB se encoge con ... */
+.db-name span { 
+  flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; 
+}
+
 .warn-icon { width: 12px; height: 12px; color: var(--warn); flex-shrink: 0; cursor: help; }
 .warn-icon:hover { transform: scale(1.2); }
 
@@ -102,11 +109,18 @@ html, body {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 18px;
   font-size: 11.5px; cursor: pointer; border-radius: 6px; color: var(--muted);
   transition: all 0.15s; margin-bottom: 2px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .store-item:hover { background: var(--line); color: var(--text); }
 .store-item.active { background: var(--accent); color: #fff; font-weight: 600; }
 .store-item svg { width: 12px; height: 12px; flex-shrink: 0; }
+
+/* FIX: El span del nombre del archivo/tabla se encoge con ... */
+.store-item span {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ÁREA PRINCIPAL */
 .main-area { flex: 1; display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow: hidden; }
@@ -131,7 +145,6 @@ html, body {
 
 .file-item {
   display: grid;
-  /* 5 columnas: Icono | Texto | Peso | Descargar | Borrar */
   grid-template-columns: auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 8px;
