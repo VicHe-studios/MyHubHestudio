@@ -48,7 +48,7 @@ Puedes usar MyHubHestudio de dos formas:
 
 ### 1. En línea (Recomendado)
 
-Haz clic en el botón de **[Abrir MyHubHestudio](https://viche-studios.github.io/MyHubHestudio/)** para entrar a la versión estable v1.0.0 alojada en GitHub Pages.
+Haz clic en el botón de **[Abrir MyHubHestudio](https://viche-studios.github.io/MyHubHestudio/)** para entrar a la versión estable v2.1.0 alojada en GitHub Pages.
 
 ### 2. En local
 
