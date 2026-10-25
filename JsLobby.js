@@ -2492,6 +2492,15 @@ sufijo "He" ni a imitar cada detalle. Lo importante es que tu app
 funcione bien, respete el tema del sistema y no rompa la experiencia.
 El resto es estilo, y el estilo es tuyo.
 
+--------------------------------------------------
+15. ADVERTENCIAS
+--------------------------------------------------
+
+- No uses alert() ni confirm() suele quedar feo.
+- No dejes creditos hatsa abajo al autor de la app, ¿puedes? si pero se 
+recomienda el uso de ese espacio para acreditar librerias y apis, si no usas lo mejor es
+NO acreditar.
+
 ==================================================
 Hecho con amor para MyHubHestudio. ¡Feliz código!
 ==================================================
