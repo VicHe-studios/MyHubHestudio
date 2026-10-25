@@ -7,7 +7,6 @@
   const sidebarEl = document.getElementById('sidebar');
   const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
 
-  // Sincronización de tema
   if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
   window.addEventListener('message', (e) => {
     if (e.data?.type === 'myhub:tema:res') {
@@ -57,7 +56,6 @@
     }
   };
 
-  // ================= ESCANEAR BASES DE DATOS Y LOCALSTORAGE =================
   const loadDatabases = async () => {
     dbListEl.innerHTML = '';
     
@@ -88,7 +86,7 @@
           const storeName = db.objectStoreNames[i];
           const storeEl = document.createElement('div');
           storeEl.className = 'store-item';
-          storeEl.innerHTML = `<i data-lucide="table"></i> ${storeName}`;
+          storeEl.innerHTML = `<i data-lucide="table"></i> <span>${storeName}</span>`;
           storeEl.onclick = () => {
             document.querySelectorAll('.store-item').forEach(el => el.classList.remove('active'));
             storeEl.classList.add('active');
@@ -114,7 +112,8 @@
       const key = localStorage.key(i);
       const storeEl = document.createElement('div');
       storeEl.className = 'store-item';
-      storeEl.innerHTML = `<i data-lucide="file-key"></i> ${key}`;
+      // FIX: Se envuelve la llave en un <span> para que funcione el ellipsis
+      storeEl.innerHTML = `<i data-lucide="file-key"></i> <span>${key}</span>`;
       storeEl.onclick = () => {
         document.querySelectorAll('.store-item').forEach(el => el.classList.remove('active'));
         storeEl.classList.add('active');
@@ -127,7 +126,6 @@
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // ================= CONTENIDO DE INDEXEDDB =================
   const loadStoreContent = async (dbName, storeName) => {
     mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="database"></i> ${dbName} <i data-lucide="chevron-right"></i></span> ${storeName}`;
     fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="loader"></i><p>Analizando datos...</p></div>';
@@ -190,7 +188,6 @@
     }
   };
 
-  // ================= CONTENIDO DE LOCAL STORAGE =================
   const loadLocalStorageContent = (key) => {
     mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="hard-drive"></i> Local Storage <i data-lucide="chevron-right"></i></span> ${key}`;
     fileListEl.innerHTML = '';
@@ -198,7 +195,6 @@
     const val = localStorage.getItem(key);
     if (!val) return;
 
-    // CASO ESPECIAL: Galería (es un array JSON de imágenes en Base64)
     if (key === 'myhub_galeria_imagenes') {
       try {
         const images = JSON.parse(val);
@@ -215,13 +211,11 @@
       return;
     }
 
-    // CASO GENERAL: Textos o JSONs
     const size = new Blob([val]).size;
     const items = [{ key: key, size: size, type: 'data', value: val }];
     renderList(items, size, 'localStorage', key);
   };
 
-  // ================= RENDERIZADO GENERAL =================
   const renderList = (items, totalSize, sourceName, sourceStore, isImageArray = false) => {
     if (items.length === 0) {
       fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="folder-open"></i><p>No hay datos.</p></div>';
@@ -262,22 +256,18 @@
         <button class="btn-delete" title="Eliminar"><i data-lucide="trash-2"></i></button>
       `;
 
-      // LÓGICA DE DESCARGA
       itemEl.querySelector('.btn-download').onclick = () => {
         let blobToDownload = null;
         let fileName = displayName;
 
         if (item.type === 'image') {
-          // Es Base64 de la galería
           fetch(item.base64).then(r => r.blob()).then(blob => {
             triggerDownload(blob, fileName);
           });
           return;
         } else if (item.blobs && item.blobs.length > 0) {
-          // Es Blob de IndexedDB
           blobToDownload = item.blobs[0].blob;
         } else {
-          // Es texto/JSON
           const valStr = typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value);
           blobToDownload = new Blob([valStr], { type: 'text/plain' });
           fileName += '.json';
@@ -286,14 +276,12 @@
         if (blobToDownload) triggerDownload(blobToDownload, fileName);
       };
 
-      // LÓGICA DE BORRADO
       itemEl.querySelector('.btn-delete').onclick = async () => {
         const ok = await showConfirm('Eliminar Registro', `¿Seguro que quieres eliminar "${item.key}"?`);
         if (!ok) return;
 
         if (sourceName === 'localStorage') {
           if (isImageArray) {
-            // Si es la galería, quitamos solo esa imagen del array
             const images = JSON.parse(localStorage.getItem('myhub_galeria_imagenes'));
             const newImages = images.filter(img => (img.name || `Imagen`) !== item.key);
             localStorage.setItem('myhub_galeria_imagenes', JSON.stringify(newImages));
@@ -303,7 +291,6 @@
             loadDatabases();
           }
         } else {
-          // Borrar de IndexedDB
           const db2 = await new Promise((resolve) => {
             const req = indexedDB.open(sourceName);
             req.onsuccess = () => resolve(req.result);
@@ -345,7 +332,6 @@
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // Init
   loadDatabases();
   updateStorageInfo();
   if (window.lucide) window.lucide.createIcons();
