@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="Fil-He.css">
+<script src="../../vendor/lucide.min.js"></script>
+</head>
+<body>
+  <div class="app-filhe">
+    <!-- Cabecera -->
+    <div class="filhe-cab">
+      <div class="filhe-info">
+        <i data-lucide="hard-drive"></i>
+        <h2>Fil-He</h2>
+      </div>
+      <div class="filhe-tools">
+        <div class="storage-info" id="storage-info">
+          Calculando...
+        </div>
+        <button class="btn" id="btn-refresh" title="Actualizar"><i data-lucide="refresh-cw"></i></button>
+      </div>
+    </div>
+
+    <!-- Contenido Principal -->
+    <div class="filhe-body">
+      <!-- Panel Izquierdo: Bases de Datos -->
+      <div class="filhe-sidebar">
+        <div class="sidebar-title">Bases de Datos</div>
+        <div id="db-list" class="db-list">
+          <!-- Se llena por JS -->
+        </div>
+      </div>
+
+      <!-- Panel Derecho: Archivos/Claves -->
+      <div class="filhe-main">
+        <div class="main-header" id="main-header">
+          <span class="path"><i data-lucide="chevron-right"></i> Selecciona una tabla</span>
+        </div>
+        <div class="file-list" id="file-list">
+          <div class="empty-state">
+            <i data-lucide="folder-open"></i>
+            <p>Selecciona una base de datos y una tabla para ver su contenido.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="Fil-He.js"></script>
+</body>
+</html>
