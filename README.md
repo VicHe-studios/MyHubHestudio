@@ -9,6 +9,9 @@
 
 > 💡 **Versión Estable 1.0.0**: Esta es una versión totalmente funcional y lista para el uso diario. El proyecto se mantiene en constante evolución, por lo que recibirás futuras actualizaciones con nuevas herramientas y mejoras de rendimiento.
 
+<img width="1366" height="607" alt="image" src="https://github.com/user-attachments/assets/58a162b9-42da-4e8d-9bef-581b8e069716" />
+
+
 ## ✨ Características
 
 - 🖥️ **Escritorio Interactivo**: Sistema de ventanas (hasta 3 simultáneas) y organización de iconos por cuadrícula.
