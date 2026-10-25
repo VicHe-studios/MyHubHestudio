@@ -641,7 +641,7 @@
 
     const ocupadas = new Set();
     
-    // FIX 2: Leer directamente del DOM las celdas ocupadas por iconos (apps y carpetas)
+    // Leer del DOM las celdas ocupadas por iconos (apps y carpetas)
     document.querySelectorAll('.icon').forEach(icon => {
       const l = parseFloat(icon.style.left);
       const t = parseFloat(icon.style.top);
@@ -652,7 +652,6 @@
       }
     });
 
-    // Añadir también las variables globales por si acaso
     if (typeof carpetas !== 'undefined' && carpetas) {
       Object.values(carpetas).forEach(f => {
         if (!f || !f.pos) return;
@@ -912,11 +911,12 @@
           const snapRect = el.getBoundingClientRect();
           let colision = false;
 
-          // Detección visual de colisión (incluye carpetas)
+          // Comprobar colisión con .icon (apps y carpetas)
           document.querySelectorAll('.icon').forEach(icon => {
             if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
           });
 
+          // Comprobar colisión con otros widgets
           if (!colision) {
             document.querySelectorAll('.widget-container').forEach(other => {
               if (other === el) return;
@@ -925,22 +925,13 @@
           }
 
           if (colision) {
-            const safeSpot = findClosestFreeSpot(widgetData.size, snapX, snapY, widgetData);
-            if (safeSpot) {
-              el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring), transform .2s, box-shadow .2s';
-              el.style.left = safeSpot.left;
-              el.style.top = safeSpot.top;
-              widgetData.pos = safeSpot;
-              guardarWidgets();
-              window.MyHub.toast('Espacio ocupado. Reubicando...');
-            } else {
-              // No hay hueco libre
-              el.style.left = startLeft + 'px';
-              el.style.top = startTop + 'px';
-              widgetData.pos = { left: el.style.left, top: el.style.top };
-              guardarWidgets();
-              window.MyHub.toast('No hay espacio libre para el widget');
-            }
+            // Igual que en las apps: rechazar movimiento y volver al origen
+            el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring)';
+            el.style.left = startLeft + 'px';
+            el.style.top = startTop + 'px';
+            widgetData.pos = { left: el.style.left, top: el.style.top };
+            guardarWidgets();
+            window.MyHub.toast('Posición inválida u ocupada');
           } else {
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
