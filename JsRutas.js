@@ -23,5 +23,11 @@ window.RUTAS_APPS = [
     titulo: 'CMD-HE',
     icono: 'terminal',
     url: 'Apps/CMD-HE/cmd-he.html'
+  },
+    {
+    id: 'filhe',
+    titulo: 'Fil-He',
+    icono: 'hard-drive',
+    url: 'Apps/Fil-He/Fil-He.html'
   }
 ];
