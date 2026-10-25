@@ -1179,3 +1179,75 @@
     setTimeout(init, 100);
   }
 })();
+
+
+// ============================================================================
+// ExtraFunc v11.0 — Interceptor de arrastre de widgets (Anti-Carpetas)
+// ============================================================================
+(function() {
+  'use strict';
+
+  let dragWidget = null;
+  let dragStartLeft = 0;
+  let dragStartTop = 0;
+
+  // 1. Guardar la posición original ANTES de que se mueva
+  document.addEventListener('pointerdown', (e) => {
+    const widget = e.target.closest('.widget-container');
+    if (!widget) return;
+    dragWidget = widget;
+    dragStartLeft = parseFloat(widget.style.left) || 0;
+    dragStartTop = parseFloat(widget.style.top) || 0;
+  }, true);
+
+  // 2. Al soltar, comprobar colisión ANTES de que el código de v9 haga su magia
+  document.addEventListener('pointerup', (e) => {
+    if (!dragWidget) return;
+    const widget = dragWidget;
+    dragWidget = null;
+
+    // Solo evaluar si el widget se movió de su posición inicial
+    const currentLeft = parseFloat(widget.style.left);
+    const currentTop = parseFloat(widget.style.top);
+    if (currentLeft === dragStartLeft && currentTop === dragStartTop) return;
+
+    // Verificar colisión visual con CUALQUIER icono (apps o carpetas)
+    const rect = widget.getBoundingClientRect();
+    let colision = false;
+
+    document.querySelectorAll('.icon').forEach(icon => {
+      const ir = icon.getBoundingClientRect();
+      if (!(rect.right <= ir.left || rect.left >= ir.right || rect.bottom <= ir.top || rect.top >= ir.bottom)) {
+        colision = true;
+      }
+    });
+
+    if (colision) {
+      // REVERTIR al origen forzosamente
+      widget.style.left = dragStartLeft + 'px';
+      widget.style.top = dragStartTop + 'px';
+
+      // Limpiar los estilos de arrastre que puso el v9
+      widget.style.zIndex = '';
+      widget.style.transform = '';
+      widget.style.boxShadow = '';
+      widget.style.transition = '';
+      
+      // Detener la propagación para evitar que v9 ejecute su "findClosestFreeSpot"
+      e.stopPropagation();
+
+      // Actualizar el almacenamiento interno
+      if (window.widgetsActivos) {
+        const w = window.widgetsActivos.find(item => 
+          item.pos && parseFloat(item.pos.left) === dragStartLeft && parseFloat(item.pos.top) === dragStartTop
+        );
+        if (w) {
+          w.pos = { left: dragStartLeft + 'px', top: dragStartTop + 'px' };
+          if (window.kvSet) window.kvSet('widgets_activos', window.widgetsActivos);
+        }
+      }
+
+      window.MyHub.toast('Posición inválida u ocupada');
+    }
+  }, true);
+})();
