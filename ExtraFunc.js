@@ -641,7 +641,6 @@
 
     const ocupadas = new Set();
     
-    // Leer del DOM las celdas ocupadas por iconos (apps y carpetas)
     document.querySelectorAll('.icon').forEach(icon => {
       const l = parseFloat(icon.style.left);
       const t = parseFloat(icon.style.top);
@@ -896,10 +895,6 @@
           let snapX = Math.round((parseFloat(el.style.left) - MARGEN) / GX) * GX + MARGEN;
           let snapY = Math.round((parseFloat(el.style.top) - MARGEN) / GY) * GY + MARGEN;
 
-          const deskEl = document.getElementById('desktop');
-          const wW = el.offsetWidth;
-          const wH = el.offsetHeight;
-
           const wsDrop = WIDGET_SIZES[widgetData.size] || WIDGET_SIZES['1x1'];
           snapX = Math.max(MARGEN, Math.min(snapX, MARGEN + (GRID_COLS - wsDrop.cols) * GX));
           const topeFila = MARGEN + (GRID_ROWS - wsDrop.rows) * GY;
@@ -911,12 +906,12 @@
           const snapRect = el.getBoundingClientRect();
           let colision = false;
 
-          // Comprobar colisión con .icon (apps y carpetas)
+          // Colisión con iconos (apps y carpetas)
           document.querySelectorAll('.icon').forEach(icon => {
             if (checkCollision(snapRect, icon.getBoundingClientRect())) colision = true;
           });
 
-          // Comprobar colisión con otros widgets
+          // Colisión con otros widgets
           if (!colision) {
             document.querySelectorAll('.widget-container').forEach(other => {
               if (other === el) return;
@@ -925,7 +920,7 @@
           }
 
           if (colision) {
-            // Igual que en las apps: rechazar movimiento y volver al origen
+            // REVERTIR AL ORIGEN (Igual que en las apps)
             el.style.transition = 'left .3s var(--ease-spring), top .3s var(--ease-spring)';
             el.style.left = startLeft + 'px';
             el.style.top = startTop + 'px';
@@ -933,6 +928,7 @@
             guardarWidgets();
             window.MyHub.toast('Posición inválida u ocupada');
           } else {
+            // GUARDAR NUEVA POSICIÓN
             widgetData.pos = { left: el.style.left, top: el.style.top };
             guardarWidgets();
           }
@@ -1068,7 +1064,6 @@
     const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
     const ocupadas = new Set();
 
-    // Leer del DOM para máxima precisión con carpetas
     document.querySelectorAll('.icon').forEach(icon => {
       const l = parseFloat(icon.style.left);
       const t = parseFloat(icon.style.top);
