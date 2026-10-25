@@ -11,8 +11,8 @@
   --danger: #ef4444;
   --warn: #f59e0b;
   
-  /* REDUCIDO: De 250px a 190px para dejar respirar al panel derecho */
-  --sidebar-width: 190px;
+  /* ANCHO REDUCIDO: De 190px a 150px para darle aire al panel derecho */
+  --sidebar-width: 150px;
 }
 
 html[data-modo="oscuro"] {
@@ -66,12 +66,16 @@ body {
 .btn-refresh:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-refresh svg { width: 14px; height: 14px; }
 
-/* ===== LAYOUT ===== */
-.main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+/* ===== LAYOUT (FIX DEL COLAPSO DE ALTURA) ===== */
+.main-layout { 
+  display: flex; flex: 1; overflow: hidden; min-height: 0; 
+  align-items: stretch; /* Fuerza a los hijos a medir lo mismo de alto */
+}
 
-/* ===== SIDEBAR IZQUIERDA (Compacta) ===== */
+/* ===== SIDEBAR IZQUIERDA (Compacta y 100% de alto) ===== */
 .sidebar {
   width: var(--sidebar-width);
+  height: 100%; /* FIX: Obliga al fondo y al borde a llegar hasta abajo */
   border-right: 1px solid var(--line);
   display: flex; flex-direction: column; flex-shrink: 0;
   background: var(--sidebar-bg); color: var(--text);
@@ -85,68 +89,67 @@ body {
   flex-shrink: 0;
 }
 .sidebar-header {
-  padding: 12px 14px; font-size: 10px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 1px; color: var(--muted); border-bottom: 1px solid var(--line);
+  padding: 12px 10px; font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted); border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .db-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 6px; }
 
 /* Grupos de DB */
 .db-group { margin-bottom: 12px; }
 .db-name {
-  display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700;
-  color: var(--text); padding: 6px 8px; border-radius: 6px;
+  display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+  color: var(--text); padding: 6px 6px; border-radius: 6px;
   margin-bottom: 2px;
 }
-.db-name svg:first-child { width: 13px; height: 13px; color: var(--accent); flex-shrink: 0; }
+.db-name svg:first-child { width: 12px; height: 12px; color: var(--accent); flex-shrink: 0; }
 .db-name span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.warn-icon { width: 13px; height: 13px; color: var(--warn); flex-shrink: 0; cursor: help; }
+.warn-icon { width: 12px; height: 12px; color: var(--warn); flex-shrink: 0; cursor: help; }
 .warn-icon:hover { transform: scale(1.2); }
 
 .store-item {
-  display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 22px;
-  font-size: 12px; cursor: pointer; border-radius: 6px; color: var(--muted);
+  display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 18px;
+  font-size: 11.5px; cursor: pointer; border-radius: 6px; color: var(--muted);
   transition: all 0.15s; margin-bottom: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .store-item:hover { background: var(--line); color: var(--text); }
 .store-item.active { background: var(--accent); color: #fff; font-weight: 600; }
-.store-item svg { width: 13px; height: 13px; flex-shrink: 0; }
+.store-item svg { width: 12px; height: 12px; flex-shrink: 0; }
 
 /* ===== ÁREA PRINCIPAL DERECHA ===== */
 .main-area {
   flex: 1; display: flex; flex-direction: column; 
   background: var(--card); min-width: 0; overflow: hidden;
+  height: 100%; /* Asegura simetría con el sidebar */
 }
 .main-header {
-  padding: 12px 14px; border-bottom: 1px solid var(--line); font-weight: 600;
-  font-size: 13px; display: flex; align-items: center; gap: 6px; color: var(--text);
+  padding: 12px 12px; border-bottom: 1px solid var(--line); font-weight: 600;
+  font-size: 12px; display: flex; align-items: center; gap: 4px; color: var(--text);
   background: var(--card); flex-shrink: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .main-header .path { display: flex; align-items: center; gap: 4px; color: var(--muted); flex-shrink: 0; }
-.main-header .path svg { width: 14px; height: 14px; }
+.main-header .path svg { width: 13px; height: 13px; }
 
-.file-list-container { flex: 1; overflow-y: auto; padding: 10px; }
+.file-list-container { flex: 1; overflow-y: auto; padding: 10px; background: var(--card); }
 
-/* ===== LISTA DE ARCHIVOS (EL FIX MAGICO CON GRID) ===== */
+/* ===== LISTA DE ARCHIVOS ===== */
 .file-list-header {
   display: flex; justify-content: space-between; align-items: center;
-  padding: 0 4px 8px; font-size: 10px; font-weight: 700; color: var(--muted);
+  padding: 0 4px 8px; font-size: 9.5px; font-weight: 700; color: var(--muted);
   text-transform: uppercase; letter-spacing: 0.05em; 
   border-bottom: 1.5px solid var(--line); margin-bottom: 8px;
   white-space: nowrap;
 }
 
-/* 
- * AQUI ESTABA EL PROBLEMA: Usar Grid en lugar de Flex 
- * Columnas: Icono (auto) | Texto (1fr) | Peso (auto) | Borrar (auto)
- */
+/* La magia del Grid: Icono | Texto | Peso | Botón */
 .file-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 8px;
   border-radius: 8px;
   border: 1px solid transparent;
@@ -159,39 +162,38 @@ body {
 }
 
 .file-icon {
-  width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center;
+  width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center;
   justify-content: center; background: var(--accent-soft); color: var(--accent);
 }
 .file-icon.blob { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
 .file-icon.json { background: rgba(16, 185, 129, 0.15); color: #10b981; }
-.file-icon svg { width: 16px; height: 16px; }
+.file-icon svg { width: 14px; height: 14px; }
 
-/* El texto ocupa el espacio sobrante y se recorta (minmax(0, 1fr)) */
 .file-info { 
   display: flex; flex-direction: column; gap: 2px; 
   min-width: 0; overflow: hidden;
 }
 .file-name {
-  font-size: 12px; font-weight: 600; color: var(--text);
+  font-size: 11.5px; font-weight: 600; color: var(--text);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   width: 100%;
 }
-.file-desc { font-size: 10.5px; color: var(--muted); }
+.file-desc { font-size: 10px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
 
 .file-size {
-  font-family: 'Consolas', monospace; font-size: 11px;
+  font-family: 'Consolas', monospace; font-size: 10.5px;
   color: var(--text); font-weight: 600; 
   background: var(--card); padding: 2px 6px; border-radius: 4px;
   border: 1px solid var(--line); white-space: nowrap;
 }
 
 .btn-delete {
-  width: 28px; height: 28px; border-radius: 6px; border: none; background: transparent;
+  width: 26px; height: 26px; border-radius: 6px; border: none; background: transparent;
   color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center;
   transition: all 0.2s;
 }
 .btn-delete:hover { background: var(--danger); color: #fff; }
-.btn-delete svg { width: 14px; height: 14px; }
+.btn-delete svg { width: 13px; height: 13px; }
 
 /* ===== EMPTY STATE ===== */
 .empty-state {
@@ -199,7 +201,7 @@ body {
   height: 100%; color: var(--muted); gap: 12px; text-align: center; padding: 20px;
 }
 .empty-state svg { width: 40px; height: 40px; opacity: 0.3; }
-.empty-state p { margin: 0; font-size: 12px; max-width: 200px; line-height: 1.4; }
+.empty-state p { margin: 0; font-size: 11px; max-width: 180px; line-height: 1.4; }
 
 /* ===== MODAL ===== */
 .modal-overlay {
