@@ -4,6 +4,8 @@
   const mainHeaderEl = document.getElementById('main-header');
   const storageInfoEl = document.getElementById('storage-info');
   const btnRefresh = document.getElementById('btn-refresh');
+  const sidebarEl = document.getElementById('sidebar');
+  const btnToggleSidebar = document.getElementById('btn-toggle-sidebar');
 
   // Sincronización de tema
   if (window.parent !== window) window.parent.postMessage({ type: 'myhub:get-tema' }, '*');
@@ -14,7 +16,13 @@
     }
   });
 
-  // Utilidad para formatear bytes
+  // Toggle Sidebar (Igual que Cod-He)
+  btnToggleSidebar.onclick = () => {
+    sidebarEl.classList.toggle('collapsed');
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  // Formatear Bytes
   const formatBytes = (bytes) => {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -23,23 +31,19 @@
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
-  // Calcular el peso real de un registro
+  // Peso del archivo
   const getItemSize = (value) => {
     if (value instanceof Blob) return value.size;
     if (typeof value === 'string') return new Blob([value]).size;
     if (value instanceof ArrayBuffer) return value.byteLength;
-    try {
-      return new Blob([JSON.stringify(value)]).size;
-    } catch (e) {
-      return 0;
-    }
+    try { return new Blob([JSON.stringify(value)]).size; } catch (e) { return 0; }
   };
 
   // Modal de confirmación
   const showConfirm = (title, message) => {
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
-      overlay.className = 'modal-overlay';
+      overlay.className = 'modal-overlay active';
       overlay.innerHTML = `
         <div class="modal-box">
           <h3>${title}</h3>
@@ -51,18 +55,14 @@
         </div>
       `;
       document.body.appendChild(overlay);
-      void overlay.offsetWidth;
-      overlay.classList.add('active');
 
       const close = (res) => {
-        overlay.classList.remove('active');
-        setTimeout(() => overlay.remove(), 200);
+        overlay.remove();
         resolve(res);
       };
 
       overlay.querySelector('.cancel').onclick = () => close(false);
       overlay.querySelector('.confirm').onclick = () => close(true);
-      overlay.onclick = (e) => { if (e.target === overlay) close(false); };
     });
   };
 
@@ -70,12 +70,10 @@
     if (navigator.storage && navigator.storage.estimate) {
       const { usage, quota } = await navigator.storage.estimate();
       storageInfoEl.textContent = `Uso: ${formatBytes(usage)} / ${formatBytes(quota)}`;
-    } else {
-      storageInfoEl.textContent = 'Almacenamiento: N/D';
     }
   };
 
-  // Escanear y pintar las bases de datos
+  // Escanear DBs
   const loadDatabases = async () => {
     dbListEl.innerHTML = '';
     if (!indexedDB.databases) {
@@ -89,10 +87,9 @@
       const group = document.createElement('div');
       group.className = 'db-group';
       
-      // LÓGICA DE ADVERTENCIA: Si no contiene "hub" (ignorando mayúsculas/minúsculas)
+      // Lógica del icono de advertencia
       const dbNameLower = dbInfo.name.toLowerCase();
       const isLikelyMyHub = dbNameLower.includes('hub');
-      
       const warningIcon = !isLikelyMyHub 
         ? `<i data-lucide="alert-triangle" class="warn-icon" title="Se desconoce si esta BD le pertenece a MyHubHestudio, precaución."></i>` 
         : '';
@@ -130,7 +127,7 @@
     if (window.lucide) window.lucide.createIcons();
   };
 
-  // Cargar el contenido de una tabla
+  // Cargar contenido de tabla
   const loadStoreContent = async (dbName, storeName) => {
     mainHeaderEl.innerHTML = `<span class="path"><i data-lucide="database"></i> ${dbName} <i data-lucide="chevron-right"></i></span> ${storeName}`;
     fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="loader"></i><p>Cargando datos...</p></div>';
@@ -177,11 +174,11 @@
         return;
       }
 
-      // Cabecera con el total
+      // Cabecera de la lista
       const headerTotal = document.createElement('div');
       headerTotal.className = 'file-list-header';
       headerTotal.innerHTML = `
-        <span>${items.length} registros</span>
+        <span>${items.length} Registros</span>
         <span>Peso total: ${formatBytes(totalSize)}</span>
       `;
       fileListEl.appendChild(headerTotal);
@@ -242,7 +239,7 @@
   btnRefresh.onclick = () => {
     loadDatabases();
     updateStorageInfo();
-    mainHeaderEl.innerHTML = '<span class="path"><i data-lucide="chevron-right"></i> Selecciona una tabla</span>';
+    mainHeaderEl.innerHTML = '<span class="path"><i data-lucide="database"></i> Selecciona una tabla</span>';
     fileListEl.innerHTML = '<div class="empty-state"><i data-lucide="folder-open"></i><p>Selecciona una base de datos y una tabla para ver su contenido.</p></div>';
     if (window.lucide) window.lucide.createIcons();
   };
