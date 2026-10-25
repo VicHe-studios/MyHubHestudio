@@ -640,3 +640,278 @@
     setTimeout(init, 100);
   }
 })();
+
+
+// ============================================================================
+// ExtraFunc v10.0 — Fix: apps nuevas no desplazan carpetas + widgets/carpetas
+// ============================================================================
+(function() {
+  'use strict';
+
+  const refrescarIconos = () => { if (window.lucide) window.lucide.createIcons(); };
+
+  // Lee la cuadrícula de JsLobby de forma segura (con fallback)
+  const getGrid = () => {
+    try {
+      return {
+        MARGEN: (typeof MARGEN_ICONOS !== 'undefined') ? MARGEN_ICONOS : 16,
+        GX:     (typeof GRID_X !== 'undefined')       ? GRID_X       : 82,
+        GY:     (typeof GRID_Y !== 'undefined')       ? GRID_Y       : 108,
+        COLS:   (typeof GRID_COLS !== 'undefined')    ? GRID_COLS    : 16,
+        ROWS:   (typeof GRID_ROWS !== 'undefined')    ? GRID_ROWS    : 5
+      };
+    } catch (e) {
+      return { MARGEN: 16, GX: 82, GY: 108, COLS: 16, ROWS: 5 };
+    }
+  };
+
+  // Devuelve la primera celda libre evitando:
+  // - carpetas, apps con posición y celdas ocupadas por widgets
+  // - apps en carpetas no cuentan como celdas ocupadas
+  const findFreeCell = (excludeId) => {
+    const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
+    const ocupadas = new Set();
+
+    // Carpetas ocupan su celda
+    if (typeof carpetas !== 'undefined' && carpetas) {
+      Object.values(carpetas).forEach(f => {
+        if (!f || !f.pos) return;
+        const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+
+    // Apps con posición guardada
+    if (typeof posicionesIconos !== 'undefined' && posicionesIconos) {
+      Object.entries(posicionesIconos).forEach(([id, p]) => {
+        if (id === excludeId || !p) return;
+        const c = Math.round((parseFloat(p.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(p.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+
+    // Widgets ocupan varias celdas
+    if (typeof WIDGET_SIZES !== 'undefined' && window.widgetsActivos) {
+      window.widgetsActivos.forEach(w => {
+        if (!w || !w.pos) return;
+        const ws = WIDGET_SIZES[w.size] || WIDGET_SIZES['1x1'];
+        const c0 = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+        const r0 = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+        if (isNaN(c0) || isNaN(r0)) return;
+        for (let i = 0; i < ws.cols; i++) {
+          for (let j = 0; j < ws.rows; j++) {
+            ocupadas.add(`${c0 + i}-${r0 + j}`);
+          }
+        }
+      });
+    }
+
+    for (let col = 0; col < COLS; col++) {
+      for (let row = 0; row < ROWS; row++) {
+        if (!ocupadas.has(`${col}-${row}`)) {
+          return { left: (MARGEN + col * GX) + 'px', top: (MARGEN + row * GY) + 'px' };
+        }
+      }
+    }
+    return null;
+  };
+
+  // FIX 1: presignar posición antes de que renderIconos coloque la app
+  // Así nunca pisa la celda que ocupa una carpeta
+  const presignApp = (app) => {
+    if (!app || !app.id) return;
+    if (typeof posicionesIconos === 'undefined' || !posicionesIconos) return;
+    if (posicionesIconos[app.id]) return;
+    if (typeof appsEnCarpetas === 'function' && appsEnCarpetas().has(app.id)) return;
+    const pos = findFreeCell(app.id);
+    if (pos) posicionesIconos[app.id] = pos;
+  };
+
+  const presignAllMissing = () => {
+    if (typeof registro === 'undefined' || typeof posicionesIconos === 'undefined') return;
+    const inFolder = (typeof appsEnCarpetas === 'function') ? appsEnCarpetas() : new Set();
+    registro.forEach((app, id) => {
+      if (inFolder.has(id)) return;
+      if (posicionesIconos[id]) return;
+      const pos = findFreeCell(id);
+      if (pos) posicionesIconos[id] = pos;
+    });
+  };
+
+  const instalarWrappers = () => {
+    // Wrap registrarApp
+    if (typeof window.registrarApp === 'function' && !window.registrarApp.__mhPresign) {
+      const orig = window.registrarApp;
+      window.registrarApp = function (app) {
+        try { presignApp(app); }
+        catch (e) { console.error('[ExtraFunc v10] presignApp:', e); }
+        return orig.call(this, app);
+      };
+      window.registrarApp.__mhPresign = true;
+
+      if (window.MyHub && window.MyHub.registrarApp === orig) {
+        window.MyHub.registrarApp = window.registrarApp;
+      }
+    }
+
+    // Wrap renderIconos (defensa extra)
+    if (typeof window.renderIconos === 'function' && !window.renderIconos.__mhPresign) {
+      const orig = window.renderIconos;
+      window.renderIconos = function () {
+        try { presignAllMissing(); }
+        catch (e) { console.error('[ExtraFunc v10] presignAll:', e); }
+        return orig.call(this);
+      };
+      window.renderIconos.__mhPresign = true;
+    }
+  };
+
+  // FIX 2: findClosestFreeSpot con soporte para carpetas.
+  // Si el motor de widgets de v9 está cargado, reemplazamos su función interna
+  // inyectando una versión parcheada vía window.__mhFindClosestFreeSpot.
+  // Como el IIFE de v9 no expone la función, la reemplazamos exponiendo un
+  // wrapper global que el código de v9 consulta antes de usar la local.
+  // Alternativa limpia: reemplazamos el comportamiento del motor de widgets
+  // parcheando renderWidgets para que use nuestra versión tras cada carga.
+  const patchWidgetFreeSpot = () => {
+    // El motor v9 define su propio findClosestFreeSpot dentro del IIFE,
+    // así que no podemos acceder a él desde fuera. En su lugar, parcheamos
+    // el único punto donde el motor decide colocar un widget: exponemos
+    // una función global que v9 buscará primero si está definida.
+    // Para no modificar v9, interceptamos las operaciones que reubican
+    // widgets vía la API pública renderWidgets.
+    if (typeof window.renderWidgets !== 'function' || window.renderWidgets.__mhFreeSpotPatched) return;
+
+    const origRender = window.renderWidgets;
+    window.renderWidgets = function () {
+      const res = origRender.apply(this, arguments);
+      // Post-render: asegurar que ningún widget quede encima de una carpeta
+      try {
+        const { MARGEN, GX, GY } = getGrid();
+        if (typeof carpetas === 'undefined' || !carpetas) return res;
+        const capCells = new Set();
+        Object.values(carpetas).forEach(f => {
+          if (!f || !f.pos) return;
+          const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
+          const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
+          if (!isNaN(c) && !isNaN(r)) capCells.add(`${c}-${r}`);
+        });
+        if (capCells.size === 0) return res;
+
+        if (!Array.isArray(window.widgetsActivos)) return res;
+        let changed = false;
+        window.widgetsActivos.forEach(w => {
+          if (!w || !w.pos) return;
+          const ws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[w.size]) || { cols: 1, rows: 1 };
+          const c0 = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+          const r0 = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+          if (isNaN(c0) || isNaN(r0)) return;
+          let overlaps = false;
+          for (let i = 0; i < ws.cols && !overlaps; i++) {
+            for (let j = 0; j < ws.rows && !overlaps; j++) {
+              if (capCells.has(`${c0 + i}-${r0 + j}`)) overlaps = true;
+            }
+          }
+          if (overlaps) {
+            // Mover el widget a la primera zona libre
+            const spot = findWidgetFreeSpot(w.size, w);
+            if (spot) {
+              w.pos = spot;
+              changed = true;
+            }
+          }
+        });
+
+        if (changed) {
+          if (typeof kvSet === 'function') kvSet('widgets_activos', window.widgetsActivos);
+          // Re-render limpio una sola vez para aplicar cambios
+          if (!window.renderWidgets.__mhFreeSpotReapplied) {
+            window.renderWidgets.__mhFreeSpotReapplied = true;
+            try { origRender.apply(window, arguments); } catch (e) {}
+            setTimeout(() => { window.renderWidgets.__mhFreeSpotReapplied = false; }, 50);
+          }
+        }
+      } catch (e) {
+        console.error('[ExtraFunc v10] post-render widget fix:', e);
+      }
+      return res;
+    };
+    window.renderWidgets.__mhFreeSpotPatched = true;
+  };
+
+  // Busca un hueco para un widget considerando apps, carpetas y otros widgets
+  const findWidgetFreeSpot = (size, excludeWidget) => {
+    const { MARGEN, GX, GY, COLS, ROWS } = getGrid();
+    const ws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[size]) || { cols: 1, rows: 1 };
+    const ocupadas = new Set();
+
+    if (typeof carpetas !== 'undefined' && carpetas) {
+      Object.values(carpetas).forEach(f => {
+        if (!f || !f.pos) return;
+        const c = Math.round((parseFloat(f.pos.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(f.pos.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+    if (typeof posicionesIconos !== 'undefined' && posicionesIconos) {
+      Object.values(posicionesIconos).forEach(p => {
+        if (!p) return;
+        const c = Math.round((parseFloat(p.left) - MARGEN) / GX);
+        const r = Math.round((parseFloat(p.top) - MARGEN) / GY);
+        if (!isNaN(c) && !isNaN(r)) ocupadas.add(`${c}-${r}`);
+      });
+    }
+    if (window.widgetsActivos) {
+      window.widgetsActivos.forEach(w => {
+        if (w === excludeWidget || !w || !w.pos) return;
+        const wws = (typeof WIDGET_SIZES !== 'undefined' && WIDGET_SIZES[w.size]) || { cols: 1, rows: 1 };
+        const wc = Math.round((parseFloat(w.pos.left) - MARGEN) / GX);
+        const wr = Math.round((parseFloat(w.pos.top) - MARGEN) / GY);
+        if (isNaN(wc) || isNaN(wr)) return;
+        for (let i = 0; i < wws.cols; i++) {
+          for (let j = 0; j < wws.rows; j++) {
+            ocupadas.add(`${wc + i}-${wr + j}`);
+          }
+        }
+      });
+    }
+
+    for (let r = 0; r + ws.rows <= ROWS; r++) {
+      for (let c = 0; c + ws.cols <= COLS; c++) {
+        let libre = true;
+        for (let i = 0; i < ws.cols && libre; i++) {
+          for (let j = 0; j < ws.rows && libre; j++) {
+            if (ocupadas.has(`${c + i}-${r + j}`)) libre = false;
+          }
+        }
+        if (libre) {
+          return { left: (MARGEN + c * GX) + 'px', top: (MARGEN + r * GY) + 'px' };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Exponer helpers para quien quiera usarlos (opcional)
+  window.__mhFindFreeCell = findFreeCell;
+  window.__mhFindWidgetFreeSpot = findWidgetFreeSpot;
+
+  const init = () => {
+    if (!window.MyHub || typeof registro === 'undefined') {
+      setTimeout(init, 100);
+      return;
+    }
+    try { instalarWrappers(); } catch (e) { console.error('[ExtraFunc v10] instalarWrappers:', e); }
+    try { patchWidgetFreeSpot(); } catch (e) { console.error('[ExtraFunc v10] patchWidgetFreeSpot:', e); }
+    refrescarIconos();
+    console.log('%c[ExtraFunc v10.0] Fix apps nuevas + widgets/carpetas listo', 'color: #16a34a; font-weight: bold; background: #dcfce7; padding: 4px; border-radius: 4px;');
+  };
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => setTimeout(init, 100));
+  } else {
+    setTimeout(init, 100);
+  }
+})();
