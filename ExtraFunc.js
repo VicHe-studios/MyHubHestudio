@@ -621,12 +621,67 @@
     }
   };
 
+  // ==================== PARCHE BARRA DE TAREAS ====================
+  // Evita el parpadeo: renderTareas() (JsLobby) borraba y recreaba todos los botones.
+  // Esta versión solo quita los cerrados, crea los nuevos y cambia la clase si cambió.
+  const setupBarraFix = () => {
+    if (typeof renderTareas !== 'function' || typeof win === 'undefined') return;
+
+    const crearBotonTarea = (id, app) => {
+      const t = document.createElement('div');
+      t.dataset.id = id;
+      t.title = app.titulo;
+      t.innerHTML = `<i data-lucide="${app.icono || 'app-window'}"></i>`;
+      t.onclick = () => {
+        if (minimized.has(id)) restaurar(id);
+        else enfocar(id);
+      };
+      return t;
+    };
+
+    window.renderTareas = function () {
+      const c = document.getElementById('tasks');
+      if (!c) return;
+
+      const ids = Object.keys(win);
+      let hayNuevos = false;
+
+      // 1) Quitar botones de apps que ya no están abiertas
+      Array.from(c.children).forEach(el => {
+        if (!ids.includes(el.dataset.id)) el.remove();
+      });
+
+      // 2) Crear solo los botones nuevos y actualizar la clase de los existentes
+      ids.forEach(id => {
+        const app = registro.get(id);
+        if (!app) return;
+
+        let t = Array.from(c.children).find(el => el.dataset.id === id);
+        if (!t) {
+          t = crearBotonTarea(id, app);
+          c.appendChild(t);
+          hayNuevos = true;
+        }
+
+        const isMin = minimized.has(id);
+        const clase = 'task' +
+          (focused === id && !isMin ? ' active' : '') +
+          (isMin ? ' minimized' : '');
+        if (t.className !== clase) t.className = clase;
+      });
+
+      // 3) Convertir a iconos solo los nuevos
+      if (hayNuevos && window.lucide) lucide.createIcons();
+    };
+  };
+
   // ==================== INIT ====================
   const init = () => {
     if (!window.MyHub) { setTimeout(init, 100); return; }
 
     inyectarEstilos();
 
+    try { setupBarraFix(); }         catch (e) { console.error(e); }
     try { setupSnapPreview(); }       catch (e) { console.error(e); }
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
