@@ -675,6 +675,32 @@
     };
   };
 
+  // ==================== FIX PARPADEO AL PASAR EL MOUSE ====================
+  // Causa: elementos con backdrop-filter (barra, widgets) y elementos con hover
+  // que cambian transform/box-shadow (apps, carpetas, widgets). Al cambiar, el
+  // navegador repinta la capa completa y se nota como parpadeo.
+  // Solución: capas de GPU estables para esos elementos.
+  const setupFixHover = () => {
+    if (document.getElementById('fix-parpadeo-hover')) return;
+    const style = document.createElement('style');
+    style.id = 'fix-parpadeo-hover';
+    style.textContent = `
+      #taskbar,
+      .task,
+      .widget-container,
+      .widget-container iframe,
+      .widget-grip,
+      .icon .ico,
+      .folder-item,
+      .folder-item .ico {
+        will-change: transform;
+        backface-visibility: hidden;
+      }
+      #taskbar { isolation: isolate; }
+    `;
+    document.head.appendChild(style);
+  };
+
   // ==================== INIT ====================
   const init = () => {
     if (!window.MyHub) { setTimeout(init, 100); return; }
@@ -682,6 +708,7 @@
     inyectarEstilos();
 
     try { setupBarraFix(); }         catch (e) { console.error(e); }
+    try { setupFixHover(); }         catch (e) { console.error(e); }
     try { setupSnapPreview(); }       catch (e) { console.error(e); }
     try { setupRestoreOption(); }     catch (e) { console.error(e); }
     try { setupBackupIntercept(); }   catch (e) { console.error(e); }
