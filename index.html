@@ -63,12 +63,26 @@
   r.style.setProperty('--mh-texto', oscuro ? '#f4f4f6' : '#0b1220');
   r.style.setProperty('--mh-pista', oscuro ? '#ffffff1f' : '#00000014');
   r.style.setProperty('--mh-pct', oscuro ? '45%' : '28%');
-  // Red de seguridad: si algo falla, el escritorio nunca queda tapado
-  setTimeout(function () {
+
+  // Red de seguridad revisada: NO quita la pantalla de inicio a los 9 s fijos
+  // (eso competía con el arranque real de ExtraFunc y provocaba destellos).
+  // Solo actúa si la pantalla sigue visible tras 20 s, es decir, si el arranque se quedó colgado.
+  var inicio = Date.now();
+  var vigia = setInterval(function () {
     var o = document.getElementById('myhub-inicio');
-    if (o) { o.classList.add('salir'); setTimeout(function () { o.remove(); }, 800); }
-    if (document.body) document.body.classList.remove('cargando');
-  }, 9000);
+    if (!o) {
+      // ExtraFunc ya terminó la animación de inicio
+      clearInterval(vigia);
+      if (document.body) document.body.classList.remove('cargando');
+      return;
+    }
+    if (Date.now() - inicio > 20000) {
+      clearInterval(vigia);
+      o.classList.add('salir');
+      setTimeout(function () { o.remove(); }, 800);
+      if (document.body) document.body.classList.remove('cargando');
+    }
+  }, 200);
 })();
 </script>
 
